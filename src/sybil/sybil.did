@@ -1,0 +1,28 @@
+type Error = variant { Ok : null; Err : text };
+
+type CreateCustomPairRequest = record {
+    pair_id : text;
+    frequency : nat;
+    uri : text;
+    msg : text;
+    sig : text;
+};
+
+type RateDataLight = record {
+    symbol : text;
+    rate : nat64;
+    timestamp : nat64;
+    decimals : nat32;
+};
+
+type CustomPairData = record {
+    data : RateDataLight;
+    signature : text;
+};
+
+type GetAssetDataWithProofResponse = variant { Ok : CustomPairData; Err : text};
+
+service : {
+    create_custom_pair : (req : CreateCustomPairRequest) -> (Error);
+    get_asset_data_with_proof : (pair_id : text) -> (GetAssetDataWithProofResponse);
+}

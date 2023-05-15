@@ -1,0 +1,17 @@
+{
+  "canisters": {
+    "sybil": {
+      "candid": "src/sybil/sybil.did",
+      "package": "sybil",
+      "type": "rust"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
