@@ -25,4 +25,5 @@ type GetAssetDataWithProofResponse = variant { Ok : CustomPairData; Err : text};
 service : {
     create_custom_pair : (req : CreateCustomPairRequest) -> (Error);
     get_asset_data_with_proof : (pair_id : text) -> (GetAssetDataWithProofResponse);
+    is_pair_exists : (pair_id : text) -> (bool);
 }
