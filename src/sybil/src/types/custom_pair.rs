@@ -1,17 +1,13 @@
-use std::time::Duration;
-
 use ic_cdk::export::{
     candid::CandidType,
     serde::{Deserialize, Serialize},
 };
-use ic_cdk_timers::set_timer_interval;
-use ic_web3::types::H160;
 
 use anyhow::{anyhow, Result};
 use url::Url;
 
-use super::rate_data::CustomPairData;
-use crate::utils::{get_rate_with_cache, is_pair_exist, update_rate::update_rate};
+use super::rate_data::RateDataLight;
+use crate::utils::{get_rate::get_custom_rate_with_cache, is_valid_pair_id};
 
 const MIN_FREQUENCY: u64 = 60;
 const MAX_FREQUENCY: u64 = 24 * 60 * 60 * 365;
@@ -19,6 +15,7 @@ const MAX_FREQUENCY: u64 = 24 * 60 * 60 * 365;
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub struct Endpoint {
     pub uri: String,
+    pub resolver: String,
     pub expected_bytes: u64,
 }
 
@@ -27,8 +24,8 @@ pub struct CustomPair {
     pub id: String,
     pub frequency: u64,
     pub source: Endpoint,
-    pub data: CustomPairData,
-    pub timer_id: String,
+    pub data: RateDataLight,
+    pub last_update: u64,
 }
 
 impl CustomPair {
@@ -40,19 +37,12 @@ impl CustomPair {
             .ok_or(anyhow!("Source is required"))?;
         let data = builder.data.clone().ok_or(anyhow!("Data is required"))?;
 
-        let pub_key = builder.pub_key.ok_or(anyhow!("Public key is required"))?;
-        let pair_id = builder.id.clone();
-        let timer_source = source.clone();
-        let timer_id = set_timer_interval(Duration::from_secs(frequency), move || {
-            update_rate(timer_source.clone(), pair_id.clone(), pub_key);
-        });
-
         Ok(Self {
             id: builder.id.clone(),
             frequency,
             source,
             data,
-            timer_id: serde_json::to_string(&timer_id)?,
+            last_update: ic_cdk::api::time(),
         })
     }
 }
@@ -61,14 +51,13 @@ pub struct CustomPairBuilder {
     id: String,
     frequency: Option<u64>,
     source: Option<Endpoint>,
-    data: Option<CustomPairData>,
-    pub_key: Option<H160>,
+    data: Option<RateDataLight>,
 }
 
 impl CustomPairBuilder {
     pub fn new(pair_id: &str) -> Result<Self> {
-        if is_pair_exist(pair_id) {
-            return Err(anyhow::anyhow!("Pair already exists"));
+        if !is_valid_pair_id(pair_id) {
+            return Err(anyhow!("Pair ID is invalid"));
         }
 
         Ok(Self {
@@ -76,7 +65,6 @@ impl CustomPairBuilder {
             frequency: None,
             source: None,
             data: None,
-            pub_key: None,
         })
     }
 
@@ -94,19 +82,17 @@ impl CustomPairBuilder {
         Ok(self)
     }
 
-    pub async fn source(mut self, uri: &str, pub_key: &H160) -> Result<Self> {
+    pub async fn source(mut self, uri: &str, resolver: &str) -> Result<Self> {
         let url = Url::parse(uri)?;
 
-        let (rate, expected_bytes) = get_rate_with_cache(&url).await?;
-
-        rate.verify(pub_key)?;
+        let (rate, expected_bytes) = get_custom_rate_with_cache(&url, resolver, &self.id).await?;
 
         self.source = Some(Endpoint {
             uri: uri.to_string(),
+            resolver: resolver.into(),
             expected_bytes,
         });
         self.data = Some(rate);
-        self.pub_key = Some(*pub_key);
 
         Ok(self)
     }

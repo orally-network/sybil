@@ -8,7 +8,7 @@ use ic_cdk::{
 
 use anyhow::Result;
 
-const EXPIRATION_TIME: u64 = 60 * 60; // 1 hour
+use crate::STATE;
 
 #[derive(Debug, Clone, Default)]
 pub struct Cache {
@@ -23,8 +23,10 @@ struct CacheEntry {
 
 impl Cache {
     pub fn add_entry(&mut self, key: String, data: Vec<u8>) {
+        let expiration_time = STATE.with(|state| state.borrow().cache_expiration);
+
         let entry = CacheEntry {
-            expired_at: time() + EXPIRATION_TIME,
+            expired_at: time() + expiration_time,
             data,
         };
 

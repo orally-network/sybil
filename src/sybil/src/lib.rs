@@ -12,10 +12,7 @@ use ic_cdk::{
 use crate::types::{cache::Cache, state::State};
 
 thread_local! {
-    pub static STATE: RefCell<State> = RefCell::new(State{
-        siwe_signer_canister: "bkyz2-fmaaa-aaaaa-qaaaq-cai".into(),
-        ..Default::default()
-    });
+    pub static STATE: RefCell<State> = RefCell::default();
     pub static CACHE: RefCell<Cache> = RefCell::default();
 }
 

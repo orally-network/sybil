@@ -3,12 +3,14 @@ use ic_cdk::export::{
     serde::{Deserialize, Serialize},
 };
 
-use super::custom_pair::CustomPair;
+use super::{custom_pair::CustomPair, rate_data::RateDataLight};
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub struct Pair {
     pub id: String,
     pub frequency: u64,
+    pub last_update: u64,
+    pub data: RateDataLight,
 }
 
 #[derive(Clone, Default)]
@@ -18,4 +20,6 @@ pub struct State {
     pub siwe_signer_canister: String,
     pub pairs: Vec<Pair>,
     pub custom_pairs: Vec<CustomPair>,
+    pub key_name: String,
+    pub cache_expiration: u64,
 }
