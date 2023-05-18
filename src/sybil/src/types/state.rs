@@ -13,7 +13,7 @@ pub struct Pair {
     pub data: RateDataLight,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, CandidType, Serialize, Deserialize)]
 pub struct State {
     pub exchange_rate_canister: String,
     pub proxy_ecdsa_canister: String,

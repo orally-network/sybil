@@ -3,19 +3,22 @@ use std::future::Future;
 
 use ic_cdk::{
     api::time,
-    export::serde::{Deserialize, Serialize},
+    export::{
+        candid::CandidType,
+        serde::{Deserialize, Serialize},
+    },
 };
 
 use anyhow::Result;
 
 use crate::STATE;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
 pub struct Cache {
     records: HashMap<String, CacheEntry>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
 struct CacheEntry {
     expired_at: u64,
     data: Vec<u8>,

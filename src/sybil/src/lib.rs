@@ -1,4 +1,5 @@
 mod methods;
+mod migrations;
 mod types;
 mod utils;
 

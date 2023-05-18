@@ -140,6 +140,7 @@ pub async fn get_custom_rate_with_cache(
     let rate_data = RateDataLight {
         symbol: pair_id.into(),
         rate,
+        decimals: 0,
         timestamp,
     };
 
@@ -199,6 +200,7 @@ pub async fn get_rate_with_cache(pair_id: &str) -> Result<RateDataLight> {
     let rate = RateDataLight {
         symbol: pair_id.into(),
         rate: exchange_rate.rate,
+        decimals: exchange_rate.metadata.decimals as u64,
         timestamp: ic_cdk::api::time(),
     };
 

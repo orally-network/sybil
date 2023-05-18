@@ -8,9 +8,7 @@ use ic_cdk::export::{
 use anyhow::Result;
 
 use crate::{
-    types::{
-        custom_pair::{CustomPair, CustomPairBuilder},
-    },
+    types::custom_pair::{CustomPair, CustomPairBuilder},
     utils::{nat_to_u64, rec_eth_addr},
     STATE,
 };

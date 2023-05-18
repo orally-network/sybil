@@ -9,6 +9,7 @@ type Endpoint = record {
 type RateDataLight = record {
     symbol : text;
     rate : nat64;
+    decimals : nat64;
     timestamp : nat64;
 };
 

@@ -8,11 +8,7 @@ use ic_cdk::{
         serde::{Deserialize, Serialize},
     },
 };
-use ic_web3::{
-    ethabi::Token,
-    signing::{hash_message, keccak256},
-    types::H160,
-};
+use ic_web3::{ethabi::Token, signing::keccak256, types::H160};
 
 use anyhow::{anyhow, Result};
 
@@ -28,6 +24,7 @@ use crate::{
 pub struct RateDataLight {
     pub symbol: String,
     pub rate: u64,
+    pub decimals: u64,
     pub timestamp: u64,
 }
 
@@ -36,6 +33,7 @@ impl RateDataLight {
         let raw_data = vec![
             Token::String(self.symbol.clone()),
             Token::Uint(self.rate.into()),
+            Token::Uint(self.decimals.into()),
             Token::Uint(self.timestamp.into()),
         ];
 
@@ -43,7 +41,7 @@ impl RateDataLight {
     }
 
     pub async fn sign(&self) -> Result<String> {
-        let sign_data = hash_message(keccak256(&self.encode_packed())).0.to_vec();
+        let sign_data = keccak256(&self.encode_packed()).to_vec();
 
         let key_name = STATE.with(|state| state.borrow().key_name.clone());
 
