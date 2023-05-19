@@ -25,4 +25,4 @@ Issued At: 2023-05-04T18:39:24Z"; sig="fa7b336d271b7ed539b6db3034d57be294ef889b4
 
 # to get a custom pair data
 dfx canister call sybil get_asset_data_with_proof '("QUI/USDT")'
-```
+``` 

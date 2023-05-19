@@ -1594,6 +1594,7 @@ dependencies = [
  "ic-web3",
  "jsonptr",
  "serde",
+ "serde_bytes",
  "serde_json",
  "slotmap",
  "thiserror",
