@@ -2,6 +2,7 @@ pub mod encoding;
 pub mod exchange_rate;
 pub mod get_rate;
 pub mod signature;
+pub mod treasurer;
 
 use std::str::FromStr;
 

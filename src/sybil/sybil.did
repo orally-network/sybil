@@ -66,4 +66,8 @@ service : {
     get_expiration_time : () -> (nat);
     set_key_name : (key_name: text) -> ();
     get_key_name : () -> (text);
+    set_treasurer_canister : (new_principal : text) -> ();
+    get_treasurer_canister : () -> (text);
+    set_cost_per_execution : (cost : nat) -> ();
+    get_cost_per_execution : () -> (nat);
 }

@@ -61,3 +61,29 @@ pub fn set_key_name(key_name: String) {
 pub fn get_key_name() -> String {
     STATE.with(|state| state.borrow().key_name.clone())
 }
+
+#[query]
+pub fn get_treasurer_canister() -> String {
+    STATE.with(|state| state.borrow().treasurer_canister.clone())
+}
+
+#[update]
+pub fn set_treasurer_canister(canister: String) {
+    STATE.with(|state| state.borrow_mut().treasurer_canister = canister)
+}
+
+#[update]
+pub fn set_cost_per_execution(cost: Nat) {
+    STATE.with(|state| {
+        state.borrow_mut().cost_per_execution = *cost
+            .0
+            .to_u64_digits()
+            .last()
+            .expect("cost should have at least one number")
+    })
+}
+
+#[query]
+pub fn get_cost_per_execution() -> Nat {
+    STATE.with(|state| state.borrow().cost_per_execution.into())
+}

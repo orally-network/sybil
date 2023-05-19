@@ -1,3 +1,4 @@
+use candid::Nat;
 use ic_cdk::export::{
     candid::CandidType,
     serde::{Deserialize, Serialize},
@@ -7,7 +8,14 @@ use anyhow::{anyhow, Result};
 use url::Url;
 
 use super::rate_data::RateDataLight;
-use crate::utils::{get_rate::get_custom_rate_with_cache, is_valid_pair_id};
+use crate::{
+    utils::{
+        get_rate::get_custom_rate_with_cache,
+        is_valid_pair_id,
+        treasurer::{deposit, DepositRequest, DepositType},
+    },
+    STATE,
+};
 
 const MIN_FREQUENCY: u64 = 60;
 const MAX_FREQUENCY: u64 = 24 * 60 * 60 * 365;
@@ -25,6 +33,7 @@ pub struct CustomPair {
     pub frequency: u64,
     pub source: Endpoint,
     pub data: RateDataLight,
+    pub available_executions: u64,
     pub last_update: u64,
 }
 
@@ -36,6 +45,9 @@ impl CustomPair {
             .clone()
             .ok_or(anyhow!("Source is required"))?;
         let data = builder.data.clone().ok_or(anyhow!("Data is required"))?;
+        let available_executions = builder
+            .available_executions
+            .ok_or(anyhow!("Avaible executions is required"))?;
 
         Ok(Self {
             id: builder.id.clone(),
@@ -43,6 +55,7 @@ impl CustomPair {
             source,
             data,
             last_update: ic_cdk::api::time(),
+            available_executions,
         })
     }
 }
@@ -52,6 +65,7 @@ pub struct CustomPairBuilder {
     frequency: Option<u64>,
     source: Option<Endpoint>,
     data: Option<RateDataLight>,
+    available_executions: Option<u64>,
 }
 
 impl CustomPairBuilder {
@@ -65,6 +79,7 @@ impl CustomPairBuilder {
             frequency: None,
             source: None,
             data: None,
+            available_executions: None,
         })
     }
 
@@ -93,6 +108,32 @@ impl CustomPairBuilder {
             expected_bytes,
         });
         self.data = Some(rate);
+
+        Ok(self)
+    }
+
+    pub async fn estimate_cost(mut self, taxpayer: String, amount: Nat) -> Result<Self> {
+        let cost_per_execution = STATE.with(|state| state.borrow().cost_per_execution);
+
+        let available_executions = amount / cost_per_execution;
+
+        let amount = available_executions.clone() * cost_per_execution;
+
+        let req = DepositRequest {
+            amount,
+            taxpayer,
+            deposit_type: DepositType::Erc20,
+        };
+
+        deposit(req).await.map_err(|e| anyhow!(e))?;
+
+        let available_executions = *available_executions
+            .0
+            .to_u64_digits()
+            .last()
+            .expect("should contain u64");
+
+        self.available_executions = Some(available_executions);
 
         Ok(self)
     }

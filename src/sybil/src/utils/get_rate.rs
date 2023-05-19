@@ -148,6 +148,17 @@ pub async fn get_custom_rate_with_cache(
 
     CACHE.with(|cache| cache.borrow_mut().add_entry(pair_id.into(), data_for_cache));
 
+    STATE.with(|state| {
+        let mut state = state.borrow_mut();
+        let mut pair = state
+            .custom_pairs
+            .iter_mut()
+            .find(|p| p.id == pair_id)
+            .expect("pair should exist");
+
+        pair.available_executions -= 1;
+    });
+
     Ok((rate_data, response.body.len() as u64))
 }
 

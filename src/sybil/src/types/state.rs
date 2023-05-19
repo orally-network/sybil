@@ -22,4 +22,6 @@ pub struct State {
     pub custom_pairs: Vec<CustomPair>,
     pub key_name: String,
     pub cache_expiration: u64,
+    pub treasurer_canister: String,
+    pub cost_per_execution: u64,
 }

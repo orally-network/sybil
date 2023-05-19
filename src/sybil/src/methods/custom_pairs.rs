@@ -19,6 +19,7 @@ pub struct CreateCustomPairRequest {
     pub frequency: Nat,
     pub uri: String,
     pub resolver: String,
+    pub amount: Nat,
     pub msg: String,
     pub sig: String,
 }
@@ -29,11 +30,13 @@ pub async fn create_custom_pair(req: CreateCustomPairRequest) -> Result<(), Stri
 }
 
 pub async fn _create_custom_pair(req: CreateCustomPairRequest) -> Result<()> {
-    let _ = rec_eth_addr(&req.msg, &req.sig).await?;
+    let addr = rec_eth_addr(&req.msg, &req.sig).await?;
 
     let custom_pair = CustomPairBuilder::new(&req.pair_id)?
         .frequency(nat_to_u64(req.frequency))?
         .source(&req.uri, &req.resolver)
+        .await?
+        .estimate_cost(hex::encode(addr.as_bytes()), req.amount)
         .await?
         .build()?;
 

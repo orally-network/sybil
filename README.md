@@ -13,7 +13,7 @@ dfx canister call sybil set_key_name '("dfx_test_key")'
 ## Usage
 ```sh 
 # to create a custom pair
-dfx canister call sybil create_custom_pair '(record {pair_id="QUI/USDT"; frequency=60:nat; uri="https://aws.qui0scit.dev/"; resolver="/rate/"; msg="service.org wants you to sign in with your Ethereum account:
+dfx canister call sybil create_custom_pair '(record {pair_id="QUI/USDT"; frequency=60:nat; uri="https://aws.qui0scit.dev/"; resolver="/rate"; amount=1:nat; msg="service.org wants you to sign in with your Ethereum account:
 0xE86C4A45C1Da21f8838a1ea26Fc852BD66489ce9
 
 
