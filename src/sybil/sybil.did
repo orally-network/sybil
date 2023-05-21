@@ -45,6 +45,7 @@ type Pair = record {
 type GetAssetDataWithProofResponse = variant { Ok : CustomPairData; Err : text};
 type GetAssetDataResponse = variant { Ok : RateDataLight; Err: text};
 type AddPairResponse = variant { Ok : Pair; Err: text };
+type TextResponse = variant { Ok : Text; Err: text};
 
 service : {
     create_custom_pair : (req : CreateCustomPairRequest) -> (Error);
@@ -70,4 +71,5 @@ service : {
     get_treasurer_canister : () -> (text);
     set_cost_per_execution : (cost : nat) -> ();
     get_cost_per_execution : () -> (nat);
+    eth_address : () -> (TextResponse);
 }
