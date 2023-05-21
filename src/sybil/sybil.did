@@ -26,6 +26,7 @@ type CreateCustomPairRequest = record {
     frequency : nat;
     uri : text;
     resolver : text;
+    amount : nat;
     msg : text;
     sig : text;
 };

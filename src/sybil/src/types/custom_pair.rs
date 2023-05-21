@@ -100,7 +100,7 @@ impl CustomPairBuilder {
     pub async fn source(mut self, uri: &str, resolver: &str) -> Result<Self> {
         let url = Url::parse(uri)?;
 
-        let (rate, expected_bytes) = get_custom_rate_with_cache(&url, resolver, &self.id).await?;
+        let (rate, expected_bytes) = get_custom_rate_with_cache(&url, resolver, &self.id, true).await?;
 
         self.source = Some(Endpoint {
             uri: uri.to_string(),

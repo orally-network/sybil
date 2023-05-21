@@ -47,7 +47,7 @@ async fn get_rate_from_custom_pair(pair_metadata: PairMetadata) -> Result<RateDa
 
     let url = Url::parse(&source.uri)?;
     let (rate, _) =
-        get_custom_rate_with_cache(&url, &source.resolver, &pair_metadata.pair_id).await?;
+        get_custom_rate_with_cache(&url, &source.resolver, &pair_metadata.pair_id, false).await?;
 
     STATE.with(|state| {
         let mut state = state.borrow_mut();
@@ -105,6 +105,7 @@ pub async fn get_custom_rate_with_cache(
     url: &Url,
     resolver: &str,
     pair_id: &str,
+    init: bool,
 ) -> Result<(RateDataLight, u64)> {
     let data = CACHE.with(|cache| cache.borrow_mut().get_entry(pair_id));
 
@@ -147,17 +148,19 @@ pub async fn get_custom_rate_with_cache(
     let data_for_cache = serde_json::to_vec(&rate_data)?;
 
     CACHE.with(|cache| cache.borrow_mut().add_entry(pair_id.into(), data_for_cache));
+    
+    if !init {
+        STATE.with(|state| {
+            let mut state = state.borrow_mut();
+            let mut pair = state
+                .custom_pairs
+                .iter_mut()
+                .find(|p| p.id == pair_id)
+                .expect("pair should exist");
 
-    STATE.with(|state| {
-        let mut state = state.borrow_mut();
-        let mut pair = state
-            .custom_pairs
-            .iter_mut()
-            .find(|p| p.id == pair_id)
-            .expect("pair should exist");
-
-        pair.available_executions -= 1;
-    });
+            pair.available_executions -= 1;
+        });
+    }
 
     Ok((rate_data, response.body.len() as u64))
 }
