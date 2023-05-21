@@ -45,7 +45,7 @@ type Pair = record {
 type GetAssetDataWithProofResponse = variant { Ok : CustomPairData; Err : text};
 type GetAssetDataResponse = variant { Ok : RateDataLight; Err: text};
 type AddPairResponse = variant { Ok : Pair; Err: text };
-type TextResponse = variant { Ok : Text; Err: text};
+type TextResponse = variant { Ok : text; Err: text};
 
 service : {
     create_custom_pair : (req : CreateCustomPairRequest) -> (Error);
