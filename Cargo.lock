@@ -868,6 +868,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonptr"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "474d3bae2ac7cf3f36b8a5d144082d73c0ea085045962895a6bddd6b5c3eb13d"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "jsonrpc-core"
 version = "18.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1582,9 +1592,12 @@ dependencies = [
  "ic-cdk 0.7.4",
  "ic-cdk-timers",
  "ic-web3",
+ "jsonptr",
  "serde",
+ "serde_bytes",
  "serde_json",
  "slotmap",
+ "thiserror",
  "url",
 ]
 

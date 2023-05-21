@@ -1,26 +1,31 @@
 use std::str::FromStr;
 
-use ic_cdk::export::{
-    candid::CandidType,
-    serde::{Deserialize, Serialize},
+use ic_cdk::api::management_canister::ecdsa::sign_with_ecdsa;
+use ic_cdk::{
+    api::management_canister::ecdsa::{EcdsaCurve, EcdsaKeyId, SignWithEcdsaArgument},
+    export::{
+        candid::CandidType,
+        serde::{Deserialize, Serialize},
+    },
 };
-use ic_web3::{
-    ethabi::Token,
-    ic::recover_address,
-    signing::{hash_message, keccak256},
-    types::H160,
+use ic_web3::{ethabi::Token, signing::keccak256, types::H160};
+
+use anyhow::{anyhow, Result};
+
+use crate::{
+    utils::{
+        encoding::encode_packed,
+        signature::{eth_address, get_eth_v},
+    },
+    STATE,
 };
-
-use anyhow::{Context, Result};
-
-use crate::utils::encoding::encode_packed;
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub struct RateDataLight {
     pub symbol: String,
     pub rate: u64,
+    pub decimals: u64,
     pub timestamp: u64,
-    pub decimals: u32,
 }
 
 impl RateDataLight {
@@ -28,11 +33,40 @@ impl RateDataLight {
         let raw_data = vec![
             Token::String(self.symbol.clone()),
             Token::Uint(self.rate.into()),
-            Token::Uint(self.timestamp.into()),
             Token::Uint(self.decimals.into()),
+            Token::Uint(self.timestamp.into()),
         ];
 
-        encode_packed(&raw_data).expect("Tokens is always valid")
+        encode_packed(&raw_data).expect("tokens should be valid")
+    }
+
+    pub async fn sign(&self) -> Result<String> {
+        let sign_data = keccak256(&self.encode_packed()).to_vec();
+
+        let key_name = STATE.with(|state| state.borrow().key_name.clone());
+
+        let call_args = SignWithEcdsaArgument {
+            message_hash: sign_data.clone(),
+            derivation_path: vec![ic_cdk::id().as_slice().to_vec()],
+            key_id: EcdsaKeyId {
+                curve: EcdsaCurve::Secp256k1,
+                name: key_name,
+            },
+        };
+
+        let (signature,) = sign_with_ecdsa(call_args)
+            .await
+            .map_err(|(code, msg)| anyhow!("{:?}: {}", code, msg))?;
+
+        let mut signature = signature.signature;
+
+        let pub_key = eth_address().await.map_err(|msg| anyhow!(msg))?;
+
+        let v = get_eth_v(&signature, &sign_data, &H160::from_str(&pub_key)?)?;
+
+        signature.push(v);
+
+        Ok(hex::encode(signature))
     }
 }
 
@@ -43,21 +77,10 @@ pub struct CustomPairData {
 }
 
 impl CustomPairData {
-    pub fn verify(&self, pub_key: &H160) -> Result<()> {
-        let sign_data = hash_message(keccak256(&self.data.encode_packed()));
-
-        let signature = hex::decode(&self.signature)?;
-
-        let (signature, rec_id) = signature.split_at(64);
-
-        let rec_id = *rec_id.first().context("Invalid signature")?;
-
-        let signer = recover_address(sign_data.as_bytes().to_vec(), signature.to_vec(), rec_id);
-
-        if *pub_key != H160::from_str(&signer)? {
-            return Err(anyhow::anyhow!("Invalid signature"));
-        }
-
-        Ok(())
+    pub async fn from_rate(rate: RateDataLight) -> Result<Self> {
+        Ok(Self {
+            data: rate.clone(),
+            signature: rate.sign().await?,
+        })
     }
 }

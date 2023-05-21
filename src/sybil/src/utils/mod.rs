@@ -1,20 +1,23 @@
 pub mod encoding;
-pub mod update_rate;
+pub mod exchange_rate;
+pub mod get_rate;
+pub mod signature;
+pub mod treasurer;
 
 use std::str::FromStr;
 
-use ic_cdk::{
-    api::management_canister::http_request::{
-        http_request, CanisterHttpRequestArgument, HttpMethod,
-    },
-    export::{candid::Nat, Principal},
-};
+use ic_cdk::export::{candid::Nat, Principal};
 use ic_web3::types::H160;
 
 use anyhow::{anyhow, Context, Result};
-use url::Url;
 
-use crate::{types::rate_data::CustomPairData, CACHE, STATE};
+use crate::{types::PairType, STATE};
+
+pub struct PairMetadata {
+    pub pair_id: String,
+    pub pair_type: PairType,
+    pub index: usize,
+}
 
 pub fn nat_to_u64(nat: Nat) -> u64 {
     *nat.0
@@ -23,14 +26,46 @@ pub fn nat_to_u64(nat: Nat) -> u64 {
         .expect("should be at least one digit")
 }
 
-pub fn is_pair_exist(pair_id: &str) -> bool {
+pub fn is_pair_exist(pair_id: &str) -> (bool, Option<PairMetadata>) {
     STATE.with(|state| {
-        let pairs = &state.borrow().pairs;
-        let custom_pairs = &state.borrow().custom_pairs;
+        let state = state.borrow();
 
-        pairs.iter().any(|pair| pair.id == pair_id)
-            || custom_pairs.iter().any(|pair| pair.id == pair_id)
+        let index = state.pairs.iter().position(|p| p.id == pair_id);
+        if let Some(index) = index {
+            return (
+                true,
+                Some(PairMetadata {
+                    pair_id: pair_id.into(),
+                    pair_type: PairType::Pair,
+                    index,
+                }),
+            );
+        }
+
+        let index = state.custom_pairs.iter().position(|p| p.id == pair_id);
+        if let Some(index) = index {
+            return (
+                true,
+                Some(PairMetadata {
+                    pair_id: pair_id.into(),
+                    pair_type: PairType::CustomPair,
+                    index,
+                }),
+            );
+        }
+
+        (false, None)
     })
+}
+
+pub fn is_valid_pair_id(pair_id: &str) -> bool {
+    let artifact: Vec<&str> = pair_id.split_terminator('/').collect();
+
+    if artifact.len() != 2 {
+        return false;
+    }
+
+    true
 }
 
 pub async fn rec_eth_addr(msg: &str, sig: &str) -> Result<H160> {
@@ -46,35 +81,4 @@ pub async fn rec_eth_addr(msg: &str, sig: &str) -> Result<H160> {
         .map_err(|(code, msg)| anyhow!("{:?}: {}", code, msg))?;
 
     H160::from_str(&signer).context("failed to parse signer address")
-}
-
-pub async fn get_rate_with_cache(url: &Url) -> Result<(CustomPairData, u64)> {
-    let response = CACHE.with(|cache| cache.borrow_mut().get_entry(url.as_ref()));
-
-    if let Some(response) = response {
-        return Ok((serde_json::from_slice(&response)?, response.len() as u64));
-    }
-
-    let request_args = CanisterHttpRequestArgument {
-        url: url.to_string(),
-        method: HttpMethod::GET,
-        max_response_bytes: None,
-        headers: vec![],
-        body: None,
-        transform: None,
-    };
-
-    let (response,) = http_request(request_args)
-        .await
-        .map_err(|(code, msg)| anyhow!("Failed to make a request: {}, {:?}", msg, code))?;
-
-    let rate: CustomPairData = serde_json::from_slice(&response.body)?;
-
-    CACHE.with(|cache| {
-        cache
-            .borrow_mut()
-            .add_entry(url.to_string(), response.body.clone())
-    });
-
-    Ok((rate, response.body.len() as u64))
 }

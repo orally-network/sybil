@@ -3,19 +3,22 @@ use std::future::Future;
 
 use ic_cdk::{
     api::time,
-    export::serde::{Deserialize, Serialize},
+    export::{
+        candid::CandidType,
+        serde::{Deserialize, Serialize},
+    },
 };
 
 use anyhow::Result;
 
-const EXPIRATION_TIME: u64 = 60 * 60; // 1 hour
+use crate::STATE;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
 pub struct Cache {
     records: HashMap<String, CacheEntry>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
 struct CacheEntry {
     expired_at: u64,
     data: Vec<u8>,
@@ -23,8 +26,10 @@ struct CacheEntry {
 
 impl Cache {
     pub fn add_entry(&mut self, key: String, data: Vec<u8>) {
+        let expiration_time = STATE.with(|state| state.borrow().cache_expiration);
+
         let entry = CacheEntry {
-            expired_at: time() + EXPIRATION_TIME,
+            expired_at: time() + expiration_time,
             data,
         };
 
