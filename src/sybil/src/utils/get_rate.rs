@@ -36,6 +36,10 @@ async fn get_rate_from_custom_pair(pair_metadata: PairMetadata) -> Result<RateDa
             .get(pair_metadata.index)
             .expect("custom pair index should exists");
 
+        if custom_pair.available_executions == 0 {
+            return (Some(custom_pair.data.clone()), custom_pair.source.clone());
+        }
+
         if (custom_pair.last_update + custom_pair.frequency) > Duration::from_nanos(ic_cdk::api::time()).as_secs() {
             return (None, custom_pair.source.clone());
         };
