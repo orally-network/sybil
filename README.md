@@ -4,12 +4,12 @@
 ```sh
 dfx deploy exchange_rate_canister
 dfx deploy sybil
-dfx canister call sybil set_expiration_time '(3600:nat)'
-dfx canister call sybil set_siwe_signer_canister '("bkyz2-fmaaa-aaaaa-qaaaq-cai")'
-dfx canister call sybil set_exchange_rate_canister '("bw4dl-smaaa-aaaaa-qaacq-cai")'
-dfx canister call sybil set_treasurer_canister '("be2us-64aaa-aaaaa-qaabq-cai")'
-dfx canister call sybil set_key_name '("dfx_test_key")'
-dfx canister call sybil set_cost_per_execution '(1)'
+dfx canister call sybil set_expiration_time '(3600:nat)' --async
+dfx canister call sybil set_siwe_signer_canister '("bkyz2-fmaaa-aaaaa-qaaaq-cai")' --async
+dfx canister call sybil set_exchange_rate_canister '("bw4dl-smaaa-aaaaa-qaacq-cai")' --async
+dfx canister call sybil set_treasurer_canister '("be2us-64aaa-aaaaa-qaabq-cai")' --async
+dfx canister call sybil set_key_name '("dfx_test_key")' --async
+dfx canister call sybil set_cost_per_execution '(1)' --async
 ```
 
 ## Usage

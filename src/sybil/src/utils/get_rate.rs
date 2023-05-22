@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use super::{
     exchange_rate,
     exchange_rate::{Asset, AssetClass, GetExchangeRateRequest, GetExchangeRateResult},
@@ -34,7 +36,7 @@ async fn get_rate_from_custom_pair(pair_metadata: PairMetadata) -> Result<RateDa
             .get(pair_metadata.index)
             .expect("custom pair index should exists");
 
-        if (custom_pair.last_update + custom_pair.frequency) > ic_cdk::api::time() {
+        if (custom_pair.last_update + custom_pair.frequency) > Duration::from_nanos(ic_cdk::api::time()).as_secs() {
             return (None, custom_pair.source.clone());
         };
 
@@ -58,7 +60,7 @@ async fn get_rate_from_custom_pair(pair_metadata: PairMetadata) -> Result<RateDa
             .expect("custom pair index should exists");
 
         custom_pair.data = rate.clone();
-        custom_pair.last_update = ic_cdk::api::time();
+        custom_pair.last_update = Duration::from_nanos(ic_cdk::api::time()).as_secs();
     });
 
     Ok(rate)
@@ -73,7 +75,7 @@ pub async fn get_rate_from_pair(pair_metadata: PairMetadata) -> Result<RateDataL
             .get(pair_metadata.index)
             .expect("custom pair index should exists");
 
-        if (pair.last_update + pair.frequency) > ic_cdk::api::time() {
+        if (pair.last_update + pair.frequency) > Duration::from_nanos(ic_cdk::api::time()).as_secs() {
             return None;
         };
 
@@ -95,7 +97,7 @@ pub async fn get_rate_from_pair(pair_metadata: PairMetadata) -> Result<RateDataL
             .expect("custom pair index should exists");
 
         pair.data = rate.clone();
-        pair.last_update = ic_cdk::api::time();
+        pair.last_update = Duration::from_nanos(ic_cdk::api::time()).as_secs();
     });
 
     Ok(rate)
@@ -136,7 +138,7 @@ pub async fn get_custom_rate_with_cache(
         .as_u64()
         .context("invalid resolver")?;
 
-    let timestamp = ic_cdk::api::time();
+    let timestamp = Duration::from_nanos(ic_cdk::api::time()).as_secs();
 
     let rate_data = RateDataLight {
         symbol: pair_id.into(),
@@ -215,7 +217,7 @@ pub async fn get_rate_with_cache(pair_id: &str) -> Result<RateDataLight> {
         symbol: pair_id.into(),
         rate: exchange_rate.rate,
         decimals: exchange_rate.metadata.decimals as u64,
-        timestamp: ic_cdk::api::time(),
+        timestamp: Duration::from_nanos(ic_cdk::api::time()).as_secs(),
     };
 
     let data_for_cache = serde_json::to_vec(&rate)?;

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::{anyhow, Result};
 
 use ic_cdk::{export::candid::Nat, query, update};
@@ -24,7 +26,7 @@ pub async fn _add_pair(pair_id: String, frequency: Nat) -> Result<Pair> {
 
     let pair = Pair {
         id: pair_id,
-        last_update: ic_cdk::api::time(),
+        last_update: Duration::from_nanos(ic_cdk::api::time()).as_secs(),
         frequency: nat_to_u64(frequency),
         data,
     };

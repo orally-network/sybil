@@ -1,8 +1,7 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 use std::future::Future;
 
 use ic_cdk::{
-    api::time,
     export::{
         candid::CandidType,
         serde::{Deserialize, Serialize},
@@ -29,7 +28,7 @@ impl Cache {
         let expiration_time = STATE.with(|state| state.borrow().cache_expiration);
 
         let entry = CacheEntry {
-            expired_at: time() + expiration_time,
+            expired_at: Duration::from_nanos(ic_cdk::api::time()).as_secs() + expiration_time,
             data,
         };
 
@@ -40,7 +39,7 @@ impl Cache {
         let entry = self.records.get(key);
 
         if let Some(entry) = entry {
-            if entry.expired_at < time() {
+            if entry.expired_at < Duration::from_nanos(ic_cdk::api::time()).as_secs() {
                 self.records.remove(key);
                 return None;
             }
