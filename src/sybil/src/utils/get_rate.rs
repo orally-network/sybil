@@ -36,6 +36,10 @@ async fn get_rate_from_custom_pair(pair_metadata: PairMetadata, with_signature: 
             .get(pair_metadata.index)
             .expect("custom pair index should exists");
 
+        if with_signature && custom_pair.data.signature.is_none() {
+            return (None, custom_pair.source.clone());
+        }
+
         if custom_pair.available_executions == 0 {
             return (Some(custom_pair.data.clone()), custom_pair.source.clone());
         }
@@ -79,6 +83,10 @@ pub async fn get_rate_from_pair(pair_metadata: PairMetadata, with_signature: boo
             .get(pair_metadata.index)
             .expect("custom pair index should exists");
 
+        if with_signature && pair.data.signature.is_none() {
+            return None;
+        }
+
         if (pair.last_update + pair.frequency) < Duration::from_nanos(ic_cdk::api::time()).as_secs() {
             return None;
         };
@@ -115,9 +123,15 @@ pub async fn get_custom_rate_with_cache(
     with_signature: bool,
 ) -> Result<(RateDataLight, u64)> {
     let data = CACHE.with(|cache| cache.borrow_mut().get_entry(pair_id));
-
     if let Some(data) = data {
-        return Ok((serde_json::from_slice(&data)?, data.len() as u64));
+        let rate: RateDataLight = serde_json::from_slice(&data)?;
+        if !with_signature {
+            return Ok((rate, data.len() as u64));
+        }
+
+        if rate.signature.is_some() {
+            return Ok((rate, data.len() as u64));
+        }
     }
 
     let request_args = CanisterHttpRequestArgument {
@@ -181,7 +195,14 @@ pub async fn get_rate_with_cache(pair_id: &str, with_signature: bool) -> Result<
     let data = CACHE.with(|cache| cache.borrow_mut().get_entry(pair_id));
 
     if let Some(data) = data {
-        return Ok(serde_json::from_slice(&data)?);
+        let rate: RateDataLight = serde_json::from_slice(&data)?;
+        if !with_signature {
+            return Ok(rate);
+        }
+
+        if rate.signature.is_some() {
+            return Ok(rate);
+        }
     }
 
     let exchange_rate_canister_id =
