@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use candid::Nat;
 use ic_cdk::export::{
     candid::CandidType,
@@ -54,7 +56,7 @@ impl CustomPair {
             frequency,
             source,
             data,
-            last_update: ic_cdk::api::time(),
+            last_update: Duration::from_secs(ic_cdk::api::time()).as_secs(),
             available_executions,
         })
     }

@@ -1,9 +1,13 @@
-use crate::STATE;
-use candid::Nat;
-use ic_cdk::{query, update};
+use crate::{STATE, utils::validate_caller};
+use candid::{Nat, Principal};
+use ic_cdk::{query, update, api::management_canister::{provisional::CanisterIdRecord, main::canister_status}};
 
 #[update]
 pub fn set_exchange_rate_canister(new_principal: String) {
+    if validate_caller().is_err() {
+        ic_cdk::trap("invalid caller")
+    }
+
     STATE.with(|state| {
         state.borrow_mut().exchange_rate_canister = new_principal;
     });
@@ -16,6 +20,10 @@ pub fn get_exchange_rate_canister() -> String {
 
 #[update]
 pub fn set_proxy_ecdsa_canister(new_principal: String) {
+    if validate_caller().is_err() {
+        ic_cdk::trap("invalid caller")
+    }
+
     STATE.with(|state| {
         state.borrow_mut().proxy_ecdsa_canister = new_principal;
     });
@@ -28,6 +36,10 @@ pub fn get_proxy_ecdsa_canister() -> String {
 
 #[update]
 pub fn set_siwe_signer_canister(canister: String) {
+    if validate_caller().is_err() {
+        ic_cdk::trap("invalid caller")
+    }
+
     STATE.with(|state| state.borrow_mut().siwe_signer_canister = canister)
 }
 
@@ -38,6 +50,10 @@ pub fn get_siwe_signer_canister() -> String {
 
 #[update]
 pub fn set_expiration_time(expiration_time: Nat) {
+    if validate_caller().is_err() {
+        ic_cdk::trap("invalid caller")
+    }
+
     STATE.with(|state| {
         state.borrow_mut().cache_expiration = *expiration_time
             .0
@@ -54,6 +70,14 @@ pub fn get_expiration_time() -> Nat {
 
 #[update]
 pub fn set_key_name(key_name: String) {
+    if validate_caller().is_err() {
+        ic_cdk::trap("invalid caller")
+    }
+
+    if validate_caller().is_err() {
+        ic_cdk::trap("invalid caller")
+    }
+    
     STATE.with(|state| state.borrow_mut().key_name = key_name)
 }
 
@@ -69,11 +93,19 @@ pub fn get_treasurer_canister() -> String {
 
 #[update]
 pub fn set_treasurer_canister(canister: String) {
+    if validate_caller().is_err() {
+        ic_cdk::trap("invalid caller")
+    }
+
     STATE.with(|state| state.borrow_mut().treasurer_canister = canister)
 }
 
 #[update]
 pub fn set_cost_per_execution(cost: Nat) {
+    if validate_caller().is_err() {
+        ic_cdk::trap("invalid caller")
+    }
+
     STATE.with(|state| {
         state.borrow_mut().cost_per_execution = *cost
             .0
@@ -86,4 +118,21 @@ pub fn set_cost_per_execution(cost: Nat) {
 #[query]
 pub fn get_cost_per_execution() -> Nat {
     STATE.with(|state| state.borrow().cost_per_execution.into())
+}
+
+#[update]
+pub async fn init_controllers() -> Vec<Principal> {
+    let canister_id_record = CanisterIdRecord {
+        canister_id: ic_cdk::id(),
+    };
+
+    let (canister_status,) = canister_status(canister_id_record)
+        .await
+        .expect("should execute in the IC environment");
+
+    STATE.with(|state| {
+        state.borrow_mut().controllers = canister_status.settings.controllers;
+    });
+
+    STATE.with(|state| state.borrow().controllers.clone())
 }

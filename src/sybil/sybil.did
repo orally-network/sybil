@@ -73,4 +73,5 @@ service : {
     set_cost_per_execution : (cost : nat) -> ();
     get_cost_per_execution : () -> (nat);
     eth_address : () -> (TextResponse);
+    init_controllers : () -> ();
 }

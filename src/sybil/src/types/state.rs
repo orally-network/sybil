@@ -1,6 +1,8 @@
 use ic_cdk::export::{
-    candid::CandidType,
-    serde::{Deserialize, Serialize},
+    Principal, {
+        candid::CandidType,
+        serde::{Deserialize, Serialize},
+    }
 };
 
 use super::{custom_pair::CustomPair, rate_data::RateDataLight};
@@ -24,4 +26,5 @@ pub struct State {
     pub cache_expiration: u64,
     pub treasurer_canister: String,
     pub cost_per_execution: u64,
+    pub controllers: Vec<Principal>,
 }

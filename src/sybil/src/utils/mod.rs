@@ -82,3 +82,13 @@ pub async fn rec_eth_addr(msg: &str, sig: &str) -> Result<H160> {
 
     H160::from_str(&signer).context("failed to parse signer address")
 }
+
+pub fn validate_caller() -> Result<()> {
+    let controllers = STATE.with(|state| state.borrow().controllers.clone());
+
+    if controllers.contains(&ic_cdk::caller()) {
+        return Ok(());
+    }
+
+    Err(anyhow!("caller is not a conroller"))
+}
