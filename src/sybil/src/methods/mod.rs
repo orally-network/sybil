@@ -7,7 +7,7 @@ use ic_cdk::{query, update};
 use anyhow::{anyhow, Result};
 
 use crate::{
-    types::rate_data::{CustomPairData, RateDataLight},
+    types::rate_data::RateDataLight,
     utils::{get_rate::get_rate, is_pair_exist},
 };
 
@@ -19,21 +19,19 @@ fn is_pair_exists(pair_id: String) -> bool {
 }
 
 #[update]
-pub async fn get_asset_data_with_proof(pair_id: String) -> Result<CustomPairData, String> {
+pub async fn get_asset_data_with_proof(pair_id: String) -> Result<RateDataLight, String> {
     _get_asset_data_with_proof(pair_id)
         .await
         .map_err(|e| e.to_string())
 }
 
-pub async fn _get_asset_data_with_proof(pair_id: String) -> Result<CustomPairData> {
+pub async fn _get_asset_data_with_proof(pair_id: String) -> Result<RateDataLight> {
     let (is_exists, metadata) = is_pair_exist(&pair_id);
     if !is_exists {
         return Err(anyhow!("Pair ID does not exist"));
     };
 
-    let rate = get_rate(metadata.expect("pair metadata should exists after validation")).await?;
-
-    CustomPairData::from_rate(rate).await
+    get_rate(metadata.expect("pair metadata should exists after validation"), true).await
 }
 
 #[update]
@@ -47,5 +45,5 @@ async fn _get_asset(pair_id: String) -> Result<RateDataLight> {
         return Err(anyhow!("Pair ID does not exist"));
     };
 
-    get_rate(metadata.expect("pair metadata should exists after validation")).await
+    get_rate(metadata.expect("pair metadata should exists after validation"), false).await
 }

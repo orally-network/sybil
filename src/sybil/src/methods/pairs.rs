@@ -24,7 +24,7 @@ pub async fn _add_pair(pair_id: String, frequency: Nat) -> Result<Pair> {
         return Err(anyhow!("Pair ID is invalid"));
     }
 
-    let data = get_rate_with_cache(&pair_id).await?;
+    let data = get_rate_with_cache(&pair_id, false).await?;
 
     let pair = Pair {
         id: pair_id,

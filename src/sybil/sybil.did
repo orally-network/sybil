@@ -11,6 +11,7 @@ type RateDataLight = record {
     rate : nat64;
     decimals : nat64;
     timestamp : nat64;
+    signature : opt text;
 };
 
 type CustomPair = record {
@@ -31,11 +32,6 @@ type CreateCustomPairRequest = record {
     sig : text;
 };
 
-type CustomPairData = record {
-    data : RateDataLight;
-    signature : text;
-};
-
 type Pair = record {
     id : text;
     frequency : nat64;
@@ -43,7 +39,7 @@ type Pair = record {
     data : RateDataLight;
 };
 
-type GetAssetDataWithProofResponse = variant { Ok : CustomPairData; Err : text};
+type GetAssetDataWithProofResponse = variant { Ok : RateDataLight; Err : text};
 type GetAssetDataResponse = variant { Ok : RateDataLight; Err: text};
 type AddPairResponse = variant { Ok : Pair; Err: text };
 type TextResponse = variant { Ok : text; Err: text};

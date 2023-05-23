@@ -26,6 +26,7 @@ pub struct RateDataLight {
     pub rate: u64,
     pub decimals: u64,
     pub timestamp: u64,
+    pub signature: Option<String>
 }
 
 impl RateDataLight {
@@ -40,7 +41,7 @@ impl RateDataLight {
         encode_packed(&raw_data).expect("tokens should be valid")
     }
 
-    pub async fn sign(&self) -> Result<String> {
+    pub async fn sign(&mut self) -> Result<String> {
         let sign_data = keccak256(&self.encode_packed()).to_vec();
 
         let key_name = STATE.with(|state| state.borrow().key_name.clone());
@@ -66,21 +67,10 @@ impl RateDataLight {
 
         signature.push(v);
 
-        Ok(hex::encode(signature))
-    }
-}
+        let signature = hex::encode(signature);
 
-#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
-pub struct CustomPairData {
-    pub data: RateDataLight,
-    pub signature: String,
-}
+        self.signature = Some(signature.clone());
 
-impl CustomPairData {
-    pub async fn from_rate(rate: RateDataLight) -> Result<Self> {
-        Ok(Self {
-            data: rate.clone(),
-            signature: rate.sign().await?,
-        })
+        Ok(signature)
     }
 }

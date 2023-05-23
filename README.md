@@ -4,6 +4,7 @@
 ```sh
 dfx deploy exchange_rate_canister
 dfx deploy sybil
+dfx canister call sybil init_controllers
 dfx canister call sybil set_expiration_time '(3600:nat)' --async
 dfx canister call sybil set_siwe_signer_canister '("bkyz2-fmaaa-aaaaa-qaaaq-cai")' --async
 dfx canister call sybil set_exchange_rate_canister '("bw4dl-smaaa-aaaaa-qaacq-cai")' --async

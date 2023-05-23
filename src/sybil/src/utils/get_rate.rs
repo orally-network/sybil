@@ -20,14 +20,14 @@ use jsonptr::{Pointer, Resolve};
 use serde_json::Value;
 use url::Url;
 
-pub async fn get_rate(pair_metadata: PairMetadata) -> Result<RateDataLight> {
+pub async fn get_rate(pair_metadata: PairMetadata, with_signature: bool) -> Result<RateDataLight> {
     match pair_metadata.pair_type {
-        PairType::CustomPair => get_rate_from_custom_pair(pair_metadata).await,
-        PairType::Pair => get_rate_from_pair(pair_metadata).await,
+        PairType::CustomPair => get_rate_from_custom_pair(pair_metadata, with_signature).await,
+        PairType::Pair => get_rate_from_pair(pair_metadata, with_signature).await,
     }
 }
 
-async fn get_rate_from_custom_pair(pair_metadata: PairMetadata) -> Result<RateDataLight> {
+async fn get_rate_from_custom_pair(pair_metadata: PairMetadata, with_signature: bool) -> Result<RateDataLight> {
     let (rate, source) = STATE.with(|state| {
         let state = state.borrow();
 
@@ -53,7 +53,7 @@ async fn get_rate_from_custom_pair(pair_metadata: PairMetadata) -> Result<RateDa
 
     let url = Url::parse(&source.uri)?;
     let (rate, _) =
-        get_custom_rate_with_cache(&url, &source.resolver, &pair_metadata.pair_id, false).await?;
+        get_custom_rate_with_cache(&url, &source.resolver, &pair_metadata.pair_id, false, with_signature).await?;
 
     STATE.with(|state| {
         let mut state = state.borrow_mut();
@@ -70,7 +70,7 @@ async fn get_rate_from_custom_pair(pair_metadata: PairMetadata) -> Result<RateDa
     Ok(rate)
 }
 
-pub async fn get_rate_from_pair(pair_metadata: PairMetadata) -> Result<RateDataLight> {
+pub async fn get_rate_from_pair(pair_metadata: PairMetadata, with_signature: bool) -> Result<RateDataLight> {
     let rate = STATE.with(|state| {
         let state = state.borrow();
 
@@ -90,7 +90,7 @@ pub async fn get_rate_from_pair(pair_metadata: PairMetadata) -> Result<RateDataL
         return Ok(rate);
     }
 
-    let rate = get_rate_with_cache(&pair_metadata.pair_id).await?;
+    let rate = get_rate_with_cache(&pair_metadata.pair_id, with_signature).await?;
 
     STATE.with(|state| {
         let mut state = state.borrow_mut();
@@ -112,6 +112,7 @@ pub async fn get_custom_rate_with_cache(
     resolver: &str,
     pair_id: &str,
     init: bool,
+    with_signature: bool,
 ) -> Result<(RateDataLight, u64)> {
     let data = CACHE.with(|cache| cache.borrow_mut().get_entry(pair_id));
 
@@ -144,12 +145,17 @@ pub async fn get_custom_rate_with_cache(
 
     let timestamp = Duration::from_nanos(ic_cdk::api::time()).as_secs();
 
-    let rate_data = RateDataLight {
+    let mut rate_data = RateDataLight {
         symbol: pair_id.into(),
         rate,
         decimals: 0,
         timestamp,
+        signature: None
     };
+
+    if with_signature {
+        rate_data.sign().await?;
+    }
 
     let data_for_cache = serde_json::to_vec(&rate_data)?;
 
@@ -171,7 +177,7 @@ pub async fn get_custom_rate_with_cache(
     Ok((rate_data, response.body.len() as u64))
 }
 
-pub async fn get_rate_with_cache(pair_id: &str) -> Result<RateDataLight> {
+pub async fn get_rate_with_cache(pair_id: &str, with_signature: bool) -> Result<RateDataLight> {
     let data = CACHE.with(|cache| cache.borrow_mut().get_entry(pair_id));
 
     if let Some(data) = data {
@@ -217,12 +223,17 @@ pub async fn get_rate_with_cache(pair_id: &str) -> Result<RateDataLight> {
         GetExchangeRateResult::Err(err) => Err(err),
     }?;
 
-    let rate = RateDataLight {
+    let mut rate = RateDataLight {
         symbol: pair_id.into(),
         rate: exchange_rate.rate,
         decimals: exchange_rate.metadata.decimals as u64,
         timestamp: Duration::from_nanos(ic_cdk::api::time()).as_secs(),
+        signature: None
     };
+
+    if with_signature {
+        rate.sign().await?;
+    }
 
     let data_for_cache = serde_json::to_vec(&rate)?;
 
