@@ -40,7 +40,7 @@ async fn get_rate_from_custom_pair(pair_metadata: PairMetadata) -> Result<RateDa
             return (Some(custom_pair.data.clone()), custom_pair.source.clone());
         }
 
-        if (custom_pair.last_update + custom_pair.frequency) > Duration::from_nanos(ic_cdk::api::time()).as_secs() {
+        if (custom_pair.last_update + custom_pair.frequency) < Duration::from_nanos(ic_cdk::api::time()).as_secs() {
             return (None, custom_pair.source.clone());
         };
 
@@ -79,7 +79,7 @@ pub async fn get_rate_from_pair(pair_metadata: PairMetadata) -> Result<RateDataL
             .get(pair_metadata.index)
             .expect("custom pair index should exists");
 
-        if (pair.last_update + pair.frequency) > Duration::from_nanos(ic_cdk::api::time()).as_secs() {
+        if (pair.last_update + pair.frequency) < Duration::from_nanos(ic_cdk::api::time()).as_secs() {
             return None;
         };
 
