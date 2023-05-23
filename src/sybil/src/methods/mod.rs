@@ -45,5 +45,9 @@ async fn _get_asset(pair_id: String) -> Result<RateDataLight> {
         return Err(anyhow!("Pair ID does not exist"));
     };
 
-    get_rate(metadata.expect("pair metadata should exists after validation"), false).await
+    let mut rate = get_rate(metadata.expect("pair metadata should exists after validation"), false).await?;
+
+    rate.signature = None;
+
+    Ok(rate)
 }
