@@ -24,8 +24,6 @@ pub async fn _add_pair(pair_id: String, frequency: Nat) -> Result<Pair> {
         return Err(anyhow!("Pair ID is invalid"));
     }
 
-    ic_cdk::println!("sd");
-
     let data = get_rate_with_cache(&pair_id).await?;
 
     let pair = Pair {
