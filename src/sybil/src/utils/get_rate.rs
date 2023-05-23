@@ -96,7 +96,7 @@ pub async fn get_rate_from_pair(pair_metadata: PairMetadata) -> Result<RateDataL
         let mut state = state.borrow_mut();
 
         let mut pair = state
-            .custom_pairs
+            .pairs
             .get_mut(pair_metadata.index)
             .expect("custom pair index should exists");
 
