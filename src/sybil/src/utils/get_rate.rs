@@ -16,15 +16,20 @@ use ic_cdk::{
     },
     export::Principal,
 };
+use ic_utils::monitor::collect_metrics;
 use jsonptr::{Pointer, Resolve};
 use serde_json::Value;
 use url::Url;
 
 pub async fn get_rate(pair_metadata: PairMetadata, with_signature: bool) -> Result<RateDataLight> {
-    match pair_metadata.pair_type {
+    let rate = match pair_metadata.pair_type {
         PairType::CustomPair => get_rate_from_custom_pair(pair_metadata, with_signature).await,
         PairType::Pair => get_rate_from_pair(pair_metadata, with_signature).await,
-    }
+    };
+
+    collect_metrics();
+
+    rate
 }
 
 async fn get_rate_from_custom_pair(pair_metadata: PairMetadata, with_signature: bool) -> Result<RateDataLight> {
