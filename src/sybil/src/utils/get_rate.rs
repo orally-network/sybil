@@ -16,7 +16,10 @@ use ic_cdk::{
     },
     export::Principal,
 };
-use ic_utils::monitor::collect_metrics;
+use ic_utils::{
+    monitor::collect_metrics,
+    logger::log_message,
+};
 use jsonptr::{Pointer, Resolve};
 use serde_json::Value;
 use url::Url;
@@ -28,6 +31,7 @@ pub async fn get_rate(pair_metadata: PairMetadata, with_signature: bool) -> Resu
     };
 
     collect_metrics();
+    log_message(format!("got get_rate request"));
 
     rate
 }

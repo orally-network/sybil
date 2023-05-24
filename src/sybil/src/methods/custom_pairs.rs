@@ -4,6 +4,7 @@ use ic_cdk::export::{
     candid::{CandidType, Nat},
     serde::{Deserialize, Serialize},
 };
+use ic_utils::logger::log_message;
 
 use anyhow::Result;
 
@@ -42,8 +43,10 @@ pub async fn _create_custom_pair(req: CreateCustomPairRequest) -> Result<()> {
 
     STATE.with(|state| {
         let mut state = state.borrow_mut();
-        state.custom_pairs.push(custom_pair);
+        state.custom_pairs.push(custom_pair.clone());
     });
+
+    log_message(format!("Custom pair created, pair id: {}", custom_pair.id));
 
     Ok(())
 }

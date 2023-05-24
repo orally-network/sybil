@@ -3,6 +3,7 @@ use std::time::Duration;
 use anyhow::{anyhow, Result};
 
 use ic_cdk::{export::candid::Nat, query, update};
+use ic_utils::logger::log_message;
 
 use crate::{
     types::state::Pair,
@@ -36,6 +37,8 @@ pub async fn _add_pair(pair_id: String, frequency: Nat) -> Result<Pair> {
     STATE.with(|state| {
         state.borrow_mut().pairs.push(pair.clone());
     });
+
+    log_message(format!("Pair created, pair id: {}", pair.id));
 
     Ok(pair)
 }
