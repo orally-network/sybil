@@ -1,6 +1,8 @@
 use std::str::FromStr;
 
-use ic_cdk::api::management_canister::ecdsa::sign_with_ecdsa;
+use candid::Principal;
+use ic_cdk::api::management_canister::ecdsa::SignWithEcdsaResponse;
+use ic_cdk::api::call::call_with_payment;
 use ic_cdk::{
     api::management_canister::ecdsa::{EcdsaCurve, EcdsaKeyId, SignWithEcdsaArgument},
     export::{
@@ -19,6 +21,8 @@ use crate::{
     },
     STATE,
 };
+
+const ECDSA_SIGN_CYCLES: u64 = 23_000_000_000;
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub struct RateDataLight {
@@ -55,7 +59,12 @@ impl RateDataLight {
             },
         };
 
-        let (signature,) = sign_with_ecdsa(call_args)
+        let (signature,): (SignWithEcdsaResponse,) = call_with_payment(
+            Principal::management_canister(),
+            "sign_with_ecdsa",
+            (call_args,),
+            ECDSA_SIGN_CYCLES
+        )
             .await
             .map_err(|(code, msg)| anyhow!("{:?}: {}", code, msg))?;
 
