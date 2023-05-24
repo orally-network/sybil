@@ -13,6 +13,7 @@ use anyhow::{anyhow, Context, Result};
 
 use crate::{types::PairType, STATE};
 
+#[derive(Clone, Debug)]
 pub struct PairMetadata {
     pub pair_id: String,
     pub pair_type: PairType,
