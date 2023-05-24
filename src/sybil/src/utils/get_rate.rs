@@ -26,12 +26,12 @@ use url::Url;
 
 pub async fn get_rate(pair_metadata: PairMetadata, with_signature: bool) -> Result<RateDataLight> {
     let rate = match pair_metadata.pair_type {
-        PairType::CustomPair => get_rate_from_custom_pair(pair_metadata, with_signature).await,
-        PairType::Pair => get_rate_from_pair(pair_metadata, with_signature).await,
+        PairType::CustomPair => get_rate_from_custom_pair(pair_metadata.clone(), with_signature).await,
+        PairType::Pair => get_rate_from_pair(pair_metadata.clone(), with_signature).await,
     };
 
     collect_metrics();
-    log_message(format!("got get_rate request"));
+    log_message(format!("got get_rate request, pair_id: {}", pair_metadata.pair_id));
 
     rate
 }
