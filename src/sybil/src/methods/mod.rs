@@ -6,6 +6,11 @@ use ic_cdk::{query, update};
 
 use anyhow::{anyhow, Result};
 
+use ic_utils::{
+    api_type::{GetInformationRequest, GetInformationResponse, UpdateInformationRequest},
+    get_information, update_information,
+};
+
 use crate::{
     types::rate_data::RateDataLight,
     utils::{get_rate::get_rate, is_pair_exist},
@@ -50,4 +55,16 @@ async fn _get_asset(pair_id: String) -> Result<RateDataLight> {
     rate.signature = None;
 
     Ok(rate)
+}
+
+#[query(name = "getCanistergeekInformation")]
+pub async fn get_canistergeek_information(
+    request: GetInformationRequest,
+) -> GetInformationResponse<'static> {
+    get_information(request)
+}
+
+#[update(name = "updateCanistergeekInformation")]
+pub async fn update_canistergeek_information(request: UpdateInformationRequest) -> () {
+    update_information(request);
 }
