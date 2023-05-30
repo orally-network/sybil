@@ -3,12 +3,14 @@ use std::str::FromStr;
 use anyhow::{anyhow, Result};
 
 use candid::Principal;
-use ic_cdk::export::{
+use ic_cdk::{export::{
     candid::{CandidType, Nat},
     serde::{Deserialize, Serialize},
-};
+}, api::call::call_with_payment};
 
 use crate::STATE;
+
+const TREASURER_DEPOSIT_CYCLES: u64 = 23_000_000_000;
 
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
 pub enum DepositType {
@@ -37,7 +39,7 @@ async fn _deposit(req: DepositRequest) -> Result<()> {
 
     let treasurer_canister = Principal::from_str(&treasurer_canister)?;
 
-    let (result,): (TextResult,) = ic_cdk::call(treasurer_canister, "deposit", (req,))
+    let (result,): (TextResult,) = call_with_payment(treasurer_canister, "deposit", (req,), TREASURER_DEPOSIT_CYCLES)
         .await
         .map_err(|(code, msg)| anyhow!("{:?}: {}", code, msg))?;
 
