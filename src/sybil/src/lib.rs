@@ -6,6 +6,7 @@ mod utils;
 use std::{borrow::Cow, cell::RefCell};
 
 use anyhow::{anyhow, Context, Result};
+use methods::get_asset_data;
 use serde_json::json;
 
 use ic_cdk::{
@@ -35,7 +36,10 @@ fn transform(response: TransformArgs) -> HttpResponse {
 
 #[query]
 pub fn http_request(req: CandidHttpRequest) -> CandidHttpResponse {
-    let upgrade = matches!(&req.url, url if url.starts_with("/get_asset_data_with_proof?pair_id="));
+    let upgrade = matches!(&req.url, 
+        url if url.starts_with("/get_asset_data_with_proof?pair_id=") ||
+        url.starts_with("/get_asset_data?pair_id="),
+    );
 
     get_page_not_found(upgrade)
 }
@@ -45,7 +49,10 @@ pub async fn http_request_update(req: CandidHttpRequest) -> CandidHttpResponse {
     match &req.url {
         url if url.starts_with("/get_asset_data_with_proof?pair_id=") => {
             handle_get_asset_data_with_proof_request(req).await
-        }
+        },
+        url if url.starts_with("/get_asset_data?pair_id=") => {
+            handle_get_asset_data_request(req).await
+        },
         _ => get_page_not_found(false),
     }
 }
@@ -77,6 +84,39 @@ async fn _handle_get_asset_data_with_proof_request(req: CandidHttpRequest) -> Re
     }
 
     let asset = get_asset_data_with_proof(pair_id.into())
+        .await
+        .map_err(|e| anyhow!(e))?;
+
+    Ok(serde_json::to_vec(&asset)?)
+}
+
+async fn handle_get_asset_data_request(req: CandidHttpRequest) -> CandidHttpResponse {
+    let resp = _handle_get_asset_data_request(req)
+        .await
+        .map_err(|e| e.to_string());
+
+    match resp {
+        Ok(data) => get_ok(data),
+        Err(err) => get_bad_request(err),
+    }
+}
+
+async fn _handle_get_asset_data_request(req: CandidHttpRequest) -> Result<Vec<u8>> {
+    let pair_id = req
+        .url
+        .strip_prefix("/get_asset_data?pair_id=")
+        .context("invalid query")?;
+
+    if !is_valid_pair_id(pair_id) {
+        return Err(anyhow!("invalid pair_id"));
+    }
+
+    let (is_exist, _) = is_pair_exist(pair_id);
+    if !is_exist {
+        return Err(anyhow!("pair_id does not exist"));
+    }
+
+    let asset = get_asset_data(pair_id.into())
         .await
         .map_err(|e| anyhow!(e))?;
 
