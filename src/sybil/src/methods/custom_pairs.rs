@@ -4,23 +4,31 @@ use ic_cdk::export::{
     candid::{CandidType, Nat},
     serde::{Deserialize, Serialize},
 };
-use ic_utils::logger::log_message;
 
 use anyhow::Result;
+use thiserror::Error;
+use validator::Validate;
 
-use crate::{
-    types::custom_pair::{CustomPair, CustomPairBuilder},
-    utils::{nat_to_u64, rec_eth_addr},
-    STATE,
-};
+use crate::{types::{custom_pair::CustomPair, pairs::Source}, utils::{siwe, validation}, STATE};
 
-#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
+#[derive(Error, Debug)]
+pub enum CustomPairError {
+    #[error("SIWE Error")]
+    SIWEError(#[from] siwe::SIWEError),
+}
+
+#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]
 pub struct CreateCustomPairRequest {
+    #[validate(regex = "validation::PAIR_ID_REGEX")]
     pub pair_id: String,
-    pub frequency: Nat,
-    pub uri: String,
-    pub resolver: String,
-    pub amount: Nat,
+    #[validate(custom = "validation::validate_update_freq")]
+    pub update_freq: Nat,
+    pub decimals: Nat,
+    pub executions: Nat,
+    #[validate(length(min = 1))]
+    // second one is used for a nested validation of all sources
+    #[validate]
+    pub endpoints: Vec<Source>,
     pub msg: String,
     pub sig: String,
 }
@@ -30,23 +38,23 @@ pub async fn create_custom_pair(req: CreateCustomPairRequest) -> Result<(), Stri
     _create_custom_pair(req).await.map_err(|e| e.to_string())
 }
 
-pub async fn _create_custom_pair(req: CreateCustomPairRequest) -> Result<()> {
-    let addr = rec_eth_addr(&req.msg, &req.sig).await?;
+pub async fn _create_custom_pair(req: CreateCustomPairRequest) -> Result<(), CustomPairError> {
+    let _addr = siwe::recover(&req.msg, &req.sig).await?;    
 
-    let custom_pair = CustomPairBuilder::new(&req.pair_id)?
-        .frequency(nat_to_u64(req.frequency))?
-        .source(&req.uri, &req.resolver)
-        .await?
-        .estimate_cost(hex::encode(addr.as_bytes()), req.amount)
-        .await?
-        .build()?;
+    // let custom_pair = CustomPairBuilder::new(&req.pair_id)?
+    //     .frequency(nat_to_u64(req.frequency))?
+    //     .source(&req.uri, &req.resolver)
+    //     .await?
+    //     .estimate_cost(hex::encode(addr.as_bytes()), req.amount)
+    //     .await?
+    //     .build()?;
 
-    STATE.with(|state| {
-        let mut state = state.borrow_mut();
-        state.custom_pairs.push(custom_pair.clone());
-    });
+    // STATE.with(|state| {
+    //     let mut state = state.borrow_mut();
+    //     state.custom_pairs.push(custom_pair.clone());
+    // });
 
-    log_message(format!("Custom pair created, pair id: {}", custom_pair.id));
+    // log_message(format!("Custom pair created, pair id: {}", custom_pair.id));
 
     Ok(())
 }

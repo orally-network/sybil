@@ -1,13 +1,22 @@
 pub mod encoding;
 pub mod exchange_rate;
 pub mod get_rate;
+pub mod macros;
+pub mod nat;
 pub mod signature;
+pub mod time;
 pub mod treasurer;
+pub mod siwe;
+pub mod convertion;
+pub mod address;
+pub mod validation;
+pub mod web3;
+pub mod processors;
 
 use std::str::FromStr;
 
 use ic_cdk::export::{candid::Nat, Principal};
-use ic_web3::types::H160;
+use ic_web3_rs::types::H160;
 
 use anyhow::{anyhow, Context, Result};
 
@@ -31,7 +40,7 @@ pub fn is_pair_exist(pair_id: &str) -> (bool, Option<PairMetadata>) {
     STATE.with(|state| {
         let state = state.borrow();
 
-        let index = state.pairs.iter().position(|p| p.id == pair_id);
+        let index = state.old_pairs.iter().position(|p| p.id == pair_id);
         if let Some(index) = index {
             return (
                 true,
@@ -69,6 +78,7 @@ pub fn is_valid_pair_id(pair_id: &str) -> bool {
     true
 }
 
+#[allow(dead_code)]
 pub async fn rec_eth_addr(msg: &str, sig: &str) -> Result<H160> {
     let siwe_canister = STATE.with(|state| state.borrow().siwe_signer_canister.clone());
 
@@ -85,9 +95,7 @@ pub async fn rec_eth_addr(msg: &str, sig: &str) -> Result<H160> {
 }
 
 pub fn validate_caller() -> Result<()> {
-    let controllers = STATE.with(|state| state.borrow().controllers.clone());
-
-    if controllers.contains(&ic_cdk::caller()) {
+    if ic_cdk::api::is_controller(&ic_cdk::caller()) {
         return Ok(());
     }
 

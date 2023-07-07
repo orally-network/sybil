@@ -1,6 +1,8 @@
-mod custom_pairs;
-mod pairs;
-mod state;
+pub mod controllers;
+pub mod custom_pairs;
+pub mod pairs;
+pub mod balances;
+pub mod transforms;
 
 use ic_cdk::{query, update};
 
@@ -36,7 +38,11 @@ pub async fn _get_asset_data_with_proof(pair_id: String) -> Result<RateDataLight
         return Err(anyhow!("Pair ID does not exist"));
     };
 
-    get_rate(metadata.expect("pair metadata should exists after validation"), true).await
+    get_rate(
+        metadata.expect("pair metadata should exists after validation"),
+        true,
+    )
+    .await
 }
 
 #[update]
@@ -50,7 +56,11 @@ async fn _get_asset(pair_id: String) -> Result<RateDataLight> {
         return Err(anyhow!("Pair ID does not exist"));
     };
 
-    let mut rate = get_rate(metadata.expect("pair metadata should exists after validation"), false).await?;
+    let mut rate = get_rate(
+        metadata.expect("pair metadata should exists after validation"),
+        false,
+    )
+    .await?;
 
     rate.signature = None;
 
@@ -65,6 +75,6 @@ pub async fn get_canistergeek_information(
 }
 
 #[update(name = "updateCanistergeekInformation")]
-pub async fn update_canistergeek_information(request: UpdateInformationRequest) -> () {
+pub async fn update_canistergeek_information(request: UpdateInformationRequest) {
     update_information(request);
 }

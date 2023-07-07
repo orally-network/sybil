@@ -3,10 +3,13 @@ use std::str::FromStr;
 use anyhow::{anyhow, Result};
 
 use candid::Principal;
-use ic_cdk::{export::{
-    candid::{CandidType, Nat},
-    serde::{Deserialize, Serialize},
-}, api::call::call_with_payment};
+use ic_cdk::{
+    api::call::call_with_payment,
+    export::{
+        candid::{CandidType, Nat},
+        serde::{Deserialize, Serialize},
+    },
+};
 
 use crate::STATE;
 
@@ -29,7 +32,7 @@ pub enum TextResult {
     Ok(()),
     Err(String),
 }
-
+#[allow(dead_code)]
 pub async fn deposit(req: DepositRequest) -> Result<(), String> {
     _deposit(req).await.map_err(|e| e.to_string())
 }
@@ -39,9 +42,14 @@ async fn _deposit(req: DepositRequest) -> Result<()> {
 
     let treasurer_canister = Principal::from_str(&treasurer_canister)?;
 
-    let (result,): (TextResult,) = call_with_payment(treasurer_canister, "deposit", (req,), TREASURER_DEPOSIT_CYCLES)
-        .await
-        .map_err(|(code, msg)| anyhow!("{:?}: {}", code, msg))?;
+    let (result,): (TextResult,) = call_with_payment(
+        treasurer_canister,
+        "deposit",
+        (req,),
+        TREASURER_DEPOSIT_CYCLES,
+    )
+    .await
+    .map_err(|(code, msg)| anyhow!("{:?}: {}", code, msg))?;
 
     match result {
         TextResult::Ok(_) => Ok(()),

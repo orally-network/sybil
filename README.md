@@ -1,6 +1,9 @@
 # sybil
 
+Sybil is a canister that provides API to get assets data.
+
 ## Deploy
+
 ```sh
 dfx deploy exchange_rate_canister
 dfx deploy sybil
@@ -14,7 +17,8 @@ dfx canister call sybil set_cost_per_execution '(1)' --async
 ```
 
 ## Usage
-```sh 
+
+```sh
 # to create a custom pair
 dfx canister call sybil create_custom_pair '(record {pair_id="QUI/USDT"; frequency=60:nat; uri="https://aws.qui0scit.dev/"; resolver="/rate"; amount=1:nat; msg="service.org wants you to sign in with your Ethereum account:
 0xE86C4A45C1Da21f8838a1ea26Fc852BD66489ce9
@@ -28,4 +32,4 @@ Issued At: 2023-05-04T18:39:24Z"; sig="fa7b336d271b7ed539b6db3034d57be294ef889b4
 dfx canister call sybil add_pair '("ETH/USD", 60:nat)'
 # to get a custom pair data
 dfx canister call sybil get_asset_data_with_proof '("ETH/USD")'
-``` 
+```

@@ -1,6 +1,6 @@
 type Error = variant { Ok : null; Err : text };
 
-type Endpoint = record {
+type Source = record {
     uri : text;
     resolver : text;
     expected_bytes : nat64;
@@ -17,7 +17,7 @@ type RateDataLight = record {
 type CustomPair = record {
     id : text;
     frequency : nat64;
-    source : Endpoint;
+    source : vec Source;
     data : RateDataLight;
     last_update : nat64;
 };
@@ -25,9 +25,9 @@ type CustomPair = record {
 type CreateCustomPairRequest = record {
     pair_id : text;
     frequency : nat;
-    uri : text;
-    resolver : text;
+    decimals : nat;
     amount : nat;
+    sources : vec Source;
     msg : text;
     sig : text;
 };
@@ -39,10 +39,31 @@ type Pair = record {
     data : RateDataLight;
 };
 
+type Cfg = record {
+    exchange_rate_canister : text;
+    proxy_ecdsa_canister : text;
+    siwe_signer_canister : text;
+    treasurer_canister : text;
+    expiration_time : nat64;
+    key_name : text;
+    cost_per_execution : nat64;
+};
+
+type UpdateCfg = record {
+    exchange_rate_canister : opt text;
+    proxy_ecdsa_canister : opt text;
+    siwe_signer_canister : opt text;
+    treasurer_canister : opt text;
+    expiration_time : opt nat64;
+    key_name : opt text;
+    cost_per_execution : opt nat64;
+};
+
 type GetAssetDataWithProofResponse = variant { Ok : RateDataLight; Err : text};
 type GetAssetDataResponse = variant { Ok : RateDataLight; Err: text};
 type AddPairResponse = variant { Ok : Pair; Err: text };
 type TextResponse = variant { Ok : text; Err: text};
+type GetCfgResponse = variant { Ok : Cfg; Err: text};
 
 service : {
     create_custom_pair : (req : CreateCustomPairRequest) -> (Error);
@@ -54,20 +75,7 @@ service : {
     add_pair : (pair_id : text, frequency : nat) -> (AddPairResponse);
     remove_pair : (pair_id : text) -> ();
     get_pairs : () -> (vec Pair);
-    set_exchange_rate_canister : (new_principal : text) -> ();
-    get_exchange_rate_canister : () -> (text);
-    set_proxy_ecdsa_canister : (new_principal : text) -> ();
-    get_proxy_ecdsa_canister : () -> (text);
-    set_siwe_signer_canister : (new_principal : text) -> ();
-    get_siwe_signer_canister : () -> (text);
-    set_expiration_time : (expiration_time : nat) -> ();
-    get_expiration_time : () -> (nat);
-    set_key_name : (key_name: text) -> ();
-    get_key_name : () -> (text);
-    set_treasurer_canister : (new_principal : text) -> ();
-    get_treasurer_canister : () -> (text);
-    set_cost_per_execution : (cost : nat) -> ();
-    get_cost_per_execution : () -> (nat);
+    update_cfg : (cfg : UpdateCfg) -> (Error);
+    get_cfg : () -> (GetCfgResponse);
     eth_address : () -> (TextResponse);
-    init_controllers : () -> ();
 }

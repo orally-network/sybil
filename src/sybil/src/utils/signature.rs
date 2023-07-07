@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 
 use ic_cdk::update;
-use ic_web3::{
+use ic_web3_rs::{
     ic::{get_eth_addr, recover_address},
     types::H160,
 };

@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use candid::Principal;
-use ic_cdk::api::management_canister::ecdsa::SignWithEcdsaResponse;
 use ic_cdk::api::call::call_with_payment;
+use ic_cdk::api::management_canister::ecdsa::SignWithEcdsaResponse;
 use ic_cdk::{
     api::management_canister::ecdsa::{EcdsaCurve, EcdsaKeyId, SignWithEcdsaArgument},
     export::{
@@ -10,7 +10,7 @@ use ic_cdk::{
         serde::{Deserialize, Serialize},
     },
 };
-use ic_web3::{ethabi::Token, signing::keccak256, types::H160};
+use ic_web3_rs::{ethabi::Token, signing::keccak256, types::H160};
 
 use anyhow::{anyhow, Result};
 
@@ -30,7 +30,7 @@ pub struct RateDataLight {
     pub rate: u64,
     pub decimals: u64,
     pub timestamp: u64,
-    pub signature: Option<String>
+    pub signature: Option<String>,
 }
 
 impl RateDataLight {
@@ -63,10 +63,10 @@ impl RateDataLight {
             Principal::management_canister(),
             "sign_with_ecdsa",
             (call_args,),
-            ECDSA_SIGN_CYCLES
+            ECDSA_SIGN_CYCLES,
         )
-            .await
-            .map_err(|(code, msg)| anyhow!("{:?}: {}", code, msg))?;
+        .await
+        .map_err(|(code, msg)| anyhow!("{:?}: {}", code, msg))?;
 
         let mut signature = signature.signature;
 
