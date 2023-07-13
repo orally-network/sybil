@@ -1,4 +1,7 @@
-use ic_cdk::{query, api::management_canister::http_request::{TransformArgs, HttpResponse}};
+use ic_cdk::{
+    api::management_canister::http_request::{HttpResponse, TransformArgs},
+    query,
+};
 use ic_web3_rs::transforms::{processors, transform::TransformProcessor};
 
 use crate::utils;

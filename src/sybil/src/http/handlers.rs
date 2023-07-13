@@ -1,9 +1,9 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 use super::{response, HttpRequest, HttpResponse};
-use crate::utils::{get_rate::get_rate, is_pair_exist, validation};
+use crate::{types::pairs::PairsStorage, utils::validation};
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
 struct GetAssetDataQueryParams {
@@ -36,13 +36,7 @@ async fn _get_asset_data_request(req: HttpRequest) -> Result<Vec<u8>> {
     let params = GetAssetDataQueryParams::try_from(req.url)?;
     params.validate()?;
 
-    let (is_pair_exist, metadata) = is_pair_exist(&params.pair_id);
-    if !is_pair_exist {
-        return Err(anyhow!("Pair not found"));
-    }
-
-    let with_signature = params.signature.unwrap_or(false);
-    let rate = get_rate(metadata.expect("Pair should exist"), with_signature).await?;
+    let rate = PairsStorage::rate(&params.pair_id, params.signature.unwrap_or(false)).await?;
 
     Ok(serde_json::to_vec(&rate)?)
 }

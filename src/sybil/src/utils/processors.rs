@@ -1,9 +1,11 @@
 use derive_builder::Builder;
 use ic_cdk::api::management_canister::http_request::{TransformContext, TransformFunc};
-use ic_web3_rs::{transforms::transform::TransformProcessor, transports::ic_http_client::{CallOptions, CallOptionsBuilder}};
+use ic_web3_rs::{
+    transforms::transform::TransformProcessor,
+    transports::ic_http_client::{CallOptions, CallOptionsBuilder},
+};
 use serde_json::Value;
 
-#[allow(dead_code)]
 pub fn transform_ctx_tx() -> CallOptions {
     get_transform_ctx("transform_tx")
 }
@@ -12,7 +14,6 @@ pub fn transform_ctx_tx_with_logs() -> CallOptions {
     get_transform_ctx("transform_tx_with_logs")
 }
 
-#[allow(dead_code)]
 pub fn transform_ctx() -> CallOptions {
     get_transform_ctx("transform")
 }

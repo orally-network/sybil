@@ -1,15 +1,28 @@
+use std::str::FromStr;
+
 use sha3::{Digest, Keccak256};
 use thiserror::Error;
 
 use crate::types::Address;
+use ic_web3_rs::types::H160;
 
 const PREFIX: &str = "0x";
 const ADDRESS_LENGTH: usize = 40;
 
 #[derive(Error, Debug)]
 pub enum AddressError {
-    #[error("Invalid hex")]
+    #[error("invalid hex")]
     InvalidHex,
+    #[error("invalid address")]
+    InvalidAddress,
+}
+
+pub fn to_h160(address: &str) -> Result<H160, AddressError> {
+    H160::from_str(address).map_err(|_| AddressError::InvalidAddress)
+}
+
+pub fn from_h160(address: &H160) -> Result<Address, AddressError> {
+    from_str(&hex::encode(address.as_bytes()))
 }
 
 pub fn from_str(address: &str) -> Result<Address, AddressError> {

@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::{log, types::cache::HTTPCacheable, HTTP_CACHE};
+use crate::{log, HTTP_CACHE, SIGNATURES_CACHE};
 
 #[derive(Error, Debug)]
 pub enum CacheCleanerError {}
@@ -17,6 +17,10 @@ pub fn execute() {
 async fn _execute() -> Result<(), CacheCleanerError> {
     log!("[CACHE CLEANER] cache cleaner job started");
     HTTP_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        cache.clean();
+    });
+    SIGNATURES_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
         cache.clean();
     });

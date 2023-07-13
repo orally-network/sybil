@@ -130,9 +130,9 @@ pub async fn http_request(req: HttpRequest) -> HttpResponse {
 
     if let Ok(route_match) = service.query_router.at(&req.url) {
         let handler = route_match.value;
-        let mut responce = handler(req).await;
-        responce = run_post_query_middlewares(responce).await;
-        return responce;
+        let mut response = handler(req).await;
+        response = run_post_query_middlewares(response).await;
+        return response;
     }
 
     response::page_not_found(service.update_router.at(&req.url).is_ok())
@@ -150,7 +150,7 @@ pub async fn http_request_update(req: HttpRequest) -> HttpResponse {
         .expect("handler not found")
         .value;
 
-    let mut responce = handler(req).await;
-    responce = run_post_update_middlewares(responce).await;
-    responce
+    let mut response = handler(req).await;
+    response = run_post_update_middlewares(response).await;
+    response
 }
