@@ -1,4 +1,4 @@
-use ic_web3::ethabi::Token;
+use ic_web3_rs::ethabi::Token;
 
 use anyhow::{anyhow, Result};
 
