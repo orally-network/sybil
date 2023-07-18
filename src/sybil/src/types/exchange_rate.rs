@@ -89,11 +89,11 @@ pub enum GetExchangeRateResult {
     Err(ExchangeRateError),
 }
 
-impl GetExchangeRateResult {
-    pub fn result(&self) -> Result<ExchangeRate, ExchangeRateError> {
-        match self {
-            GetExchangeRateResult::Ok(rate) => Ok(rate.clone()),
-            GetExchangeRateResult::Err(err) => Err(err.clone()),
+impl From<GetExchangeRateResult> for Result<ExchangeRate, ExchangeRateError> {
+    fn from(result: GetExchangeRateResult) -> Self {
+        match result {
+            GetExchangeRateResult::Ok(rate) => Ok(rate),
+            GetExchangeRateResult::Err(err) => Err(err),
         }
     }
 }

@@ -8,7 +8,7 @@ use ic_web3_rs::ethabi::Error as EthabiError;
 
 use super::{whitelist::WhitelistError, Address};
 use crate::{
-    utils::{address::AddressError, canister::CanisterError, siwe::SIWEError, web3::Web3Error},
+    utils::{address::AddressError, canister::CanisterError, siwe::SiweError, web3::Web3Error},
     STATE,
 };
 
@@ -43,7 +43,7 @@ pub enum DepositError {
     #[error("tx does not exist")]
     TxDoesNotExist,
     #[error("SIWE Error: {0}")]
-    SIWEError(#[from] SIWEError),
+    SIWEError(#[from] SiweError),
     #[error("tx is not finalized")]
     TxNotFinalized,
     #[error("tx has failed")]
@@ -68,6 +68,8 @@ pub enum DepositError {
     TokenReceiverIsNotCanisterEthAddress,
     #[error("Whitelist error: {0}")]
     Whitelist(#[from] WhitelistError),
+    #[error("invalid transfer event")]
+    InvalidTransferEvent,
 }
 
 #[derive(CandidType, Deserialize, Serialize, Default, Clone)]

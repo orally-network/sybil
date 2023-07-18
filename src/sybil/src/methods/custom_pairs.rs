@@ -15,7 +15,7 @@ use crate::{
         whitelist::{Whitelist, WhitelistError},
     },
     utils::{
-        siwe::{self, SIWEError},
+        siwe::{self, SiweError},
         validation,
     },
 };
@@ -23,7 +23,7 @@ use crate::{
 #[derive(Error, Debug)]
 pub enum CustomPairError {
     #[error("SIWE Error: {0}")]
-    SIWEError(#[from] SIWEError),
+    SIWEError(#[from] SiweError),
     #[error("Validation Error: {0}")]
     ValidationError(#[from] ValidationErrors),
     #[error("Whitelist Error: {0}")]
@@ -63,7 +63,7 @@ pub async fn create_custom_pair(req: CreateCustomPairRequest) -> Result<(), Stri
 pub async fn _create_custom_pair(req: CreateCustomPairRequest) -> Result<(), CustomPairError> {
     let addr = siwe::recover(&req.msg, &req.sig).await?;
     if !Whitelist::contains(&addr) {
-        return Err(WhitelistError::AddressNotWhitelisted)?;
+        return Err(WhitelistError::AddressNotWhitelisted.into());
     }
 
     if PairsStorage::contains(&req.pair_id) {
@@ -101,7 +101,7 @@ pub async fn _remove_custom_pair(
 ) -> Result<(), CustomPairError> {
     let addr = siwe::recover(&msg, &sig).await?;
     if !Whitelist::contains(&addr) {
-        return Err(WhitelistError::AddressNotWhitelisted)?;
+        return Err(WhitelistError::AddressNotWhitelisted.into());
     }
 
     if let Some(pair) = PairsStorage::get(&id) {

@@ -19,7 +19,7 @@ use crate::{
     utils::{
         address::{self, AddressError},
         canister, nat,
-        siwe::{self, SIWEError},
+        siwe::{self, SiweError},
         validate_caller, web3, CallerError,
     },
 };
@@ -56,7 +56,7 @@ pub enum BalancesError {
     #[error("Balance error: {0}")]
     BalanceError(#[from] BalanceError),
     #[error("SIWE error: {0}")]
-    Siwe(#[from] SIWEError),
+    Siwe(#[from] SiweError),
     #[error("Whitelist error: {0}")]
     Whitelist(#[from] WhitelistError),
     #[error("Web3 error: {0}")]
@@ -78,7 +78,7 @@ pub async fn deposit(tx_hash: String, msg: String, sig: String) -> Result<(), St
 async fn _deposit(tx_hash: String, msg: String, sig: String) -> Result<(), DepositError> {
     let caller = siwe::recover(&msg, &sig).await?;
     if !Whitelist::contains(&caller) {
-        return Err(WhitelistError::AddressNotWhitelisted)?;
+        return Err(WhitelistError::AddressNotWhitelisted.into());
     }
     let caller_eth = address::to_h160(&caller)?;
     let tx_hash = H256::from_str(&tx_hash).map_err(|_| DepositError::InvalidTxHash)?;
@@ -128,6 +128,10 @@ fn get_transfer_log(logs: &[TxLog]) -> Result<(H160, H160, U256), DepositError> 
                 .any(|topic| topic == &*TRANSFER_EVENT_SIGNATURE)
         })
         .ok_or(DepositError::TxWithoutTransferEvent)?;
+
+    if log.topics.len() != 3 {
+        return Err(DepositError::InvalidTransferEvent);
+    }
 
     let from = H160::from_slice(&log.topics[1].0[12..]);
     let to = H160::from_slice(&log.topics[2].0[12..]);
@@ -207,7 +211,7 @@ async fn _withdraw(
     let caller = siwe::recover(&msg, &sig).await?;
     let receiver = address::from_str(&to)?;
     if !Whitelist::contains(&caller) {
-        return Err(WhitelistError::AddressNotWhitelisted)?;
+        return Err(WhitelistError::AddressNotWhitelisted.into());
     }
 
     if amount == 0 {
@@ -215,7 +219,7 @@ async fn _withdraw(
     }
 
     if !Balances::is_sufficient(&caller, &amount)? {
-        return Err(BalanceError::InsufficientBalance)?;
+        return Err(BalanceError::InsufficientBalance.into());
     }
 
     let tx_hash = web3::send_erc20(&amount, &receiver).await?;

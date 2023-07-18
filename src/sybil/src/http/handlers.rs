@@ -1,8 +1,8 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-use super::{response, HttpRequest, HttpResponse};
+use super::{response, HttpRequest, HttpResponse, HTTP_SERVICE};
 use crate::{types::pairs::PairsStorage, utils::validation};
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
@@ -33,7 +33,17 @@ pub async fn get_asset_data_request(req: HttpRequest) -> HttpResponse {
 
 #[inline(always)]
 async fn _get_asset_data_request(req: HttpRequest) -> Result<Vec<u8>> {
-    let params = GetAssetDataQueryParams::try_from(req.url)?;
+    let service = HTTP_SERVICE.get().expect("State not initialized");
+    let query = service
+        .update_router
+        .inner
+        .at(&req.url)
+        .context("No route found")?
+        .params
+        .get("query")
+        .context("No query found")?;
+
+    let params = GetAssetDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
     let rate = PairsStorage::rate(&params.pair_id, params.signature.unwrap_or(false)).await?;

@@ -20,7 +20,7 @@ use crate::{
 #[derive(Error, Debug)]
 pub enum DataFetchersError {
     #[error("SIWE error: {0}")]
-    Siwe(#[from] siwe::SIWEError),
+    Siwe(#[from] siwe::SiweError),
     #[error("Whitelist error: {0}")]
     Whitelist(#[from] WhitelistError),
     #[error("DataFetcher error: {0}")]
@@ -50,7 +50,7 @@ pub async fn create_data_fetcher(req: CreateDataFetcherRequest) -> Result<Nat, S
 async fn _create_data_fetcher(req: CreateDataFetcherRequest) -> Result<Nat, DataFetchersError> {
     let addr = siwe::recover(&req.msg, &req.sig).await?;
     if !Whitelist::contains(&addr) {
-        return Err(WhitelistError::AddressNotWhitelisted)?;
+        return Err(WhitelistError::AddressNotWhitelisted.into());
     }
 
     let data_fetcher = DataFetcher::new(req, &addr);
@@ -107,7 +107,7 @@ pub async fn get_data(id: Nat) -> Result<String, String> {
 }
 
 #[inline(always)]
-pub async fn _get_data(id: Nat) -> Result<String, DataFetchersError> {
+async fn _get_data(id: Nat) -> Result<String, DataFetchersError> {
     let data_fetcher =
         DataFetchersStorage::get(&id).ok_or(DataFetchersError::DataFetcherDoesNotExist)?;
     Ok(data_fetcher.fetch().await?)

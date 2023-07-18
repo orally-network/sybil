@@ -17,7 +17,7 @@ use ic_utils::{
 
 use crate::{
     types::{
-        pairs::{PairError, PairsStorage},
+        pairs::{Pair, PairError, PairsStorage},
         rate_data::RateDataLight,
     },
     utils::canister,
@@ -35,8 +35,11 @@ fn is_pair_exists(pair_id: String) -> bool {
 }
 
 #[query]
-fn get_all_pairs() -> Vec<String> {
-    PairsStorage::pairs()
+fn get_pairs() -> Vec<Pair> {
+    let mut pairs = PairsStorage::pairs();
+    pairs.iter_mut().for_each(|pair| pair.shrink_sources());
+
+    pairs
 }
 
 #[update]

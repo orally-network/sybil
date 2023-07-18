@@ -13,7 +13,7 @@ use super::{
 use crate::{clone_with_state, types::Address};
 
 #[derive(Error, Debug)]
-pub enum SIWEError {
+pub enum SiweError {
     #[error("invalid message")]
     InvalidMessage(#[from] ParseError),
     #[error("invalid timestamp")]
@@ -26,7 +26,7 @@ pub enum SIWEError {
     InvalidAddress(#[from] AddressError),
 }
 
-pub async fn recover(msg: &str, sig: &str) -> Result<Address, SIWEError> {
+pub async fn recover(msg: &str, sig: &str) -> Result<Address, SiweError> {
     let msg = Message::from_str(msg)?;
     if !clone_with_state!(mock) {
         let sig = hex::decode(sig).map_err(|e| anyhow!("invalid signature: {}", e))?;

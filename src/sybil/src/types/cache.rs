@@ -74,22 +74,22 @@ impl RateCache {
 
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug, Derivative)]
 #[derivative(Default)]
-pub struct HTTPCache {
-    entries: HashMap<String, HTTPCacheEntry>,
+pub struct HttpCache {
+    entries: HashMap<String, HttpCacheEntry>,
     #[derivative(Default(value = "300"))]
     capacity: usize,
-    stats: HTTPCacheStats,
+    stats: HttpCacheStats,
 }
 
 #[derive(Default, Clone, CandidType, Serialize, Deserialize, Debug)]
-struct HTTPCacheEntry {
+struct HttpCacheEntry {
     cached_at: Timestamp,
     // expiration frequency
     expr_freq: Seconds,
     response: Option<HttpResponse>,
 }
 
-impl HTTPCacheEntry {
+impl HttpCacheEntry {
     fn new(response: HttpResponse, expr_freq: Seconds) -> Self {
         Self {
             cached_at: time::in_seconds(),
@@ -104,7 +104,7 @@ impl HTTPCacheEntry {
 }
 
 #[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
-pub struct HTTPCacheStats {
+pub struct HttpCacheStats {
     hits: usize,
     misses: usize,
     cache_size: usize,
@@ -112,9 +112,9 @@ pub struct HTTPCacheStats {
 }
 
 #[derive(Error, Debug)]
-pub enum HTTPCacheError {
+pub enum HttpCacheError {
     #[error("HTTP outcall error with message: {0}")]
-    HTTPOutcallError(String),
+    HttpOutcallError(String),
     #[error("Got error from server: {0}")]
     ServerError(String),
     #[error("Invalid response body json: {0}")]
@@ -123,11 +123,11 @@ pub enum HTTPCacheError {
     InvalidResponseBodyResolver(String),
 }
 
-impl HTTPCache {
+impl HttpCache {
     pub async fn request_with_access(
         request: &CanisterHttpRequestArgument,
         expr_freq: Seconds,
-    ) -> Result<(HttpResponse, Seconds), HTTPCacheError> {
+    ) -> Result<(HttpResponse, Seconds), HttpCacheError> {
         let mut cache = HTTP_CACHE.with(|c| c.borrow().clone());
         let response = cache.request(request, expr_freq).await;
         HTTP_CACHE.with(|c| c.replace(cache));
@@ -138,34 +138,34 @@ impl HTTPCache {
         &mut self,
         request: &CanisterHttpRequestArgument,
         expr_freq: Seconds,
-    ) -> Result<(HttpResponse, Seconds), HTTPCacheError> {
+    ) -> Result<(HttpResponse, Seconds), HttpCacheError> {
         log!("[HTTP CACHE] got request");
         self.stats.total_requests += 1;
 
-        if let Some(entry) = self.entries.get(&request.url) {
-            log!("[HTTP CACHE] record found in cache");
-            if let Some(response) = &entry.response {
-                log!("[HTTP CACHE] response found in cache");
-                if entry.is_expired() {
-                    log!("[HTTP CACHE] response expired");
-                    return self.force_request(request, expr_freq).await;
-                }
-                log!("[HTTP CACHE] response not expired");
-                return Ok((response.clone(), entry.cached_at));
+        let Some(entry) = self.entries.get(&request.url) else {
+            log!("[HTTP CACHE] record not found in cache");
+            return self.force_request(request, expr_freq).await;
+        };
+
+        if let Some(response) = &entry.response {
+            log!("[HTTP CACHE] response found in cache");
+            if entry.is_expired() {
+                log!("[HTTP CACHE] response expired");
+                return self.force_request(request, expr_freq).await;
             }
+            return Ok((response.clone(), entry.cached_at));
+        }
 
-            log!("[HTTP CACHE] response not found in cache");
-            // waiting for the pending request to finish
-            for _ in 0..(HTTP_WATTING_TIMEOUT_SECS / HTTP_WAITING_DELAY_SECS) {
-                time::wait(HTTP_WAITING_DELAY_SECS).await;
+        log!("[HTTP CACHE] response not found in cache");
+        // waiting for the pending request to finish
+        for _ in 0..(HTTP_WATTING_TIMEOUT_SECS / HTTP_WAITING_DELAY_SECS) {
+            time::wait(HTTP_WAITING_DELAY_SECS).await;
 
-                if let Some(response) = &entry.response {
-                    return Ok((response.clone(), entry.cached_at));
-                }
+            if let Some(response) = &entry.response {
+                return Ok((response.clone(), entry.cached_at));
             }
         }
 
-        log!("[HTTP CACHE] record not found in cache");
         self.force_request(request, expr_freq).await
     }
 
@@ -173,7 +173,7 @@ impl HTTPCache {
         &mut self,
         request: &CanisterHttpRequestArgument,
         expr_freq: Seconds,
-    ) -> Result<(HttpResponse, Seconds), HTTPCacheError> {
+    ) -> Result<(HttpResponse, Seconds), HttpCacheError> {
         let mut cycles =
             HTTP_OUTCALL_REQUEST_CYCLES + (MAX_RESPONSE_BYTES * HTTP_OUTCALL_PAYLOAD_CYCLES);
         if let Some(body) = &request.body {
@@ -181,22 +181,23 @@ impl HTTPCache {
         }
 
         self.entries
-            .insert(request.url.clone(), HTTPCacheEntry::default());
+            .insert(request.url.clone(), HttpCacheEntry::default());
 
         let response = http_request(request.clone(), cycles)
             .await
             .map_err(|(_, msg)| {
                 self.stats.misses += 1;
-                HTTPCacheError::HTTPOutcallError(msg)
+                HttpCacheError::HttpOutcallError(msg)
             })?
             .0;
 
         if nat::to_u64(&response.status) >= 400 {
-            let msg = String::from_utf8(response.body).unwrap_or("unknown error".to_string());
+            let msg =
+                String::from_utf8(response.body).unwrap_or_else(|_| "unknown error".to_string());
 
             self.stats.misses += 1;
 
-            return Err(HTTPCacheError::ServerError(msg));
+            return Err(HttpCacheError::ServerError(msg));
         }
 
         let entry = self.entries.get_mut(&request.url);
@@ -207,7 +208,7 @@ impl HTTPCache {
         } else {
             self.entries.insert(
                 request.url.clone(),
-                HTTPCacheEntry::new(response.clone(), expr_freq),
+                HttpCacheEntry::new(response.clone(), expr_freq),
             );
         }
 
@@ -239,7 +240,7 @@ impl HTTPCache {
         self.entries.retain(|key, _| !keys_to_remove.contains(key));
     }
 
-    pub fn stats(&self) -> HTTPCacheStats {
+    pub fn stats(&self) -> HttpCacheStats {
         let mut stats = self.stats.clone();
         stats.cache_size = self.entries.len();
         stats

@@ -16,7 +16,7 @@ use validator::Validate;
 
 use super::{
     balances::{BalanceError, Balances},
-    cache::{HTTPCache, HTTPCacheError},
+    cache::{HttpCache, HttpCacheError},
     exchange_rate::{self, Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest},
     rate_data::{RateDataError, RateDataLight},
     state, Address, Seconds, Timestamp,
@@ -25,7 +25,7 @@ use crate::{
     clone_with_state, defer,
     jobs::cache_cleaner,
     methods::{custom_pairs::CreateCustomPairRequest, default_pairs::CreateDefaultPairRequest},
-    utils::{canister, nat, siwe::SIWEError, time, validation, vec},
+    utils::{canister, nat, siwe::SiweError, time, validation, vec},
     CACHE, STATE,
 };
 
@@ -47,7 +47,7 @@ pub enum PairError {
     #[error("Rate data error: {0}")]
     RateDataError(#[from] RateDataError),
     #[error("SIWE error: {0}")]
-    SIWEError(#[from] SIWEError),
+    SIWEError(#[from] SiweError),
     #[error("Balance error: {0}")]
     Balance(#[from] BalanceError),
     #[error("Canister error: {0}")]
@@ -65,7 +65,7 @@ pub struct Source {
 }
 
 impl Source {
-    pub async fn rate(&self, expr_freq: Seconds) -> Result<(u64, Seconds), HTTPCacheError> {
+    pub async fn rate(&self, expr_freq: Seconds) -> Result<(u64, Seconds), HttpCacheError> {
         let req = CanisterHttpRequestArgument {
             url: self.uri.clone(),
             max_response_bytes: Some(self.expected_bytes),
@@ -73,25 +73,25 @@ impl Source {
         };
 
         defer!(cache_cleaner::execute());
-        let (response, cached_at) = HTTPCache::request_with_access(&req, expr_freq).await?;
+        let (response, cached_at) = HttpCache::request_with_access(&req, expr_freq).await?;
 
         let ptr = Pointer::try_from(self.resolver.clone())
-            .map_err(|err| HTTPCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?;
+            .map_err(|err| HttpCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?;
 
         let data = serde_json::from_slice::<Value>(&response.body)?;
 
         let rate = data
             .resolve(&ptr)
-            .map_err(|err| HTTPCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?
+            .map_err(|err| HttpCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?
             .as_u64()
-            .ok_or(HTTPCacheError::InvalidResponseBodyResolver(
+            .ok_or(HttpCacheError::InvalidResponseBodyResolver(
                 "value is not number".into(),
             ))?;
 
         Ok((rate, cached_at))
     }
 
-    pub async fn data(&self, expr_freq: Seconds) -> Result<(String, Seconds), HTTPCacheError> {
+    pub async fn data(&self, expr_freq: Seconds) -> Result<(String, Seconds), HttpCacheError> {
         let req = CanisterHttpRequestArgument {
             url: self.uri.clone(),
             max_response_bytes: Some(self.expected_bytes),
@@ -99,18 +99,18 @@ impl Source {
         };
 
         defer!(cache_cleaner::execute());
-        let (response, cached_at) = HTTPCache::request_with_access(&req, expr_freq).await?;
+        let (response, cached_at) = HttpCache::request_with_access(&req, expr_freq).await?;
 
         let ptr = Pointer::try_from(self.resolver.clone())
-            .map_err(|err| HTTPCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?;
+            .map_err(|err| HttpCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?;
 
         let json = serde_json::from_slice::<Value>(&response.body)?;
 
         let data = json
             .resolve(&ptr)
-            .map_err(|err| HTTPCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?
+            .map_err(|err| HttpCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?
             .as_str()
-            .ok_or(HTTPCacheError::InvalidResponseBodyResolver(
+            .ok_or(HttpCacheError::InvalidResponseBodyResolver(
                 "value is not str".into(),
             ))?;
 
@@ -147,6 +147,12 @@ pub struct Pair {
 impl Pair {
     pub fn set_owner(&mut self, owner: Address) {
         self.owner = owner;
+    }
+
+    pub fn shrink_sources(&mut self) {
+        if let PairType::Custom { sources } = &mut self.pair_type {
+            sources.retain(|source| source.expected_bytes > 0);
+        }
     }
 }
 
@@ -225,12 +231,14 @@ impl PairsStorage {
 
         let exchange_rate_canister =
             exchange_rate::Service(clone_with_state!(exchange_rate_canister));
-        let exchange_rate = exchange_rate_canister
-            .get_exchange_rate(req)
-            .await
-            .map_err(|(_, msg)| PairError::UnableToGetRate(msg))?
-            .0
-            .result()?;
+
+        let exchange_rate = Result::<_, _>::from(
+            exchange_rate_canister
+                .get_exchange_rate(req)
+                .await
+                .map_err(|(_, msg)| PairError::UnableToGetRate(msg))?
+                .0,
+        )?;
 
         let rate_data = RateDataLight {
             symbol: pair.id.clone(),
@@ -258,7 +266,8 @@ impl PairsStorage {
         let bytes = Nat::from(
             sources
                 .iter()
-                .fold(0, |v, source| v + source.expected_bytes),
+                .map(|source| source.expected_bytes)
+                .sum::<u64>(),
         );
         let fee_per_byte = state::get_cfg().balances_cfg.fee_per_byte;
         let fee = fee_per_byte * bytes;
@@ -284,7 +293,7 @@ impl PairsStorage {
         results.sort();
 
         let rate =
-            vec::find_most_frequent_value(&results).ok_or(PairError::NoRateValueGotFromSources)?;
+            *vec::find_most_frequent_value(&results).ok_or(PairError::NoRateValueGotFromSources)?;
 
         Ok(RateDataLight {
             symbol: pair.id.clone(),
@@ -302,28 +311,27 @@ impl PairsStorage {
     pub fn get_assets(pair_id: &str) -> Option<(Asset, Asset)> {
         let assets: Vec<&str> = pair_id.split_terminator('/').collect();
 
-        let (base_asset, quote_asset) = match assets.len() {
-            2 => (assets[0], assets[1]),
-            _ => return None,
-        };
+        if let (Some(base_asset), Some(quote_asset)) = (assets.first(), assets.last()) {
+            return Some((
+                Asset {
+                    class: AssetClass::Cryptocurrency,
+                    symbol: base_asset.to_string(),
+                },
+                Asset {
+                    class: AssetClass::FiatCurrency,
+                    symbol: quote_asset.to_string(),
+                },
+            ));
+        }
 
-        Some((
-            Asset {
-                class: AssetClass::Cryptocurrency,
-                symbol: base_asset.to_string(),
-            },
-            Asset {
-                class: AssetClass::FiatCurrency,
-                symbol: quote_asset.to_string(),
-            },
-        ))
+        None
     }
 
     pub fn contains(pair_id: &str) -> bool {
         STATE.with(|state| state.borrow().pairs.0.contains_key(pair_id))
     }
 
-    pub fn pairs() -> Vec<String> {
-        STATE.with(|state| state.borrow().pairs.0.keys().cloned().collect())
+    pub fn pairs() -> Vec<Pair> {
+        STATE.with(|state| state.borrow().pairs.0.values().cloned().collect())
     }
 }

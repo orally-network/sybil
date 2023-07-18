@@ -53,8 +53,8 @@ impl DataFetcher {
         let fee = fee_per_byte * bytes;
 
         if !Balances::is_sufficient(&self.owner, &fee)? {
-            return Err(BalanceError::InsufficientBalance)?;
-        };
+            return Err(BalanceError::InsufficientBalance.into());
+        }
 
         let update_freq = nat::to_u64(&self.update_freq);
 
@@ -75,7 +75,9 @@ impl DataFetcher {
 
         results.sort();
 
-        vec::find_most_frequent_value(&results).ok_or(DataFetcherError::NoValueGotFromSources)
+        vec::find_most_frequent_value(&results)
+            .ok_or(DataFetcherError::NoValueGotFromSources)
+            .cloned()
     }
 
     pub fn new(req: CreateDataFetcherRequest, owner: &Address) -> DataFetcher {

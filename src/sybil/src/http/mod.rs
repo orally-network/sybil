@@ -12,6 +12,8 @@ use matchit::Router;
 
 use crate::types::http::{HttpRequest, HttpResponse};
 
+pub static HTTP_SERVICE: OnceLock<HttpService> = OnceLock::new();
+
 type Handler =
     Box<dyn Fn(HttpRequest) -> Pin<Box<dyn Future<Output = HttpResponse>>> + Sync + Send>;
 type PreMiddleware =
@@ -19,138 +21,110 @@ type PreMiddleware =
 type PostMiddleware =
     Box<dyn Fn(HttpResponse) -> Pin<Box<dyn Future<Output = HttpResponse>>> + Sync + Send>;
 
-pub struct HTTPService {
-    query_router: Router<Handler>,
-    update_router: Router<Handler>,
-    pre_query_middlewares: Vec<PreMiddleware>,
-    post_query_middlewares: Vec<PostMiddleware>,
-    pre_update_middlewares: Vec<PreMiddleware>,
-    post_update_middlewares: Vec<PostMiddleware>,
+pub struct HttpRouter {
+    inner: Router<Handler>,
+    pre_middlewares: Vec<PreMiddleware>,
+    post_middlewares: Vec<PostMiddleware>,
 }
 
-pub static HTTP_SERVICE: OnceLock<HTTPService> = OnceLock::new();
+pub struct HttpService {
+    query_router: HttpRouter,
+    update_router: HttpRouter,
+}
 
-pub fn init_http_service() -> HTTPService {
-    HTTPService {
-        query_router: init_query_router(),
-        update_router: init_update_router(),
-        pre_query_middlewares: init_pre_query_middlewares(),
-        post_query_middlewares: init_post_query_middlewares(),
-        pre_update_middlewares: init_pre_update_middlewares(),
-        post_update_middlewares: init_post_update_middlewares(),
+impl HttpService {
+    pub fn init() {
+        let service = Self {
+            query_router: Self::init_query_router(),
+            update_router: Self::init_update_router(),
+        };
+
+        HTTP_SERVICE.get_or_init(|| service);
+    }
+
+    pub fn init_query_router() -> HttpRouter {
+        let router = Router::<Handler>::new();
+
+        let pre_middlewares: Vec<PreMiddleware> = vec![];
+
+        let post_middlewares: Vec<PostMiddleware> = vec![];
+
+        HttpRouter {
+            inner: router,
+            pre_middlewares,
+            post_middlewares,
+        }
+    }
+
+    pub fn init_update_router() -> HttpRouter {
+        let mut router = Router::<Handler>::new();
+        router
+            .insert(
+                "/get_asset_data/*query",
+                Box::new(|request| Box::pin(handlers::get_asset_data_request(request))),
+            )
+            .expect("Failed to insert handler");
+
+        let pre_middlewares: Vec<PreMiddleware> =
+            vec![Box::new(|request| Box::pin(middlewares::logger(request)))];
+
+        let post_middlewares: Vec<PostMiddleware> =
+            vec![Box::new(|resp| Box::pin(middlewares::cors(resp)))];
+
+        HttpRouter {
+            inner: router,
+            pre_middlewares,
+            post_middlewares,
+        }
     }
 }
 
-pub fn init_query_router() -> Router<Handler> {
-    Router::new()
-}
+impl HttpRouter {
+    pub async fn run_pre_middlewares(&self, mut req: HttpRequest) -> HttpRequest {
+        for middleware in &self.pre_middlewares {
+            req = middleware(req).await;
+        }
 
-pub fn init_pre_query_middlewares() -> Vec<PreMiddleware> {
-    vec![]
-}
-
-pub fn init_post_query_middlewares() -> Vec<PostMiddleware> {
-    vec![]
-}
-
-pub fn init_pre_update_middlewares() -> Vec<PreMiddleware> {
-    vec![Box::new(|request| Box::pin(middlewares::logger(request)))]
-}
-
-pub fn init_post_update_middlewares() -> Vec<PostMiddleware> {
-    vec![]
-}
-
-pub fn init_update_router() -> Router<Handler> {
-    let mut router: Router<Handler> = Router::new();
-
-    router
-        .insert(
-            "/get_asset_data/:query",
-            Box::new(|request| Box::pin(handlers::get_asset_data_request(request))),
-        )
-        .expect("Failed to insert handler");
-
-    router
-}
-
-pub async fn run_pre_query_middlewares(req: HttpRequest) -> HttpRequest {
-    let http_service = HTTP_SERVICE.get().expect("HTTP service not initialized");
-
-    let mut req = req;
-
-    for middleware in &http_service.pre_query_middlewares {
-        req = middleware(req).await;
+        req
     }
 
-    req
-}
+    pub async fn run_post_middlewares(&self, mut res: HttpResponse) -> HttpResponse {
+        for middleware in &self.post_middlewares {
+            res = middleware(res).await;
+        }
 
-pub async fn run_post_query_middlewares(res: HttpResponse) -> HttpResponse {
-    let http_service = HTTP_SERVICE.get().expect("HTTP service not initialized");
-
-    let mut res = res;
-
-    for middleware in &http_service.post_query_middlewares {
-        res = middleware(res).await;
+        res
     }
-
-    res
-}
-
-pub async fn run_pre_update_middlewares(req: HttpRequest) -> HttpRequest {
-    let http_service = HTTP_SERVICE.get().expect("HTTP service not initialized");
-
-    let mut req = req;
-
-    for middleware in &http_service.pre_update_middlewares {
-        req = middleware(req).await;
-    }
-
-    req
-}
-
-pub async fn run_post_update_middlewares(res: HttpResponse) -> HttpResponse {
-    let http_service = HTTP_SERVICE.get().expect("HTTP service not initialized");
-
-    let mut res = res;
-
-    for middleware in &http_service.post_update_middlewares {
-        res = middleware(res).await;
-    }
-
-    res
 }
 
 #[query]
 pub async fn http_request(req: HttpRequest) -> HttpResponse {
-    let req = run_pre_query_middlewares(req).await;
+    let service = HTTP_SERVICE.get().expect("HTTP service not initialized");
 
-    let service = HTTP_SERVICE.get().expect("State not initialized");
+    let req = service.query_router.run_pre_middlewares(req).await;
 
-    if let Ok(route_match) = service.query_router.at(&req.url) {
+    if let Ok(route_match) = service.query_router.inner.at(&req.url) {
         let handler = route_match.value;
-        let mut response = handler(req).await;
-        response = run_post_query_middlewares(response).await;
-        return response;
+        let response = handler(req).await;
+        return service.query_router.run_post_middlewares(response).await;
     }
 
-    response::page_not_found(service.update_router.at(&req.url).is_ok())
+    response::page_not_found(service.update_router.inner.at(&req.url).is_ok())
 }
 
 #[update]
 pub async fn http_request_update(req: HttpRequest) -> HttpResponse {
-    let req = run_pre_update_middlewares(req).await;
+    let service = HTTP_SERVICE.get().expect("HTTP service not initialized");
 
-    let service = HTTP_SERVICE.get().expect("State not initialized");
+    let req = service.update_router.run_pre_middlewares(req).await;
 
     let handler = service
         .update_router
+        .inner
         .at(&req.url)
         .expect("handler not found")
         .value;
+    let response = handler(req).await;
 
-    let mut response = handler(req).await;
-    response = run_post_update_middlewares(response).await;
-    response
+    service.update_router.run_post_middlewares(response).await
 }

@@ -101,7 +101,7 @@ service : {
     get_asset_data_with_proof : (pair_id : text) -> (GetAssetDataWithProofResponse);
     get_asset_data : (pair_id : text) -> (GetAssetDataResponse);
     is_pair_exists : (pair_id : text) -> (bool);
-    get_all_pairs : () -> (vec text);
+    get_pairs : () -> (vec Pair);
 
     // controllers
     update_cfg : (cfg : UpdateCfg) -> (Error);

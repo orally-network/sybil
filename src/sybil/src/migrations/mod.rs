@@ -2,8 +2,9 @@ use ic_cdk::{post_upgrade, pre_upgrade, storage};
 use ic_utils::monitor;
 
 use crate::{
+    http::HttpService,
     types::{
-        cache::{HTTPCache, RateCache, SignaturesCache},
+        cache::{HttpCache, RateCache, SignaturesCache},
         state::State,
     },
     CACHE, HTTP_CACHE, SIGNATURES_CACHE, STATE,
@@ -29,7 +30,7 @@ fn post_upgrade() {
         State,
         RateCache,
         monitor::PostUpgradeStableData,
-        HTTPCache,
+        HttpCache,
         SignaturesCache,
     ) = storage::stable_restore().expect("should be able to restore");
 
@@ -39,4 +40,6 @@ fn post_upgrade() {
     CACHE.with(|c| c.replace(cache));
     HTTP_CACHE.with(|c| c.replace(http_cache));
     SIGNATURES_CACHE.with(|c| c.replace(signatures_cache));
+
+    HttpService::init();
 }
