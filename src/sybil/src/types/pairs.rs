@@ -108,13 +108,9 @@ impl Source {
 
         let data = json
             .resolve(&ptr)
-            .map_err(|err| HttpCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?
-            .as_str()
-            .ok_or(HttpCacheError::InvalidResponseBodyResolver(
-                "value is not str".into(),
-            ))?;
+            .map_err(|err| HttpCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?;
 
-        Ok((data.into(), cached_at))
+        Ok((format!("{data}"), cached_at))
     }
 }
 
