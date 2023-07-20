@@ -330,4 +330,8 @@ impl PairsStorage {
     pub fn pairs() -> Vec<Pair> {
         STATE.with(|state| state.borrow().pairs.0.values().cloned().collect())
     }
+
+    pub fn clear() {
+        STATE.with(|state| state.borrow_mut().pairs.0.clear());
+    }
 }

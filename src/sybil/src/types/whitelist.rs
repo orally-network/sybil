@@ -58,4 +58,11 @@ impl Whitelist {
             state.whitelist.0.iter().cloned().collect()
         })
     }
+
+    pub fn clear() {
+        STATE.with(|state| {
+            let mut state = state.borrow_mut();
+            state.whitelist.0.clear();
+        })
+    }
 }

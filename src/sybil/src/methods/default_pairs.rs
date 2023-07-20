@@ -49,7 +49,6 @@ pub async fn create_default_pair(req: CreateDefaultPairRequest) -> Result<(), St
 
 async fn _create_default_pair(req: CreateDefaultPairRequest) -> Result<(), DefaultPairError> {
     validate_caller()?;
-
     if PairsStorage::contains(&req.pair_id) {
         return Err(DefaultPairError::PairAlreadyExists);
     }

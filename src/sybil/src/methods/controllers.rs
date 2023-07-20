@@ -31,3 +31,15 @@ fn _get_cfg() -> Result<Cfg> {
     validate_caller()?;
     Ok(state::get_cfg())
 }
+
+#[update]
+pub fn clear_state() -> Result<(), String> {
+    _clear_state().map_err(|e| format!("{e:?}"))
+}
+
+#[inline(always)]
+fn _clear_state() -> Result<()> {
+    validate_caller()?;
+    state::clear();
+    Ok(())
+}

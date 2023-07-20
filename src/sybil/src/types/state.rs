@@ -88,3 +88,11 @@ pub fn get_cfg() -> Cfg {
         }
     })
 }
+
+pub fn clear() {
+    PairsStorage::clear();
+    Balances::clear();
+    Whitelist::clear();
+    DataFetchersStorage::clear();
+    DataFethcersIndexer::reset();
+}

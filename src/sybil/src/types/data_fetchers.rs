@@ -135,6 +135,13 @@ impl DataFetchersStorage {
         let data_fetcher = Self::get(id).ok_or(DataFetcherError::DataFetcherNotFound)?;
         data_fetcher.fetch().await
     }
+
+    pub fn clear() {
+        STATE.with(|state| {
+            let mut state = state.borrow_mut();
+            state.data_fetchers.0.clear();
+        })
+    }
 }
 
 #[derive(CandidType, Serialize, Deserialize, Debug, Clone, Default)]
@@ -146,6 +153,13 @@ impl DataFethcersIndexer {
             let mut state = state.borrow_mut();
             state.data_fetchers_indexer.0 += 1;
             state.data_fetchers_indexer.0.clone()
+        })
+    }
+
+    pub fn reset() {
+        STATE.with(|state| {
+            let mut state = state.borrow_mut();
+            state.data_fetchers_indexer.0 = Nat::from(0);
         })
     }
 }

@@ -192,4 +192,10 @@ impl Balances {
             Ok(())
         })
     }
+
+    pub fn clear() {
+        STATE.with(|state| {
+            state.borrow_mut().balances.0.clear();
+        })
+    }
 }
