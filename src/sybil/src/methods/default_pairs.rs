@@ -63,13 +63,13 @@ async fn _create_default_pair(req: CreateDefaultPairRequest) -> Result<(), Defau
 }
 
 #[update]
-pub async fn remove_default_sub(pair_id: String) -> Result<(), String> {
-    _remove_default_sub(pair_id)
+pub async fn remove_default_pair(pair_id: String) -> Result<(), String> {
+    _remove_default_pair(pair_id)
         .await
         .map_err(|err| format!("failed to remove a pair: {err}"))
 }
 
-async fn _remove_default_sub(id: String) -> Result<(), DefaultPairError> {
+async fn _remove_default_pair(id: String) -> Result<(), DefaultPairError> {
     validate_caller()?;
     if !PairsStorage::contains(&id) {
         return Err(DefaultPairError::PairNotFound);

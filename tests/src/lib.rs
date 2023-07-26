@@ -1,60 +1,114 @@
 #[cfg(test)]
 mod whitelist;
+#[cfg(test)]
+mod default_pairs;
+#[cfg(test)]
+mod balances;
+
+mod utils;
 
 use std::process::Command;
 use candid::{CandidType, IDLArgs, Decode};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
-pub const PAIR_ID: &str = "ETH/USD";
-pub const PAIR_UPDATE_FREQUENCY: &str = "360:nat";
-pub const PAIR_DECIMALS: &str = "9:nat";
+const TEST_IDENTITY1: &str = "dfx_test_key";
+const TEST_IDENTITY2: &str = "dfx_test_key2";
+const REPLICA_HEALTHY_STATUS: &str = "\"replica_health_status\": \"healthy\"";
 
-#[derive(Debug, Default, Clone, CandidType, Deserialize, Serialize)]
-pub struct RateDataLight {
-    pub symbol: String,
-    pub rate: u64,
-    pub decimals: u64,
-    pub timestamp: u64,
-    pub signature: Option<String>,
+pub fn canonical_sybil_dir() -> String {
+    std::fs::canonicalize("..")
+        .expect("should be able to canonicalize sybil dir")
+        .to_str()
+        .expect("should be able to convert canonical path to str")
+        .into()
 }
 
-pub fn is_dfx_installed() {
+pub fn is_dfx_installed() -> Result<(), String> {
     if !cfg!(target_os = "linux") {
         panic!("This test can only be run on Linux");
     }
 
-    Command::new("dfx")
+    let output = Command::new("dfx")
         .arg("--version")
-        .status()
-        .expect("dfx is not installed");
+        .output()
+        .map_err(|e| format!("failed to execute command: {e}"))?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8(output.stderr).unwrap());
+    }
+
+    Ok(())
 }
 
-pub fn is_sybil_canister(network: &str) {
-    Command::new("dfx")
+pub fn is_sybil_canister(network: &str) -> Result<(), String> {
+    let output = Command::new("dfx")
+        .current_dir(canonical_sybil_dir())
         .arg("canister")
-        .arg("sybil")
         .arg("id")
+        .arg("sybil")
         .arg("--network")
         .arg(network)
-        .status()
-        .expect("canister is not sybil");
+        .output()
+        .map_err(|e| format!("failed to execute command: {e}"))?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8(output.stderr).unwrap());
+    }
+
+    Ok(())
 }
 
-pub fn clear_state() -> Result<RateDataLight, String> {
-    sybil_execute("clear_state", "()")
+pub fn is_dfx_replica_up() -> Result<(), String> {
+    let output = Command::new("dfx")
+        .arg("ping")
+        .output()
+        .expect("failed to execute method");
+
+    if !output.status.success() {
+        panic!("{:?}", String::from_utf8(output.stderr).unwrap());
+    }
+
+    let data = String::from_utf8(output.stdout)
+        .expect("invalid utf8 string in stdout");
+
+    assert!(data.contains(REPLICA_HEALTHY_STATUS), "replica is not healthy");
+
+    Ok(())
 }
 
-pub fn create_default_pair() -> Result<(), String> {
-    sybil_execute(
-        "create_default_pair",
-        &format!("'(record {{pair_id=\"{PAIR_ID}\"; update_freq={PAIR_UPDATE_FREQUENCY}; decimals={PAIR_DECIMALS}}})'")
-    )
+pub fn is_test_identities_exist() -> Result<(), String> {
+    let output = Command::new("dfx")
+        .args(["identity", "list"])
+        .output()
+        .map_err(|e| format!("failed to execute command: {e}"))?;
+
+    if !output.status.success() {
+        panic!("{:?}", String::from_utf8(output.stderr).unwrap());
+    }
+
+    let data = String::from_utf8(output.stdout)
+        .expect("invalid utf8 string in stdout");
+
+    if !data.contains(TEST_IDENTITY1) || !data.contains(TEST_IDENTITY2) {
+        panic!("{} and {} should exist", TEST_IDENTITY1, TEST_IDENTITY2);
+    }
+
+    Ok(())
 }
 
-pub fn get_asset_data() -> Result<RateDataLight, String> {
-    sybil_execute("get_asset_data", &format!("'(\"{PAIR_ID}\")'"))
+pub fn clear_state() -> Result<(), String> {
+    sybil_execute("clear_state", None)
 }
 
+pub fn pre_test() -> Result<(), String> {
+    is_dfx_installed()?;
+    is_dfx_replica_up()?;
+    switch_to_dfx_test_key1();
+    is_sybil_canister(&get_network())?;
+    is_test_identities_exist()?;
+    
+    Ok(())
+}
 
 pub fn get_network() -> String {
     std::env::var("NETWORK").unwrap_or_else(|_| "local".to_string())
@@ -72,20 +126,51 @@ pub fn stdout_decode<T: CandidType+for<'a> Deserialize<'a>>(stdout: Vec<u8>) -> 
     Decode!(&args.to_bytes().unwrap(), T).expect("failed to decode stdout")
 }
 
-pub fn sybil_execute<T: CandidType+for<'a> Deserialize<'a>>(method: &str, args: &str) -> T {
+pub fn sybil_execute<T: CandidType+for<'a> Deserialize<'a>>(method: &str, args: Option<&str>) -> T {
     let network = get_network();
+    
+    let mut cmd = Command::new("dfx");
 
-    let output = Command::new("dfx")
-        .arg("canister")
-        .arg("call")
-        .arg("sybil")
-        .arg(method)
-        .arg(format!("'({})'", args))
-        .arg("--network")
-        .arg(network)
+    cmd
+        .current_dir(canonical_sybil_dir())
+        .args(["canister", "call", "sybil", method]);
+
+    if let Some(args) = args {
+        cmd.arg(args);
+    }
+
+    cmd
+        .args(["--network", &network]);
+
+    println!("args: {:?}", cmd.get_args());
+
+    let output = cmd
         .output()
         .expect("failed to execute method");
 
-    assert_eq!(output.status.success(), true, "failed to execute method");
+    if !output.status.success() {
+        panic!("{:?}", String::from_utf8(output.stderr).unwrap());
+    }
+
     stdout_decode(output.stdout)
+}
+
+pub fn switch_identity(identity: &str) {
+    let output = Command::new("dfx")
+        .current_dir(canonical_sybil_dir())
+        .args(["identity", "use", identity])
+        .output()
+        .expect("failed to switch identity");
+
+    if !output.status.success() {
+        panic!("{:?}", String::from_utf8(output.stderr).unwrap());
+    }
+}
+
+pub fn switch_to_dfx_test_key1() {
+    switch_identity(TEST_IDENTITY1);
+}
+
+pub fn switch_to_dfx_test_key2() {
+    switch_identity(TEST_IDENTITY2);
 }

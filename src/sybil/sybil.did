@@ -12,7 +12,7 @@ type Source = record {
     expected_bytes : nat64;
 };
 
-type PairType = variant { Custom : vec Source; Default : null };
+type PairType = variant { Custom : record { sources : vec Source; }; Default : null };
 
 type PairStatus = record {
     last_update : nat64;
@@ -106,6 +106,7 @@ service : {
     // controllers
     update_cfg : (cfg : UpdateCfg) -> (Error);
     get_cfg : () -> (GetCfgResponse);
+    clear_state : () -> (Error);
 
     // canister
     eth_address : () -> (TextResponse);

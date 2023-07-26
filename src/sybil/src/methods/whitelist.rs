@@ -49,7 +49,7 @@ fn _remove_from_whitelist(addr: Address) -> Result<(), WhitelistRequestsError> {
     validate_caller()?;
     Whitelist::remove(&address::from_str(&addr)?)?;
 
-    log!("[WHITELIST] user added to the whitelist. Address: {addr}");
+    log!("[WHITELIST] user removed from the whitelist. Address: {addr}");
     Ok(())
 }
 
@@ -71,5 +71,7 @@ pub fn get_whitelist() -> Result<Vec<Address>, String> {
 #[inline(always)]
 pub fn _get_whitelist() -> Result<Vec<Address>, WhitelistRequestsError> {
     validate_caller()?;
-    Ok(Whitelist::get_all())
+    let whiltelist = Whitelist::get_all();
+    
+    Ok(whiltelist)
 }

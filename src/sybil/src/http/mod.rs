@@ -1,6 +1,7 @@
 mod handlers;
 mod middlewares;
 mod response;
+mod router;
 
 use std::future::Future;
 use std::pin::Pin;
@@ -8,7 +9,7 @@ use std::sync::OnceLock;
 
 use ic_cdk::{query, update};
 
-use matchit::Router;
+use router::Router;
 
 use crate::types::http::{HttpRequest, HttpResponse};
 
@@ -60,8 +61,15 @@ impl HttpService {
         let mut router = Router::<Handler>::new();
         router
             .insert(
-                "/get_asset_data/*query",
+                "/get_asset_data:query",
                 Box::new(|request| Box::pin(handlers::get_asset_data_request(request))),
+            )
+            .expect("Failed to insert handler");
+
+            router
+            .insert(
+                "/get_asset_data_with_proof:query",
+                Box::new(|request| Box::pin(handlers::get_asset_data_with_proof_request(request))),
             )
             .expect("Failed to insert handler");
 
@@ -103,13 +111,13 @@ pub async fn http_request(req: HttpRequest) -> HttpResponse {
 
     let req = service.query_router.run_pre_middlewares(req).await;
 
-    if let Ok(route_match) = service.query_router.inner.at(&req.url) {
+    if let Some(route_match) = service.query_router.inner.at(&req.url) {
         let handler = route_match.value;
         let response = handler(req).await;
         return service.query_router.run_post_middlewares(response).await;
     }
 
-    response::page_not_found(service.update_router.inner.at(&req.url).is_ok())
+    response::page_not_found(service.update_router.inner.at(&req.url).is_some())
 }
 
 #[update]

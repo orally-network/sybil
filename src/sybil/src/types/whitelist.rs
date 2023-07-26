@@ -37,7 +37,7 @@ impl Whitelist {
     pub fn remove(address: &Address) -> Result<(), WhitelistError> {
         STATE.with(|state| {
             let mut state = state.borrow_mut();
-            if state.whitelist.0.remove(address) {
+            if !state.whitelist.0.remove(address) {
                 return Err(WhitelistError::AddressNotWhitelisted);
             }
 
