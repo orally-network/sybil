@@ -138,6 +138,7 @@ pub struct Pair {
     pub decimals: u64,
     pub status: PairStatus,
     pub owner: Address,
+    pub data: Option<RateDataLight>,
 }
 
 impl Pair {
@@ -206,6 +207,19 @@ impl PairsStorage {
         if with_signature {
             rate.sign().await?;
         }
+
+        STATE.with(|state| {
+            let mut state = state.borrow_mut();
+            let pair = state
+                .pairs
+                .0
+                .get_mut(pair_id)
+                .ok_or(PairError::PairNotFound)?;
+
+            pair.data = Some(rate.clone());
+
+            Result::<(), PairError>::Ok(())
+        })?;
 
         Ok(rate)
     }

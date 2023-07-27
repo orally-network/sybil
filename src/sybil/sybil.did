@@ -27,6 +27,7 @@ type Pair = record {
     decimals : nat64;
     status : PairStatus;
     owner : text;
+    data : opt RateDataLight;
 };
 
 type CreateCustomPairRequest = record {
