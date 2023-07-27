@@ -25,7 +25,7 @@ use crate::{
     clone_with_state, defer,
     jobs::cache_cleaner,
     methods::{custom_pairs::CreateCustomPairRequest, default_pairs::CreateDefaultPairRequest},
-    utils::{canister, nat, siwe::SiweError, time, validation, vec},
+    utils::{canister, nat, siwe::SiweError, validation, vec},
     CACHE, STATE,
 };
 
@@ -231,12 +231,11 @@ impl PairsStorage {
 
         let (base_asset, quote_asset) =
             Self::get_assets(&pair.id).ok_or(PairError::InvalidPairId)?;
-        let timestamp = time::in_seconds();
 
         let req = GetExchangeRateRequest {
             base_asset,
             quote_asset,
-            timestamp: Some(timestamp),
+            timestamp: None,
         };
 
         let exchange_rate_canister =
@@ -253,8 +252,8 @@ impl PairsStorage {
         let rate_data = RateDataLight {
             symbol: pair.id.clone(),
             rate: exchange_rate.rate,
-            decimals: exchange_rate.metadata.decimals as u64,
-            timestamp,
+            decimals: pair.decimals,
+            timestamp: exchange_rate.timestamp,
             ..Default::default()
         };
 
