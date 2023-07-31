@@ -1,11 +1,3 @@
-type Error = variant { Ok : null; Err : text };
-
-type Endpoint = record {
-    uri : text;
-    resolver : text;
-    expected_bytes : nat64;
-};
-
 type RateDataLight = record {
     symbol : text;
     rate : nat64;
@@ -14,60 +6,127 @@ type RateDataLight = record {
     signature : opt text;
 };
 
-type CustomPair = record {
-    id : text;
-    frequency : nat64;
-    source : Endpoint;
-    data : RateDataLight;
-    last_update : nat64;
-};
-
-type CreateCustomPairRequest = record {
-    pair_id : text;
-    frequency : nat;
+type Source = record {
     uri : text;
     resolver : text;
-    amount : nat;
-    msg : text;
-    sig : text;
+    expected_bytes : nat64;
+};
+
+type PairType = variant { Custom : record { sources : vec Source; }; Default : null };
+
+type PairStatus = record {
+    last_update : nat64;
+    updated_counter : nat64;
+    requests_counter : nat64;
 };
 
 type Pair = record {
     id : text;
-    frequency : nat64;
-    last_update : nat64;
-    data : RateDataLight;
+    pair_type : PairType;
+    update_freq : nat64;
+    decimals : nat64;
+    status : PairStatus;
+    owner : text;
+    data : opt RateDataLight;
 };
 
-type GetAssetDataWithProofResponse = variant { Ok : RateDataLight; Err : text};
-type GetAssetDataResponse = variant { Ok : RateDataLight; Err: text};
-type AddPairResponse = variant { Ok : Pair; Err: text };
-type TextResponse = variant { Ok : text; Err: text};
+type CreateCustomPairRequest = record {
+    pair_id : text;
+    update_freq : nat;
+    decimals : nat;
+    sources : vec Source;
+    msg : text;
+    sig : text;
+};
+
+type CreateDefaultPairRequest = record {
+    pair_id : text;
+    update_freq : nat;
+    decimals : nat;
+};
+
+type CreateDataFetcherRequest = record {
+    update_freq : nat;
+    sources : vec Source;
+    msg : text;
+    sig : text;
+};
+
+type DataFetcher = record {
+    id : nat;
+    update_freq : nat;
+    owner : text;
+    sources : vec Source;
+};
+
+type BalancesCfg = record {
+    rpc : text;
+    chain_id : nat;
+    erc20_contract : nat;
+    fee_per_byte : nat;
+};
+
+type Cfg = record {
+    exchange_rate_canister : text;
+    mock : bool;
+    key_name : text;
+    balances_cfg : BalancesCfg;
+};
+
+type UpdateCfg = record {
+    exchange_rate_canister : opt text;
+    mock : opt bool;
+    key_name : opt text;
+    balances_cfg : opt BalancesCfg;
+};
+
+type GetAssetDataWithProofResponse = variant { Ok : RateDataLight; Err : text };
+type GetAssetDataResponse = variant { Ok : RateDataLight; Err: text };
+type TextResponse = variant { Ok : text; Err: text };
+type NatResponse = variant { Ok : nat; Err: text };
+type BoolResponse = variant { Ok : bool; Err: text };
+type GetCfgResponse = variant { Ok : Cfg; Err: text };
+type GetWhitelistResponse = variant { Ok : vec text; Err: text };
+type Error = variant { Ok : null; Err : text };
 
 service : {
+    // custom pairs
     create_custom_pair : (req : CreateCustomPairRequest) -> (Error);
-    remove_custom_pair : (pair_id : text) -> ();
-    get_custom_pairs : () -> (vec CustomPair);
+    remove_custom_pair : (id : text, msg : text, sig : text) -> (Error);
+    
+    // default pairs
+    create_default_pair : (req : CreateDefaultPairRequest) -> (Error);
+    remove_default_pair : (id : text) -> (Error);
+
+    // assets 
     get_asset_data_with_proof : (pair_id : text) -> (GetAssetDataWithProofResponse);
     get_asset_data : (pair_id : text) -> (GetAssetDataResponse);
     is_pair_exists : (pair_id : text) -> (bool);
-    add_pair : (pair_id : text, frequency : nat) -> (AddPairResponse);
-    remove_pair : (pair_id : text) -> ();
     get_pairs : () -> (vec Pair);
-    set_exchange_rate_canister : (new_principal : text) -> ();
-    get_exchange_rate_canister : () -> (text);
-    set_proxy_ecdsa_canister : (new_principal : text) -> ();
-    get_proxy_ecdsa_canister : () -> (text);
-    set_siwe_signer_canister : (new_principal : text) -> ();
-    get_siwe_signer_canister : () -> (text);
-    set_expiration_time : (expiration_time : nat) -> ();
-    get_expiration_time : () -> (nat);
-    set_key_name : (key_name: text) -> ();
-    get_key_name : () -> (text);
-    set_treasurer_canister : (new_principal : text) -> ();
-    get_treasurer_canister : () -> (text);
-    set_cost_per_execution : (cost : nat) -> ();
-    get_cost_per_execution : () -> (nat);
+
+    // controllers
+    update_cfg : (cfg : UpdateCfg) -> (Error);
+    get_cfg : () -> (GetCfgResponse);
+    clear_state : () -> (Error);
+
+    // canister
     eth_address : () -> (TextResponse);
-    init_controllers : () -> ();
+
+    // balances
+    deposit : (tx_hash : text, msg : text, sig : text) -> (Error);
+    get_balance : (address : text) -> (NatResponse);
+    withdraw : (amount : nat, to : text, msg : text, sig : text) -> (TextResponse);
+    withdraw_fees : (to : text) -> (TextResponse);
+
+    // whitelist
+    add_to_whitelist : (address : text) -> (Error);
+    remove_from_whitelist : (address : text) -> (Error);
+    is_whitelisted : (address : text) -> (BoolResponse);
+    get_whitelist : () -> (GetWhitelistResponse);
+
+    // data fetcher
+    create_data_fetcher : (req : CreateDataFetcherRequest) -> (NatResponse);
+    remove_data_fetcher : (id : nat, msg : text, sig : text) -> (Error);
+    get_data : (id : nat) -> (TextResponse);
+    get_data_fetchers : (owner : text) -> (vec DataFetcher);
 }
