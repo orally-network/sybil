@@ -72,6 +72,6 @@ pub fn get_whitelist() -> Result<Vec<Address>, String> {
 pub fn _get_whitelist() -> Result<Vec<Address>, WhitelistRequestsError> {
     validate_caller()?;
     let whiltelist = Whitelist::get_all();
-    
+
     Ok(whiltelist)
 }

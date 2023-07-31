@@ -1,11 +1,11 @@
 use std::thread::sleep;
 use std::time::Duration;
 
-use scopeguard::defer;
 use candid::CandidType;
+use scopeguard::defer;
 use serde::Deserialize;
 
-use crate::{pre_test, clear_state, sybil_execute};
+use crate::{clear_state, pre_test, sybil_execute};
 
 pub const PAIR_ID: &str = "ETH/USD";
 pub const PAIR_UPDATE_FREQUENCY_CANDID: &str = "5:nat";
@@ -31,9 +31,7 @@ pub struct Source {
 
 #[derive(Clone, Debug, CandidType, Deserialize)]
 pub enum PairType {
-    Custom {
-        sources: Vec<Source>,
-    },
+    Custom { sources: Vec<Source> },
     Default,
 }
 
@@ -66,7 +64,10 @@ pub fn get_asset_data() -> Result<RateDataLight, String> {
 }
 
 pub fn get_asset_data_with_proof() -> Result<RateDataLight, String> {
-    sybil_execute("get_asset_data_with_proof", Some(&format!("(\"{PAIR_ID}\")")))
+    sybil_execute(
+        "get_asset_data_with_proof",
+        Some(&format!("(\"{PAIR_ID}\")")),
+    )
 }
 
 pub fn is_pair_exists() -> bool {
@@ -83,42 +84,41 @@ pub fn get_pairs() -> Vec<Pair> {
 
 #[test]
 fn test_default_pair_with_valid_data() {
-    pre_test()
-        .expect("failed to run pre tests");
+    pre_test().expect("failed to run pre tests");
     defer!(clear_state().expect("failed to clear state"));
 
-    create_default_pair()
-        .expect("failed to create default pair");
+    create_default_pair().expect("failed to create default pair");
 
-    let rate = get_asset_data()
-        .expect("failed to get asset data");
+    let rate = get_asset_data().expect("failed to get asset data");
 
     assert_eq!(rate.symbol, PAIR_ID, "invalid symbol");
     assert_eq!(rate.decimals, PAIR_DECIMALS, "invalid decimals");
     assert_eq!(rate.signature, None, "signature should be None");
 
-    let cached_rate = get_asset_data()
-        .expect("failed to get asset data");
-    assert_eq!(rate.timestamp, cached_rate.timestamp, "rate should be cached");
+    let cached_rate = get_asset_data().expect("failed to get asset data");
+    assert_eq!(
+        rate.timestamp, cached_rate.timestamp,
+        "rate should be cached"
+    );
 
     sleep(Duration::from_secs(PAIR_UPDATE_FREQUENCY + 1));
 
-    let updated_rate = get_asset_data()
-        .expect("failed to get asset data");
-    assert_ne!(rate.timestamp, updated_rate.timestamp, "rate should be updated");
+    let updated_rate = get_asset_data().expect("failed to get asset data");
+    assert_ne!(
+        rate.timestamp, updated_rate.timestamp,
+        "rate should be updated"
+    );
 
     assert!(is_pair_exists(), "pair should exists");
 
-    let signed_rate = get_asset_data_with_proof()
-        .expect("failed to get asset data with proof");
+    let signed_rate = get_asset_data_with_proof().expect("failed to get asset data with proof");
 
     assert!(signed_rate.signature.is_some(), "signature should be Some");
 
     let pairs = get_pairs();
-    assert_eq!(pairs.len(), 1, "invalid pairs count");  
+    assert_eq!(pairs.len(), 1, "invalid pairs count");
 
-    remove_default_pair()
-        .expect("failed to remove default pair");
+    remove_default_pair().expect("failed to remove default pair");
 
     assert!(!is_pair_exists(), "pair should not exists");
 }

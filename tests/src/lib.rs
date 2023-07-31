@@ -1,15 +1,15 @@
 #[cfg(test)]
-mod whitelist;
+mod balances;
 #[cfg(test)]
 mod default_pairs;
 #[cfg(test)]
-mod balances;
+mod whitelist;
 
 mod utils;
 
-use std::process::Command;
-use candid::{CandidType, IDLArgs, Decode};
+use candid::{CandidType, Decode, IDLArgs};
 use serde::Deserialize;
+use std::process::Command;
 
 const TEST_IDENTITY1: &str = "dfx_test_key";
 const TEST_IDENTITY2: &str = "dfx_test_key2";
@@ -68,10 +68,12 @@ pub fn is_dfx_replica_up() -> Result<(), String> {
         panic!("{:?}", String::from_utf8(output.stderr).unwrap());
     }
 
-    let data = String::from_utf8(output.stdout)
-        .expect("invalid utf8 string in stdout");
+    let data = String::from_utf8(output.stdout).expect("invalid utf8 string in stdout");
 
-    assert!(data.contains(REPLICA_HEALTHY_STATUS), "replica is not healthy");
+    assert!(
+        data.contains(REPLICA_HEALTHY_STATUS),
+        "replica is not healthy"
+    );
 
     Ok(())
 }
@@ -86,8 +88,7 @@ pub fn is_test_identities_exist() -> Result<(), String> {
         panic!("{:?}", String::from_utf8(output.stderr).unwrap());
     }
 
-    let data = String::from_utf8(output.stdout)
-        .expect("invalid utf8 string in stdout");
+    let data = String::from_utf8(output.stdout).expect("invalid utf8 string in stdout");
 
     if !data.contains(TEST_IDENTITY1) || !data.contains(TEST_IDENTITY2) {
         panic!("{} and {} should exist", TEST_IDENTITY1, TEST_IDENTITY2);
@@ -106,7 +107,7 @@ pub fn pre_test() -> Result<(), String> {
     switch_to_dfx_test_key1();
     is_sybil_canister(&get_network())?;
     is_test_identities_exist()?;
-    
+
     Ok(())
 }
 
@@ -118,35 +119,32 @@ pub fn get_test_address() -> String {
     std::env::var("ADDRESS").expect("ADDRESS should be setted")
 }
 
-pub fn stdout_decode<T: CandidType+for<'a> Deserialize<'a>>(stdout: Vec<u8>) -> T {
-    let data = String::from_utf8(stdout)
-        .expect("invalid utf8 string in stdout");
-    let args: IDLArgs = data.parse()
-        .expect("failed to parse stdout to IDLArgs");
+pub fn stdout_decode<T: CandidType + for<'a> Deserialize<'a>>(stdout: Vec<u8>) -> T {
+    let data = String::from_utf8(stdout).expect("invalid utf8 string in stdout");
+    let args: IDLArgs = data.parse().expect("failed to parse stdout to IDLArgs");
     Decode!(&args.to_bytes().unwrap(), T).expect("failed to decode stdout")
 }
 
-pub fn sybil_execute<T: CandidType+for<'a> Deserialize<'a>>(method: &str, args: Option<&str>) -> T {
+pub fn sybil_execute<T: CandidType + for<'a> Deserialize<'a>>(
+    method: &str,
+    args: Option<&str>,
+) -> T {
     let network = get_network();
-    
+
     let mut cmd = Command::new("dfx");
 
-    cmd
-        .current_dir(canonical_sybil_dir())
+    cmd.current_dir(canonical_sybil_dir())
         .args(["canister", "call", "sybil", method]);
 
     if let Some(args) = args {
         cmd.arg(args);
     }
 
-    cmd
-        .args(["--network", &network]);
+    cmd.args(["--network", &network]);
 
     println!("args: {:?}", cmd.get_args());
 
-    let output = cmd
-        .output()
-        .expect("failed to execute method");
+    let output = cmd.output().expect("failed to execute method");
 
     if !output.status.success() {
         panic!("{:?}", String::from_utf8(output.stderr).unwrap());

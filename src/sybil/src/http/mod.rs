@@ -66,7 +66,7 @@ impl HttpService {
             )
             .expect("Failed to insert handler");
 
-            router
+        router
             .insert(
                 "/get_asset_data_with_proof:query",
                 Box::new(|request| Box::pin(handlers::get_asset_data_with_proof_request(request))),

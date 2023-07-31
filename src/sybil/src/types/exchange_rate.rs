@@ -8,26 +8,27 @@ use ic_cdk::export::{
 
 pub const CYCLES_TO_SEND: u64 = 10_000_000_000;
 
-#[derive(CandidType, Deserialize, Debug, Clone)]
+#[derive(CandidType, Deserialize, Debug, Clone, Default)]
 pub enum AssetClass {
     Cryptocurrency,
+    #[default]
     FiatCurrency,
 }
 
-#[derive(CandidType, Deserialize, Debug, Clone)]
+#[derive(CandidType, Deserialize, Debug, Clone, Default)]
 pub struct Asset {
     pub(crate) class: AssetClass,
     pub(crate) symbol: String,
 }
 
-#[derive(CandidType, Deserialize, Debug)]
+#[derive(CandidType, Deserialize, Debug, Clone)]
 pub struct GetExchangeRateRequest {
     pub(crate) timestamp: Option<u64>,
     pub(crate) quote_asset: Asset,
     pub(crate) base_asset: Asset,
 }
 
-#[derive(CandidType, Deserialize, Debug, Clone)]
+#[derive(CandidType, Deserialize, Debug, Clone, Default)]
 pub struct ExchangeRateMetadata {
     pub decimals: u32,
     pub forex_timestamp: Option<u64>,
@@ -38,7 +39,7 @@ pub struct ExchangeRateMetadata {
     pub quote_asset_num_queried_sources: u64,
 }
 
-#[derive(CandidType, Deserialize, Debug, Clone)]
+#[derive(CandidType, Deserialize, Debug, Clone, Default)]
 pub struct ExchangeRate {
     pub metadata: ExchangeRateMetadata,
     pub(crate) rate: u64,
@@ -47,7 +48,7 @@ pub struct ExchangeRate {
     base_asset: Asset,
 }
 
-#[derive(Error, CandidType, Deserialize, Debug, Clone)]
+#[derive(Error, CandidType, Deserialize, Debug, Clone, PartialEq)]
 pub enum ExchangeRateError {
     #[error("Anonymous principal not allowed")]
     AnonymousPrincipalNotAllowed,

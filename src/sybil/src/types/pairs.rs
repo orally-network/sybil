@@ -17,7 +17,9 @@ use validator::Validate;
 use super::{
     balances::{BalanceError, Balances},
     cache::{HttpCache, HttpCacheError},
-    exchange_rate::{self, Asset, AssetClass, ExchangeRateError, GetExchangeRateRequest},
+    exchange_rate::{
+        self, Asset, AssetClass, ExchangeRate, ExchangeRateError, GetExchangeRateRequest,
+    },
     rate_data::{RateDataError, RateDataLight},
     state, Address, Seconds, Timestamp,
 };
@@ -25,12 +27,13 @@ use crate::{
     clone_with_state, defer,
     jobs::cache_cleaner,
     methods::{custom_pairs::CreateCustomPairRequest, default_pairs::CreateDefaultPairRequest},
-    utils::{canister, nat, siwe::SiweError, validation, vec, time},
+    utils::{canister, nat, siwe::SiweError, time, validation, vec},
     CACHE, STATE,
 };
 
 const MIN_EXPECTED_BYTES: u64 = 1;
 const MAX_EXPECTED_BYTES: u64 = 1024 * 1024 * 2;
+const RATE_FETCH_MAX_RETRIES: u64 = 5;
 
 #[derive(Error, Debug)]
 pub enum PairError {
@@ -231,25 +234,38 @@ impl PairsStorage {
 
         let (base_asset, quote_asset) =
             Self::get_assets(&pair.id).ok_or(PairError::InvalidPairId)?;
-
-        let timestamp = time::in_seconds()-5;
-
-        let req = GetExchangeRateRequest {
+        let mut req = GetExchangeRateRequest {
             base_asset,
             quote_asset,
-            timestamp: Some(timestamp),
+            timestamp: None,
         };
 
-        let exchange_rate_canister =
-            exchange_rate::Service(clone_with_state!(exchange_rate_canister));
+        let mut exchange_rate = ExchangeRate::default();
+        for _ in 0..RATE_FETCH_MAX_RETRIES {
+            req.timestamp = Some(time::in_seconds() - 5);
 
-        let exchange_rate = Result::<_, _>::from(
-            exchange_rate_canister
-                .get_exchange_rate(req)
-                .await
-                .map_err(|(_, msg)| PairError::UnableToGetRate(msg))?
-                .0,
-        )?;
+            let exchange_rate_canister =
+                exchange_rate::Service(clone_with_state!(exchange_rate_canister));
+
+            let exchange_rate_result = Result::<_, _>::from(
+                exchange_rate_canister
+                    .get_exchange_rate(req.clone())
+                    .await
+                    .map_err(|(_, msg)| PairError::UnableToGetRate(msg))?
+                    .0,
+            );
+
+            match exchange_rate_result {
+                Ok(_exchange_rate) => exchange_rate = _exchange_rate,
+                Err(err) => {
+                    if err == ExchangeRateError::Pending {
+                        continue;
+                    }
+                }
+            };
+
+            break;
+        }
 
         let rate_data = RateDataLight {
             symbol: pair.id.clone(),

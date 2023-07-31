@@ -5,7 +5,6 @@
 // const SIWE_MSG: &str = "service.org wants you to sign in with your Ethereum account:
 // 0xE86C4A45C1Da21f8838a1ea26Fc852BD66489ce9
 
-
 // URI: https://service.org/login
 // Version: 1
 // Chain ID: 11155111

@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
-use regex::Regex;
 use lazy_static::lazy_static;
+use regex::Regex;
 use thiserror::Error;
 
 lazy_static! {
-    pub static ref ROUTER_KEY_REGEX: Regex = Regex::new(r"^([\w/]+:)?[\w/]+(:[\w/]+)?$").expect("invalid regex");
+    pub static ref ROUTER_KEY_REGEX: Regex =
+        Regex::new(r"^([\w/]+:)?[\w/]+(:[\w/]+)?$").expect("invalid regex");
 }
 
 #[derive(Error, Debug)]
@@ -23,7 +24,7 @@ pub struct Router<H> {
 pub struct RouterMatch<'a, H> {
     pub params: String,
     pub value: &'a H,
-} 
+}
 
 impl<H> Router<H> {
     pub fn new() -> Self {
@@ -36,15 +37,10 @@ impl<H> Router<H> {
         if !ROUTER_KEY_REGEX.is_match(key) {
             return Err(RouterError::InvalidKey(key.to_string()));
         }
-        
-        let separated_key = key
-            .split(":")
-            .collect::<Vec<&str>>();
 
-        let route = separated_key
-            .first()
-            .expect("invalid key")
-            .to_string();
+        let separated_key = key.split(':').collect::<Vec<&str>>();
+
+        let route = separated_key.first().expect("invalid key").to_string();
 
         self.routes.insert(route, value);
 
@@ -52,24 +48,15 @@ impl<H> Router<H> {
     }
 
     pub fn at(&self, key: &str) -> Option<RouterMatch<H>> {
-        let splitted_key = key
-            .split("?")
-            .collect::<Vec<&str>>();
+        let splitted_key = key.split('?').collect::<Vec<&str>>();
 
         println!("{:?}", splitted_key);
 
-        let params = splitted_key
-            .last()
-            .expect("invalid key");
+        let params = splitted_key.last().expect("invalid key");
 
-        let key = splitted_key
-            .first()
-            .expect("invalid key")
-            .to_string();
+        let key = splitted_key.first().expect("invalid key").to_string();
 
-        let value = self
-            .routes
-            .get(&key)?;
+        let value = self.routes.get(&key)?;
 
         Some(RouterMatch {
             params: params.to_string(),
