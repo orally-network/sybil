@@ -1,26 +1,27 @@
-use std::str::FromStr;
-
 use ic_cdk::export::{
     candid::CandidType,
     serde::{Deserialize, Serialize},
 };
-use ic_web3::{
-    ethabi::Token,
-    ic::recover_address,
-    signing::{hash_message, keccak256},
-    types::H160,
-};
-
-use anyhow::{Context, Result};
+use ic_web3_rs::ethabi::Token;
+use thiserror::Error;
 
 use crate::utils::encoding::encode_packed;
+
+use super::cache::{SignaturesCache, SignaturesCacheError};
+
+#[derive(Error, Debug)]
+pub enum RateDataError {
+    #[error("Singatures cache error: {0}")]
+    SignaturesCacheError(#[from] SignaturesCacheError),
+}
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub struct RateDataLight {
     pub symbol: String,
     pub rate: u64,
+    pub decimals: u64,
     pub timestamp: u64,
-    pub decimals: u32,
+    pub signature: Option<String>,
 }
 
 impl RateDataLight {
@@ -28,35 +29,19 @@ impl RateDataLight {
         let raw_data = vec![
             Token::String(self.symbol.clone()),
             Token::Uint(self.rate.into()),
-            Token::Uint(self.timestamp.into()),
             Token::Uint(self.decimals.into()),
+            Token::Uint(self.timestamp.into()),
         ];
 
-        encode_packed(&raw_data).expect("Tokens is always valid")
+        encode_packed(&raw_data).expect("tokens should be valid")
     }
-}
 
-#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
-pub struct CustomPairData {
-    pub data: RateDataLight,
-    pub signature: String,
-}
+    pub async fn sign(&mut self) -> Result<(), RateDataError> {
+        let sign_data = self.encode_packed();
 
-impl CustomPairData {
-    pub fn verify(&self, pub_key: &H160) -> Result<()> {
-        let sign_data = hash_message(keccak256(&self.data.encode_packed()));
-
-        let signature = hex::decode(&self.signature)?;
-
-        let (signature, rec_id) = signature.split_at(64);
-
-        let rec_id = *rec_id.first().context("Invalid signature")?;
-
-        let signer = recover_address(sign_data.as_bytes().to_vec(), signature.to_vec(), rec_id);
-
-        if *pub_key != H160::from_str(&signer)? {
-            return Err(anyhow::anyhow!("Invalid signature"));
-        }
+        self.signature = Some(hex::encode(
+            SignaturesCache::eth_sign_with_access(&sign_data).await?,
+        ));
 
         Ok(())
     }

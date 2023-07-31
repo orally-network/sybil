@@ -1,81 +1,119 @@
-use ic_cdk::{query, update};
+use ic_cdk::update;
 
 use ic_cdk::export::{
     candid::{CandidType, Nat},
     serde::{Deserialize, Serialize},
 };
 
-use anyhow::{Context, Result};
+use thiserror::Error;
+use validator::{Validate, ValidationErrors};
 
+use crate::log;
 use crate::{
     types::{
-        custom_pair::{CustomPair, CustomPairBuilder},
-        rate_data::CustomPairData,
+        pairs::{Pair, PairError, PairsStorage, Source},
+        whitelist::{Whitelist, WhitelistError},
     },
-    utils::{nat_to_u64, rec_eth_addr},
-    STATE,
+    utils::{
+        siwe::{self, SiweError},
+        validation,
+    },
 };
 
-#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
+#[derive(Error, Debug)]
+pub enum CustomPairError {
+    #[error("SIWE Error: {0}")]
+    SIWEError(#[from] SiweError),
+    #[error("Validation Error: {0}")]
+    ValidationError(#[from] ValidationErrors),
+    #[error("Whitelist Error: {0}")]
+    WhitelistError(#[from] WhitelistError),
+    #[error("Pair Error: {0}")]
+    PairError(#[from] PairError),
+    #[error("Pair already exists")]
+    PairAlreadyExists,
+    #[error("Pair not found")]
+    PairNotFound,
+    #[error("Not pair owner")]
+    NotPairOwner,
+}
+
+#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]
 pub struct CreateCustomPairRequest {
+    #[validate(regex = "validation::PAIR_ID_REGEX")]
     pub pair_id: String,
-    pub frequency: Nat,
-    pub uri: String,
+    #[validate(custom = "validation::validate_update_freq")]
+    pub update_freq: Nat,
+    pub decimals: Nat,
+    #[validate(length(min = 1, max = 5))]
+    // second one is used for a nested validation of all sources
+    #[validate]
+    pub sources: Vec<Source>,
     pub msg: String,
     pub sig: String,
 }
 
 #[update]
 pub async fn create_custom_pair(req: CreateCustomPairRequest) -> Result<(), String> {
-    _create_custom_pair(req).await.map_err(|e| e.to_string())
+    _create_custom_pair(req)
+        .await
+        .map_err(|e| format!("Failed to a create custom pair: {e}"))
 }
 
-pub async fn _create_custom_pair(req: CreateCustomPairRequest) -> Result<()> {
-    let pub_key = rec_eth_addr(&req.msg, &req.sig).await?;
+pub async fn _create_custom_pair(req: CreateCustomPairRequest) -> Result<(), CustomPairError> {
+    let addr = siwe::recover(&req.msg, &req.sig).await?;
+    if !Whitelist::contains(&addr) {
+        return Err(WhitelistError::AddressNotWhitelisted.into());
+    }
 
-    let custom_pair = CustomPairBuilder::new(&req.pair_id)?
-        .frequency(nat_to_u64(req.frequency))?
-        .source(&req.uri, &pub_key)
-        .await?
-        .build()?;
+    if PairsStorage::contains(&req.pair_id) {
+        return Err(CustomPairError::PairAlreadyExists)?;
+    }
 
-    STATE.with(|state| {
-        let mut state = state.borrow_mut();
-        state.custom_pairs.push(custom_pair);
-    });
+    req.validate()?;
 
+    let mut pair = Pair::from(req.clone());
+    pair.set_owner(addr.clone());
+
+    PairsStorage::get_custom_rate(&pair, &req.sources).await?;
+    PairsStorage::add(pair);
+
+    log!(
+        "[PAIRS] custom pair created. id: {}, owner: {}",
+        req.pair_id,
+        addr
+    );
     Ok(())
 }
 
-#[query]
-pub fn get_asset_data_with_proof(pair_id: String) -> Result<CustomPairData, String> {
-    _get_asset_data_with_proof(pair_id).map_err(|e| e.to_string())
-}
-
-pub fn _get_asset_data_with_proof(pair_id: String) -> Result<CustomPairData> {
-    STATE.with(|state| {
-        let state = state.borrow();
-
-        state
-            .custom_pairs
-            .iter()
-            .find(|pair| pair.id == pair_id)
-            .context("pair not found")
-            .map(|v| v.data.clone())
-    })
-}
-
 #[update]
-pub fn remove_custom_pair(pair_id: String) {
-    STATE.with(|state| {
-        let custom_pairs = &mut state.borrow_mut().custom_pairs;
-        if let Some(index) = custom_pairs.iter().position(|pair| pair.id == pair_id) {
-            custom_pairs.remove(index);
-        }
-    });
+pub async fn remove_custom_pair(id: String, msg: String, sig: String) -> Result<(), String> {
+    _remove_custom_pair(id, msg, sig)
+        .await
+        .map_err(|e| format!("Failed to remove custom pair: {e}"))
 }
 
-#[query]
-pub fn get_custom_pairs() -> Vec<CustomPair> {
-    STATE.with(|state| state.borrow().custom_pairs.clone())
+#[inline(always)]
+pub async fn _remove_custom_pair(
+    id: String,
+    msg: String,
+    sig: String,
+) -> Result<(), CustomPairError> {
+    let addr = siwe::recover(&msg, &sig).await?;
+    if !Whitelist::contains(&addr) {
+        return Err(WhitelistError::AddressNotWhitelisted.into());
+    }
+
+    if let Some(pair) = PairsStorage::get(&id) {
+        if pair.owner != addr {
+            return Err(CustomPairError::NotPairOwner)?;
+        }
+
+        PairsStorage::remove(&id);
+
+        log!("[PAIRS] custom pair removed. id: {}, owner: {}", id, addr);
+        return Ok(());
+    }
+
+    Err(CustomPairError::PairNotFound)
 }
