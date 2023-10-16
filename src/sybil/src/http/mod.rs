@@ -61,6 +61,13 @@ impl HttpService {
         let mut router = Router::<Handler>::new();
         router
             .insert(
+                "/verify_access_token:query",
+                Box::new(|request| Box::pin(handlers::verify_access_token(request))),
+            )
+            .expect("Failed to insert handler");
+        
+        router
+            .insert(
                 "/get_asset_data:query",
                 Box::new(|request| Box::pin(handlers::get_asset_data_request(request))),
             )

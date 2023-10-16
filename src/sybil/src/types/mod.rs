@@ -8,6 +8,8 @@ pub mod pairs;
 pub mod rate_data;
 pub mod state;
 pub mod whitelist;
+pub mod auth_data;
+pub mod service;
 
 pub type Timestamp = u64;
 pub type Seconds = u64;
