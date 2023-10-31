@@ -38,7 +38,7 @@ dfx canister install --mode upgrade --wasm ./.dfx/local/canisters/sybil/sybil.wa
 ## Enviroment
 
 ```sh
-CALLER="0xE86C4A45C1Da21f8838a1ea26Fc852BD66489ce9"x
+CALLER="0xE86C4A45C1Da21f8838a1ea26Fc852BD66489ce9"
 SIWE_MSG="service.org wants you to sign in with your Ethereum account:
 0xE86C4A45C1Da21f8838a1ea26Fc852BD66489ce9
 
