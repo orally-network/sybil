@@ -3,7 +3,8 @@ all: local_deploy_exchange_rate_canister local_deploy_sybil
 local_deploy_exchange_rate_canister:
 	dfx deploy exchange_rate_canister
 
-local_deploy_sybil:
+local_deploy_sybil: local_deploy_exchange_rate_canister
+	$(eval EXCHANGE_RATE_CANISTER_ID := $(shell dfx canister id exchange_rate_canister))
 	dfx canister create sybil && dfx build sybil 
 	gzip -f -1 ./.dfx/local/canisters/sybil/sybil.wasm
 	dfx canister install --wasm ./.dfx/local/canisters/sybil/sybil.wasm.gz --argument \
