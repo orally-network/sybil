@@ -33,7 +33,7 @@ make local_upgrade
 ## Enviroment
 
 ```sh
-CALLER="0xE86C4A45C1Da21f8838a1ea26Fc852BD66489ce9"
+CALLER="0x6696eD42dFBe875E60779b8163fDCc39B088222A"
 SIWE_MSG="localhost:4361 wants you to sign in with your Ethereum account:
 0x6696eD42dFBe875E60779b8163fDCc39B088222A
 
