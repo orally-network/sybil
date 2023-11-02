@@ -5,11 +5,7 @@ Sybil is a canister that provides API to get assets data.
 ## Deploy local
 
 ```sh
-dfx deploy exchange_rate_canister
-EXCHANGE_RATE_CANISTER_ID=$(dfx canister id exchange_rate_canister)
-
-dfx canister create sybil && dfx build sybil && gzip -f -1 ./.dfx/local/canisters/sybil/sybil.wasm
-dfx canister install --wasm ./.dfx/local/canisters/sybil/sybil.wasm.gz --argument "(record {exchange_rate_canister=principal\"${EXCHANGE_RATE_CANISTER_ID}\"; mock=true; key_name=\"dfx_test_key\"; balances_cfg=record {rpc=\"https://sepolia.infura.io/v3/d20be327500c45819a1a3b850daec0e2\"; fee_per_byte=1:nat; chain_id=11155111:nat; erc20_contract=\"0xe37d61a6dc5573bdd4c9d2658bbfde5a58f9cea9\"}})" sybil
+make all
 ```
 
 ## Deploy prod
@@ -18,7 +14,7 @@ dfx canister install --wasm ./.dfx/local/canisters/sybil/sybil.wasm.gz --argumen
 EXCHANGE_RATE_CANISTER_ID="uf6dk-hyaaa-aaaaq-qaaaq-cai"
 
 dfx build sybil --network ic && gzip -f -1 ./.dfx/ic/canisters/sybil/sybil.wasm
-dfx canister install --wasm ./.dfx/ic/canisters/sybil/sybil.wasm.gz --argument "(record {exchange_rate_canister=principal \"${EXCHANGE_RATE_CANISTER_ID}\"; mock=false; key_name=\"key_1\"; balances_cfg=record {rpc=\"https://mainnet.infura.io/v3/d20be327500c45819a1a3b850daec0e2\"; fee_per_byte=1:nat; chain_id=1:nat; erc20_contract=\"0x6b175474e89094c44da98b954eedeac495271d0f\"}})" --network ic sybil
+dfx canister install --wasm ./.dfx/ic/canisters/sybil/sybil.wasm.gz --argument "(record {exchange_rate_canister=principal \"${EXCHANGE_RATE_CANISTER_ID}\"; mock=false; key_name=\"key_1\"; balances_cfg=record {rpc=\"{RPC_URL}\"; fee_per_byte=1:nat; chain_id=1:nat; erc20_contract=\"0x6b175474e89094c44da98b954eedeac495271d0f\"}})" --network ic sybil
 ```
 
 ## Upgrade prod
@@ -31,25 +27,25 @@ dfx canister install --mode upgrade --wasm ./.dfx/ic/canisters/sybil/sybil.wasm.
 ## Upgrade local
 
 ```sh
-dfx build sybil && gzip -f -1 ./.dfx/local/canisters/sybil/sybil.wasm
-dfx canister install --mode upgrade --wasm ./.dfx/local/canisters/sybil/sybil.wasm.gz sybil
+make local_upgrade
 ```
 
 ## Enviroment
 
 ```sh
 CALLER="0xE86C4A45C1Da21f8838a1ea26Fc852BD66489ce9"
-SIWE_MSG="service.org wants you to sign in with your Ethereum account:
-0xE86C4A45C1Da21f8838a1ea26Fc852BD66489ce9
+SIWE_MSG="localhost:4361 wants you to sign in with your Ethereum account:
+0x6696eD42dFBe875E60779b8163fDCc39B088222A
 
+SIWE Notepad Example
 
-URI: https://service.org/login
+URI: http://localhost:4361
 Version: 1
-Chain ID: 11155111
-Nonce: 00000000
-Issued At: 2023-05-04T18:39:24Z"
-SIWE_SIG="fa7b336d271b7ed539b6db3034d57be294ef889b42534fa95689afd0989ab6d27878c837a14ed1b4c3ab6b7052180ce87198934cb7712a81ea413fd8ebb29e8c1c"
-TX_HASH=""
+Chain ID: 1
+Nonce: kEWepMt9knR6lWJ6A
+Issued At: 2021-12-07T18:28:18.807Z"
+SIWE_SIG="2b77e5c9819c368bb98e094b3deea2edd74ad43482cea859da05f9bcee52842b62cb096440420b04522e5bb386a029f43401f55631d40c2a039a0d2bb85e6c7b01"
+TX_HASH="{Enter tx hash here, where you sent some tokens to the sybil address}"
 ```
 
 ## Usage
