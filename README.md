@@ -34,17 +34,17 @@ make local_upgrade
 
 ```sh
 CALLER="0x6696eD42dFBe875E60779b8163fDCc39B088222A"
-SIWE_MSG="sybil wants you to sign in with your Ethereum account:
+SIWE_MSG="localhost:4361 wants you to sign in with your Ethereum account:
 0x6696eD42dFBe875E60779b8163fDCc39B088222A
 
-Sybil test
+Sign in with Ethereum.
 
 URI: http://localhost:4361
 Version: 1
-Chain ID: 1
-Nonce: kEWepMt9knR6lWJ6A
-Issued At: 2023-12-07T18:28:18.807Z"
-SIWE_SIG="2b77e5c9819c368bb98e094b3deea2edd74ad43482cea859da05f9bcee52842b62cb096440420b04522e5bb386a029f43401f55631d40c2a039a0d2bb85e6c7b01"
+Chain ID: 324
+Nonce: NUY87tYWuZwkxrTZM
+Issued At: 2023-11-03T11:40:39.690Z"
+SIWE_SIG="31f8f8ea2104062e242dc13b9729c75b866e1ab1635c69404a1e7438221ff23849ea6a82e2544d28b4a16075f27fd3db6569e8664191af501572ad342e616c0300"
 TX_HASH="{Enter tx hash here, where you sent some tokens to the sybil address}"
 ```
 
