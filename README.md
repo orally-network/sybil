@@ -43,7 +43,7 @@ URI: http://localhost:4361
 Version: 1
 Chain ID: 324
 Nonce: NUY87tYWuZwkxrTZM
-Issued At: 2023-11-03T11:40:39.690Z"
+Issued At: 2023-11-03T11:40:39.690Z" &&
 SIWE_SIG="31f8f8ea2104062e242dc13b9729c75b866e1ab1635c69404a1e7438221ff23849ea6a82e2544d28b4a16075f27fd3db6569e8664191af501572ad342e616c0300" &&
 TX_HASH="{Enter tx hash here, where you sent some tokens to the sybil address}" 
 ```
