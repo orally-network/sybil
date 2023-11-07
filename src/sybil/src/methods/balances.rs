@@ -224,6 +224,8 @@ async fn _withdraw(
 
     let tx_hash = web3::send_erc20(&amount, &receiver).await?;
 
+    Balances::reduce_amount(&caller, &amount)?;
+
     log!("[BALANCES] address {}, withdrew {} tokens", caller, amount);
     Ok(tx_hash)
 }
