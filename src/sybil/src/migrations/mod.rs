@@ -3,6 +3,7 @@ use ic_utils::monitor;
 
 use crate::{
     http::HttpService,
+    log,
     types::{
         cache::{HttpCache, RateCache, SignaturesCache},
         state::State,
@@ -40,6 +41,15 @@ fn post_upgrade() {
     CACHE.with(|c| c.replace(cache));
     HTTP_CACHE.with(|c| c.replace(http_cache));
     SIGNATURES_CACHE.with(|c| c.replace(signatures_cache));
+
+    _ = std::panic::take_hook(); // clear custom panic hook and set default
+    let old_handler = std::panic::take_hook(); // take default panic hook
+
+    // set custom panic hook
+    std::panic::set_hook(Box::new(move |info| {
+        log!("PANIC OCCURRED: {:#?}", info);
+        old_handler(info);
+    }));
 
     HttpService::init();
 }
