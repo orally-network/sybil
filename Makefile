@@ -4,7 +4,7 @@ local_deploy_exchange_rate_canister:
 	dfx deploy exchange_rate_canister
 
 local_deploy_sybil: local_deploy_exchange_rate_canister
-	$(eval RPC_URL?=https://goerli.blockpi.network/v1/rpc/public)
+	$(eval RPC_URL?=https://ethereum-goerli.publicnode.com)
 	$(eval EXCHANGE_RATE_CANISTER_ID := $(shell dfx canister id exchange_rate_canister))
 
 	dfx canister create sybil && dfx build sybil 
