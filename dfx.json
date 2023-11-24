@@ -5,10 +5,10 @@
       "package": "sybil",
       "type": "rust"
     },
-    "exchange_rate_canister": {
+    "xrc": {
       "type": "custom",
-      "candid": "exchange_rate_canister.did",
-      "wasm": "exchange_rate_canister.wasm"
+      "candid": "xrc.did",
+      "wasm": "xrc.wasm.gz"
     }
   },
   "defaults": {

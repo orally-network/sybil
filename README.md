@@ -20,7 +20,7 @@ dfx canister install --wasm ./.dfx/ic/canisters/sybil/sybil.wasm.gz --argument "
 ## Upgrade prod
 
 ```sh
-dfx build sybil --network ic && gzip -f -1 ./.dfx/ic/canisters/sybil/sybil.wasm
+dfx build sybil --network ic && gzip -f -1 ./.dfx/ic/canisters/sybil/sybil.wasm &&
 dfx canister install --mode upgrade --wasm ./.dfx/ic/canisters/sybil/sybil.wasm.gz --network ic sybil
 ```
 
@@ -51,7 +51,7 @@ TX_HASH="{Enter tx hash here, where you sent some tokens to the sybil address}"
 ## Usage
 
 ```sh
-dfx canister call sybil add_to_whitelist "(\"${CALLER}\")"
+dfx canister call sybil add_to_whitelist "(\"${CALLER}\")" 
 dfx canister call sybil eth_address
 dfx canister call sybil deposit "(\"${TX_HASH}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil get_balance "(\"${CALLER}\")"
