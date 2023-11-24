@@ -1,11 +1,8 @@
 use std::collections::HashMap;
 
-use ic_cdk::export::{
-    candid::{CandidType, Nat},
-    serde::{Deserialize, Serialize},
-};
-
+use candid::{CandidType, Nat};
 use ic_web3_rs::futures::future::join_all;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{

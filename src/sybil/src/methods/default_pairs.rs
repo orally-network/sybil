@@ -1,10 +1,6 @@
-use ic_cdk::{
-    export::{
-        candid::{CandidType, Nat},
-        serde::{Deserialize, Serialize},
-    },
-    update,
-};
+use candid::{CandidType, Nat};
+use ic_cdk::update;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use validator::Validate;
 

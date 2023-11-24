@@ -1,8 +1,6 @@
-use ic_cdk::export::{
-    candid::CandidType,
-    serde::{Deserialize, Serialize},
-};
+use candid::CandidType;
 use ic_web3_rs::ethabi::Token;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::utils::encoding::encode_packed;

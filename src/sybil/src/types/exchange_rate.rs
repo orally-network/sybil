@@ -1,10 +1,10 @@
+use candid::{CandidType, Principal};
+use serde::Deserialize;
 use thiserror::Error;
 
 use ic_cdk::api::call::{call_with_payment, CallResult};
-use ic_cdk::export::{
-    candid::{CandidType, Deserialize},
-    Principal,
-};
+
+use crate::log;
 
 pub const CYCLES_TO_SEND: u64 = 10_000_000_000;
 
@@ -52,36 +52,36 @@ pub struct ExchangeRate {
 pub enum ExchangeRateError {
     #[error("Anonymous principal not allowed")]
     AnonymousPrincipalNotAllowed,
-    #[error("Crypto Quote Asset Not Found")]
-    CryptoQuoteAssetNotFound,
-    #[error("Failed to accept cycles")]
-    FailedToAcceptCycles,
-    #[error("Forex base asset not found")]
-    ForexBaseAssetNotFound,
+    #[error("Pending")]
+    Pending,
     #[error("Crypto base asset not found")]
     CryptoBaseAssetNotFound,
-    #[error("Stablecoin rate too few rates")]
-    StablecoinRateTooFewRates,
-    #[error("Forex assets not found")]
-    ForexAssetsNotFound,
-    #[error("Inconsistent rates received")]
-    InconsistentRatesReceived,
-    #[error("Rate limited")]
-    RateLimited,
-    #[error("Stablecoin rate zero rate")]
-    StablecoinRateZeroRate,
-    #[error("Unexpected error: {description:?}")]
-    Other { code: u32, description: String },
-    #[error("Forex invalid timestamp")]
-    ForexInvalidTimestamp,
-    #[error("Not enough cycles")]
-    NotEnoughCycles,
-    #[error("Forex quote asset not found")]
-    ForexQuoteAssetNotFound,
+    #[error("Crypto Quote Asset Not Found")]
+    CryptoQuoteAssetNotFound,
     #[error("Stablecoin rate not found")]
     StablecoinRateNotFound,
-    #[error("pending")]
-    Pending,
+    #[error("Stablecoin rate too few rates")]
+    StablecoinRateTooFewRates,
+    #[error("Stablecoin rate zero rate")]
+    StablecoinRateZeroRate,
+    #[error("Forex invalid timestamp")]
+    ForexInvalidTimestamp,
+    #[error("Forex base asset not found")]
+    ForexBaseAssetNotFound,
+    #[error("Forex quote asset not found")]
+    ForexQuoteAssetNotFound,
+    #[error("Forex assets not found")]
+    ForexAssetsNotFound,
+    #[error("Rate limited")]
+    RateLimited,
+    #[error("Not enough cycles")]
+    NotEnoughCycles,
+    #[error("Failed to accept cycles")]
+    FailedToAcceptCycles,
+    #[error("Inconsistent rates received")]
+    InconsistentRatesReceived,
+    #[error("Unexpected error: {description:?}")]
+    Other { code: u32, description: String },
 }
 
 #[derive(CandidType, Deserialize, Debug)]
@@ -106,6 +106,17 @@ impl Service {
         &self,
         arg0: GetExchangeRateRequest,
     ) -> CallResult<(GetExchangeRateResult,)> {
-        call_with_payment(self.0, "get_exchange_rate", (arg0,), CYCLES_TO_SEND).await
+        log!(
+            "Sending get_exchange_rate request to xrc ({}) with args: {:?} and cycles: {}",
+            self.0,
+            arg0,
+            CYCLES_TO_SEND
+        );
+
+        let result = call_with_payment(self.0, "get_exchange_rate", (arg0,), CYCLES_TO_SEND).await;
+
+        log!("got response from xrc: {:#?}", result);
+
+        result
     }
 }

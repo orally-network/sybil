@@ -1,11 +1,8 @@
 use std::collections::HashSet;
 
+use candid::CandidType;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
-use ic_cdk::export::{
-    candid::CandidType,
-    serde::{Deserialize, Serialize},
-};
 
 use super::Address;
 

@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use candid::{CandidType, Nat};
-use ic_cdk::export::serde::{Deserialize, Serialize};
 use ic_web3_rs::ethabi::Error as EthabiError;
 
 use super::{whitelist::WhitelistError, Address};

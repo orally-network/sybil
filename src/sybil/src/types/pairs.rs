@@ -235,6 +235,8 @@ impl PairsStorage {
             Result::<(), PairError>::Ok(())
         })?;
 
+        log!("[PAIRS] requested rate: {:#?}", rate);
+
         Ok(rate)
     }
 
@@ -276,15 +278,19 @@ impl PairsStorage {
             match exchange_rate_result {
                 Ok(_exchange_rate) => {
                     log!(
-                        "[PAIRS] get_default_rate got response from xrc: {:#?}",
+                        "[PAIRS] get_default_rate got response from xrc: {:?}",
                         _exchange_rate
                     );
                     exchange_rate = _exchange_rate;
+                    break;
                 }
                 Err(err) => {
-                    if err == ExchangeRateError::Pending {
-                        continue;
+                    log!("[PAIRS] Exchange rate Error: {}", err,);
+                    if attempt == RATE_FETCH_MAX_RETRIES - 1 {
+                        return Err(PairError::ExchangeRateCanisterError(err));
                     }
+
+                    continue;
                 }
             };
 
@@ -302,7 +308,7 @@ impl PairsStorage {
         CACHE.with(|cache| {
             cache
                 .borrow_mut()
-                .add_entry(pair.id.clone(), rate_data.clone(), pair.update_freq)
+                .add_entry(pair.id.clone(), rate_data.clone(), pair.update_freq);
         });
 
         Ok(rate_data)

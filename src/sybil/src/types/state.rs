@@ -1,10 +1,8 @@
 use std::str::FromStr;
 
+use candid::CandidType;
 use candid::Principal;
-use ic_cdk::export::{
-    candid::CandidType,
-    serde::{Deserialize, Serialize},
-};
+use serde::{Deserialize, Serialize};
 
 use super::{
     config::{Cfg, UpdateCfg},
