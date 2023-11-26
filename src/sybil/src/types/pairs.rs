@@ -1,15 +1,10 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use candid::Nat;
-use ic_cdk::{
-    api::management_canister::http_request::CanisterHttpRequestArgument,
-    export::{
-        candid::CandidType,
-        serde::{Deserialize, Serialize},
-    },
-};
+use candid::{CandidType, Nat};
+use ic_cdk::api::management_canister::http_request::CanisterHttpRequestArgument;
 use ic_web3_rs::futures::future::join_all;
 use jsonptr::{Pointer, Resolve};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use validator::Validate;
@@ -28,13 +23,14 @@ use crate::{
     jobs::cache_cleaner,
     log,
     methods::{custom_pairs::CreateCustomPairRequest, default_pairs::CreateDefaultPairRequest},
-    utils::{canister, nat, siwe::SiweError, time, validation, vec},
+    utils::{canister, nat, siwe::SiweError, sleep, time, validation, vec},
     CACHE, STATE,
 };
 
 const MIN_EXPECTED_BYTES: u64 = 1;
 const MAX_EXPECTED_BYTES: u64 = 1024 * 1024 * 2;
-const RATE_FETCH_MAX_RETRIES: u64 = 5;
+const RATE_FETCH_MAX_RETRIES: u64 = 100;
+const WAITING_BEFORE_RETRY_MS: Duration = Duration::from_millis(5000);
 
 #[derive(Error, Debug)]
 pub enum PairError {
@@ -286,6 +282,9 @@ impl PairsStorage {
                 }
                 Err(err) => {
                     log!("[PAIRS] Exchange rate Error: {}", err,);
+
+                    sleep(WAITING_BEFORE_RETRY_MS).await;
+
                     if attempt == RATE_FETCH_MAX_RETRIES - 1 {
                         return Err(PairError::ExchangeRateCanisterError(err));
                     }
@@ -293,8 +292,6 @@ impl PairsStorage {
                     continue;
                 }
             };
-
-            break;
         }
 
         let rate_data = RateDataLight {
