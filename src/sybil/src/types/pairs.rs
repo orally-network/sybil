@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 use candid::{CandidType, Nat};
 use ic_cdk::api::management_canister::http_request::CanisterHttpRequestArgument;
@@ -29,7 +29,8 @@ use crate::{
 
 const MIN_EXPECTED_BYTES: u64 = 1;
 const MAX_EXPECTED_BYTES: u64 = 1024 * 1024 * 2;
-const RATE_FETCH_MAX_RETRIES: u64 = 100;
+const RATE_FETCH_DEFAULT_XRC_MAX_RETRIES: u64 = 10;
+const RATE_FETCH_FALLBACK_XRC_MAX_RETRIES: u64 = 10;
 const WAITING_BEFORE_RETRY_MS: Duration = Duration::from_millis(5000);
 
 #[derive(Error, Debug)]
@@ -251,11 +252,15 @@ impl PairsStorage {
         };
 
         let mut exchange_rate = ExchangeRate::default();
-        for attempt in 0..RATE_FETCH_MAX_RETRIES {
+        let max_attempts = RATE_FETCH_DEFAULT_XRC_MAX_RETRIES + RATE_FETCH_FALLBACK_XRC_MAX_RETRIES;
+        for attempt in 0..(max_attempts) {
             req.timestamp = Some(time::in_seconds() - 5);
 
-            let exchange_rate_canister =
-                exchange_rate::Service(clone_with_state!(exchange_rate_canister));
+            let exchange_rate_canister = if attempt < RATE_FETCH_DEFAULT_XRC_MAX_RETRIES {
+                exchange_rate::Service(clone_with_state!(exchange_rate_canister))
+            } else {
+                exchange_rate::Service(clone_with_state!(fallback_xrc))
+            };
 
             log!(
                 "[PAIRS] get_default_rate requests xrc: attempt: {}, req: {:#?}",
@@ -285,7 +290,7 @@ impl PairsStorage {
 
                     sleep(WAITING_BEFORE_RETRY_MS).await;
 
-                    if attempt == RATE_FETCH_MAX_RETRIES - 1 {
+                    if attempt == max_attempts - 1 {
                         return Err(PairError::ExchangeRateCanisterError(err));
                     }
 
