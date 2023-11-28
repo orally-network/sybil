@@ -17,7 +17,7 @@ local_deploy_sybil: local_deploy_xrc
 local_upgrade: local_upgrade_xrc local_upgrade_sybil
 
 local_upgrade_xrc:
-	dfx canister install --mode upgrade --wasm ./exchange_rate_canister.wasm xrc 
+	dfx canister install --mode upgrade --wasm ./xrc.wasm xrc 
 
 local_upgrade_sybil:
 	dfx build sybil 
@@ -25,10 +25,10 @@ local_upgrade_sybil:
 	dfx canister install --mode upgrade --wasm ./.dfx/local/canisters/sybil/sybil.wasm.gz sybil
 
 
-ic_upgrade: ic_upgrade_sybil ic_upgrade_xrc
+ic_upgrade: ic_upgrade_xrc ic_upgrade_sybil 
 
 ic_upgrade_xrc:
-	dfx canister install --mode upgrade --wasm ./xrc.wasm --network ic xrc 
+	dfx canister install --mode upgrade --wasm ./xrc.wasm.gz --network ic xrc 
 
 
 ic_upgrade_sybil:
