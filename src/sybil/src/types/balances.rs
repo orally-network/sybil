@@ -72,13 +72,13 @@ pub enum DepositError {
     InvalidTransferEvent,
 }
 
-#[derive(CandidType, Deserialize, Serialize, Default, Clone)]
+#[derive(Debug, CandidType, Deserialize, Serialize, Default, Clone)]
 pub struct BalanceEntry {
     pub amount: Nat,
     pub nonces: Vec<Nat>,
 }
 
-#[derive(CandidType, Deserialize, Serialize, Default, Clone)]
+#[derive(CandidType, Deserialize, Serialize, Default, Clone, Debug)]
 pub struct Balances(HashMap<Address, BalanceEntry>);
 
 impl Balances {

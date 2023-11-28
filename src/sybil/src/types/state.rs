@@ -16,7 +16,7 @@ use crate::{
     STATE,
 };
 
-#[derive(Clone, CandidType, Serialize, Deserialize)]
+#[derive(Clone, CandidType, Serialize, Deserialize, Debug)]
 pub struct State {
     pub exchange_rate_canister: Principal,
     pub fallback_xrc: Principal,
