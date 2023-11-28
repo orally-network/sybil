@@ -17,6 +17,7 @@ use types::{
     config::Cfg,
     state::{self, State},
 };
+use utils::canister::set_custom_panic_hook;
 
 use crate::types::cache::{HttpCache, SignaturesCache};
 
@@ -34,6 +35,7 @@ fn transform(response: TransformArgs) -> HttpResponse {
 
 #[init]
 pub fn init(cfg: Cfg) {
+    set_custom_panic_hook();
     state::init(&cfg);
 
     HttpService::init();

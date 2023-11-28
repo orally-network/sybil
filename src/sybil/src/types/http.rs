@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
+use candid::{CandidType, Func};
+use serde::Deserialize;
 use serde_bytes::{ByteBuf, Bytes};
-
-use ic_cdk::export::candid::{CandidType, Deserialize, Func};
 
 pub type HeaderField = (String, String);
 

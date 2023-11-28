@@ -1,10 +1,8 @@
 use std::str::FromStr;
 
+use candid::CandidType;
 use candid::Principal;
-use ic_cdk::export::{
-    candid::CandidType,
-    serde::{Deserialize, Serialize},
-};
+use serde::{Deserialize, Serialize};
 
 use super::{
     config::{Cfg, UpdateCfg},
@@ -18,9 +16,10 @@ use crate::{
     STATE,
 };
 
-#[derive(Clone, CandidType, Serialize, Deserialize)]
+#[derive(Clone, CandidType, Serialize, Deserialize, Debug)]
 pub struct State {
     pub exchange_rate_canister: Principal,
+    pub fallback_xrc: Principal,
     pub key_name: String,
     pub mock: bool,
     pub pairs: PairsStorage,
@@ -36,6 +35,7 @@ impl Default for State {
     fn default() -> Self {
         Self {
             exchange_rate_canister: Principal::from_str("aaaaa-aa").expect("Invalid principal"),
+            fallback_xrc: Principal::from_str("aaaaa-aa").expect("Invalid principal"),
             key_name: "".to_string(),
             mock: false,
             pairs: PairsStorage::default(),
@@ -53,6 +53,7 @@ pub fn init(cfg: &Cfg) {
     STATE.with(|state| {
         let mut state = state.borrow_mut();
         state.exchange_rate_canister = cfg.exchange_rate_canister;
+        state.fallback_xrc = cfg.fallback_xrc;
         state.key_name = cfg.key_name.clone();
         state.balances_cfg = cfg.balances_cfg.clone();
         state.mock = cfg.mock;
@@ -64,6 +65,9 @@ pub fn update(cfg: &UpdateCfg) {
         let mut state = state.borrow_mut();
         if let Some(exchange_rate_canister) = &cfg.exchange_rate_canister {
             state.exchange_rate_canister = *exchange_rate_canister;
+        }
+        if let Some(fallback_xrc) = &cfg.fallback_xrc {
+            state.fallback_xrc = *fallback_xrc;
         }
         if let Some(mock) = &cfg.mock {
             state.mock = *mock;
@@ -82,6 +86,7 @@ pub fn get_cfg() -> Cfg {
         let state = state.borrow();
         Cfg {
             exchange_rate_canister: state.exchange_rate_canister,
+            fallback_xrc: state.fallback_xrc,
             mock: state.mock,
             key_name: state.key_name.clone(),
             balances_cfg: state.balances_cfg.clone(),

@@ -88,7 +88,7 @@ pub async fn send_erc20(value: &Nat, to: &str) -> Result<String, Web3Error> {
     let key_name = clone_with_state!(key_name);
 
     let key_info = KeyInfo {
-        derivation_path: vec![],
+        derivation_path: vec![ic_cdk::id().as_slice().to_vec()],
         key_name,
         ecdsa_sign_cycles: Some(ECDSA_SIGN_CYCLES),
     };
@@ -96,7 +96,6 @@ pub async fn send_erc20(value: &Nat, to: &str) -> Result<String, Web3Error> {
     let chain_id = nat::to_u64(&cfg.chain_id);
 
     let params = vec![Token::Address(address::to_h160(to)?), value.into_token()];
-
     let tx_hash = contract
         .signed_call(
             ERC20_TRANSFER_METHOD,
