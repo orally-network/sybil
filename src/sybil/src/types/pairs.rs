@@ -12,9 +12,7 @@ use validator::Validate;
 use super::{
     balances::{BalanceError, Balances},
     cache::{HttpCache, HttpCacheError},
-    exchange_rate::{
-        self, Asset, AssetClass, ExchangeRate, ExchangeRateError, GetExchangeRateRequest,
-    },
+    exchange_rate::{Asset, AssetClass, ExchangeRate, ExchangeRateError, GetExchangeRateRequest},
     rate_data::{RateDataError, RateDataLight},
     state, Address, Seconds, Timestamp,
 };
@@ -23,15 +21,16 @@ use crate::{
     jobs::cache_cleaner,
     log,
     methods::{custom_pairs::CreateCustomPairRequest, default_pairs::CreateDefaultPairRequest},
+    types::exchange_rate::Service,
     utils::{canister, nat, siwe::SiweError, sleep, time, validation, vec},
     CACHE, STATE,
 };
 
 const MIN_EXPECTED_BYTES: u64 = 1;
 const MAX_EXPECTED_BYTES: u64 = 1024 * 1024 * 2;
-const RATE_FETCH_DEFAULT_XRC_MAX_RETRIES: u64 = 10;
-const RATE_FETCH_FALLBACK_XRC_MAX_RETRIES: u64 = 10;
-const WAITING_BEFORE_RETRY_MS: Duration = Duration::from_millis(5000);
+const RATE_FETCH_DEFAULT_XRC_MAX_RETRIES: u64 = 5;
+const RATE_FETCH_FALLBACK_XRC_MAX_RETRIES: u64 = 5;
+const WAITING_BEFORE_RETRY_MS: Duration = Duration::from_millis(500);
 
 #[derive(Error, Debug)]
 pub enum PairError {
@@ -245,22 +244,60 @@ impl PairsStorage {
 
         let (base_asset, quote_asset) =
             Self::get_assets(&pair.id).ok_or(PairError::InvalidPairId)?;
-        let mut req = GetExchangeRateRequest {
+        let req = GetExchangeRateRequest {
             base_asset,
             quote_asset,
             timestamp: None,
         };
 
+        let xrc = Service(clone_with_state!(exchange_rate_canister));
+
+        let exchange_rate = match Self::call_xrc_with_attempts(
+            xrc,
+            req.clone(),
+            RATE_FETCH_DEFAULT_XRC_MAX_RETRIES,
+        )
+        .await
+        {
+            Ok(exchange_rate) => exchange_rate,
+            Err(err) => {
+                log!(
+                    "[PAIRS] get_default_rate got error from default xrc: {}",
+                    err
+                );
+
+                let xrc = Service(clone_with_state!(fallback_xrc));
+
+                Self::call_xrc_with_attempts(xrc, req.clone(), RATE_FETCH_FALLBACK_XRC_MAX_RETRIES)
+                    .await?
+            }
+        };
+
+        let rate_data = RateDataLight {
+            symbol: pair.id.clone(),
+            rate: exchange_rate.rate,
+            decimals: pair.decimals,
+            timestamp: exchange_rate.timestamp,
+            ..Default::default()
+        };
+
+        CACHE.with(|cache| {
+            cache
+                .borrow_mut()
+                .add_entry(pair.id.clone(), rate_data.clone(), pair.update_freq);
+        });
+
+        Ok(rate_data)
+    }
+
+    async fn call_xrc_with_attempts(
+        exchange_rate_canister: Service,
+        mut req: GetExchangeRateRequest,
+        max_attempts: u64,
+    ) -> Result<ExchangeRate, PairError> {
         let mut exchange_rate = ExchangeRate::default();
-        let max_attempts = RATE_FETCH_DEFAULT_XRC_MAX_RETRIES + RATE_FETCH_FALLBACK_XRC_MAX_RETRIES;
         for attempt in 0..(max_attempts) {
             req.timestamp = Some(time::in_seconds() - 5);
-
-            let exchange_rate_canister = if attempt < RATE_FETCH_DEFAULT_XRC_MAX_RETRIES {
-                exchange_rate::Service(clone_with_state!(exchange_rate_canister))
-            } else {
-                exchange_rate::Service(clone_with_state!(fallback_xrc))
-            };
 
             log!(
                 "[PAIRS] get_default_rate requests xrc: attempt: {}, req: {:#?}",
@@ -285,8 +322,17 @@ impl PairsStorage {
                     exchange_rate = _exchange_rate;
                     break;
                 }
+                Err(ExchangeRateError::RateLimited) => {
+                    return Err(PairError::ExchangeRateCanisterError(
+                        ExchangeRateError::RateLimited,
+                    ));
+                }
                 Err(err) => {
-                    log!("[PAIRS] Exchange rate Error: {}", err,);
+                    log!(
+                        "[PAIRS] Exchange rate Error on attempt {}: {}",
+                        attempt,
+                        err,
+                    );
 
                     sleep(WAITING_BEFORE_RETRY_MS).await;
 
@@ -299,21 +345,7 @@ impl PairsStorage {
             };
         }
 
-        let rate_data = RateDataLight {
-            symbol: pair.id.clone(),
-            rate: exchange_rate.rate,
-            decimals: pair.decimals,
-            timestamp: exchange_rate.timestamp,
-            ..Default::default()
-        };
-
-        CACHE.with(|cache| {
-            cache
-                .borrow_mut()
-                .add_entry(pair.id.clone(), rate_data.clone(), pair.update_freq);
-        });
-
-        Ok(rate_data)
+        return Ok(exchange_rate);
     }
 
     pub async fn get_custom_rate(
