@@ -7,12 +7,13 @@ local_deploy_xrc:
 local_deploy_sybil: local_deploy_xrc
 	$(eval RPC_URL?=https://ethereum-goerli.publicnode.com)
 	$(eval XRC_ID := $(shell dfx canister id xrc))
+	$(eval FALLBACK_XRC := $(shell dfx canister id xrc))
 
 	dfx canister create sybil && dfx build sybil 
 	gzip -f -1 ./.dfx/local/canisters/sybil/sybil.wasm
 	dfx canister install --wasm ./.dfx/local/canisters/sybil/sybil.wasm.gz --argument \
-		"(record {exchange_rate_canister=principal\"${XRC_ID}\"; mock=true; key_name=\"dfx_test_key\"; \
-			balances_cfg=record {rpc=\"${RPC_URL}\"; fee_per_byte=1:nat; chain_id=5:nat; erc20_contract=\"0xfad6367E97217cC51b4cd838Cc086831f81d38C2\"}})" sybil
+		"(record {exchange_rate_canister=principal\"${XRC_ID}\"; fallback_xrc=principal\"${XRC_ID}\"; mock=true; key_name=\"dfx_test_key\"; \
+			balances_cfg=record {rpc=\"${RPC_URL}\"; fee_per_byte=0:nat; chain_id=5:nat; erc20_contract=\"0xfad6367E97217cC51b4cd838Cc086831f81d38C2\"}})" sybil
 
 local_upgrade: local_upgrade_xrc local_upgrade_sybil
 

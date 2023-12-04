@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use candid::{CandidType, Nat};
-use ic_cdk::api::management_canister::http_request::CanisterHttpRequestArgument;
+use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpHeader};
 use ic_web3_rs::futures::future::join_all;
 use jsonptr::{Pointer, Resolve};
 use serde::{Deserialize, Serialize};
@@ -69,6 +69,7 @@ impl Source {
         let req = CanisterHttpRequestArgument {
             url: self.uri.clone(),
             max_response_bytes: Some(self.expected_bytes),
+            headers: Self::get_default_headers(),
             ..Default::default()
         };
 
@@ -89,6 +90,19 @@ impl Source {
             ))?;
 
         Ok((rate, cached_at))
+    }
+
+    pub fn get_default_headers() -> Vec<HttpHeader> {
+        vec![
+            HttpHeader {
+                name: "Content-Type".to_string(),
+                value: "application/json".to_string(),
+            },
+            HttpHeader {
+                name: "User-Agent".to_string(),
+                value: "sybil".to_string(),
+            },
+        ]
     }
 
     pub async fn data(&self, expr_freq: Seconds) -> Result<(String, Seconds), HttpCacheError> {
@@ -375,7 +389,15 @@ impl PairsStorage {
         let (mut results, cached_at_timestamps) = join_all(futures)
             .await
             .iter()
-            .filter_map(|res| res.as_ref().ok().copied())
+            .filter_map(|res| match res {
+                Ok(res) => {
+                    return Some(res.clone());
+                }
+                Err(err) => {
+                    log!("[PAIRS] error while getting custom rate: {:?}", err);
+                    None
+                }
+            })
             .unzip::<_, _, Vec<_>, Vec<_>>();
 
         Balances::reduce_amount(&pair.owner, &fee)?;
