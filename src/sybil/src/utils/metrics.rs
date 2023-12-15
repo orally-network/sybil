@@ -223,7 +223,7 @@ thread_local! {
             ),
         SUCCESSFUL_GET_ASSET_DATA_CALLS: Metric::new(
                 "successful_get_asset_data_calls",
-                "Number of successfully returned get_asset_data calls.",
+                "Number of successfully returned get_asset_data calls",
                 "counter",
                 &["pair"],
             ),
@@ -235,7 +235,7 @@ thread_local! {
             ),
         SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS: Metric::new(
                 "successful_get_asset_data_with_proof_calls",
-                "Number of successfully returned get_asset_data_with_proof calls.",
+                "Number of successfully returned get_asset_data_with_proof calls",
                 "counter",
                 &["pair"],
             ),
@@ -259,7 +259,7 @@ thread_local! {
             ),
         SUCCESSFUL_XRC_CALLS: Metric::new(
                 "successful_xrc_calls",
-                "Number of successfully returned xrc calls. Note that this metric is about ic communication with the sybil canister. Meaning if sybil returns error, this metric will not be incremented. If ic returns error while quering sybil canister, this metric will be incremented.",
+                "Number of successfully returned xrc calls",
                 "counter",
                 &[],
             ),
