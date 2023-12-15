@@ -5,7 +5,7 @@ use thiserror::Error;
 use validator::Validate;
 
 use crate::{
-    log,
+    log, metrics,
     types::{
         pairs::{Pair, PairError, PairsStorage},
         whitelist::WhitelistError,
@@ -54,6 +54,7 @@ async fn _create_default_pair(req: CreateDefaultPairRequest) -> Result<(), Defau
     PairsStorage::get_default_rate(&pair).await?;
     PairsStorage::add(pair);
 
+    metrics!(inc DEFAULT_PAIRS);
     log!("[PAIRS] default pair added. Pair ID: {}", req.pair_id);
     Ok(())
 }
@@ -73,6 +74,7 @@ async fn _remove_default_pair(id: String) -> Result<(), DefaultPairError> {
 
     PairsStorage::remove(&id);
 
+    metrics!(dec DEFAULT_PAIRS);
     log!("[PAIRS] default pair removed. Pair ID: {}", id);
     Ok(())
 }

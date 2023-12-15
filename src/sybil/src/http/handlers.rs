@@ -41,6 +41,12 @@ pub async fn get_asset_data_with_proof_request(req: HttpRequest) -> HttpResponse
     }
 }
 
+pub async fn gather_metrics() -> HttpResponse {
+    let data = crate::utils::metrics::gather_metrics();
+
+    response::ok(data)
+}
+
 #[inline(always)]
 async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
     let service = HTTP_SERVICE.get().expect("State not initialized");

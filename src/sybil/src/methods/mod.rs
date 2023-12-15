@@ -16,6 +16,7 @@ use ic_utils::{
 };
 
 use crate::{
+    metrics,
     types::{
         pairs::{Pair, PairError, PairsStorage},
         rate_data::RateDataLight,
@@ -50,7 +51,11 @@ pub async fn get_asset_data_with_proof(pair_id: String) -> Result<RateDataLight,
 }
 
 pub async fn _get_asset_data_with_proof(pair_id: String) -> Result<RateDataLight, AssetsError> {
-    Ok(PairsStorage::rate(&pair_id, true).await?)
+    metrics!(inc GET_ASSET_DATA_WITH_PROOF_CALLS, pair_id);
+    let rate = PairsStorage::rate(&pair_id, true).await?;
+
+    metrics!(inc SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS, pair_id);
+    Ok(rate)
 }
 
 #[update]
@@ -61,10 +66,12 @@ pub async fn get_asset_data(pair_id: String) -> Result<RateDataLight, String> {
 }
 
 async fn _get_asset_data(pair_id: String) -> Result<RateDataLight, AssetsError> {
+    metrics!(inc GET_ASSET_DATA_CALLS, pair_id);
     let mut rate = PairsStorage::rate(&pair_id, false).await?;
 
     rate.signature = None;
 
+    metrics!(inc SUCCESSFUL_GET_ASSET_DATA_CALLS, pair_id);
     Ok(rate)
 }
 
