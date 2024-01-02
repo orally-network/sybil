@@ -5,17 +5,20 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     http::HttpService,
-    log,
+    log, metrics,
     types::{
         balances::{Balances, BalancesCfg},
         cache::{HttpCache, RateCache, SignaturesCache},
         data_fetchers::{DataFetchersStorage, DataFethcersIndexer},
-        pairs::PairsStorage,
+        pairs::{PairType, PairsStorage},
         state::State,
         whitelist::Whitelist,
         Address,
     },
-    utils::canister::set_custom_panic_hook,
+    utils::{
+        canister::set_custom_panic_hook,
+        metrics::{Metric, Metrics, METRICS},
+    },
     CACHE, HTTP_CACHE, SIGNATURES_CACHE, STATE,
 };
 
@@ -72,6 +75,46 @@ impl From<OldState> for State {
     }
 }
 
+#[allow(non_snake_case)]
+#[derive(CandidType, Clone, Debug, Default, Deserialize, Serialize)]
+pub struct OldMetrics {
+    pub CUSTOM_PAIRS: Option<Metric>,
+    pub DEFAULT_PAIRS: Option<Metric>,
+    pub GET_ASSET_DATA_CALLS: Option<Metric>,
+    pub SUCCESSFUL_GET_ASSET_DATA_CALLS: Option<Metric>,
+    pub GET_ASSET_DATA_WITH_PROOF_CALLS: Option<Metric>,
+    pub SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS: Option<Metric>,
+    pub FALLBACK_XRC_CALLS: Option<Metric>,
+    pub SUCCESSFUL_FALLBACK_XRC_CALLS: Option<Metric>,
+    pub XRC_CALLS: Option<Metric>,
+    pub SUCCESSFUL_XRC_CALLS: Option<Metric>,
+    pub CYCLES: Option<Metric>,
+}
+
+impl From<OldMetrics> for Metrics {
+    fn from(value: OldMetrics) -> Self {
+        Metrics {
+            CUSTOM_PAIRS: value.CUSTOM_PAIRS.unwrap_or_default(),
+            DEFAULT_PAIRS: value.DEFAULT_PAIRS.unwrap_or_default(),
+            GET_ASSET_DATA_CALLS: value.GET_ASSET_DATA_CALLS.unwrap_or_default(),
+            SUCCESSFUL_GET_ASSET_DATA_CALLS: value
+                .SUCCESSFUL_GET_ASSET_DATA_CALLS
+                .unwrap_or_default(),
+            GET_ASSET_DATA_WITH_PROOF_CALLS: value
+                .GET_ASSET_DATA_WITH_PROOF_CALLS
+                .unwrap_or_default(),
+            SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS: value
+                .SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS
+                .unwrap_or_default(),
+            FALLBACK_XRC_CALLS: value.FALLBACK_XRC_CALLS.unwrap_or_default(),
+            SUCCESSFUL_FALLBACK_XRC_CALLS: value.SUCCESSFUL_FALLBACK_XRC_CALLS.unwrap_or_default(),
+            XRC_CALLS: value.XRC_CALLS.unwrap_or_default(),
+            SUCCESSFUL_XRC_CALLS: value.SUCCESSFUL_XRC_CALLS.unwrap_or_default(),
+            CYCLES: value.CYCLES.unwrap_or_default(),
+        }
+    }
+}
+
 #[pre_upgrade]
 fn pre_upgrade() {
     let state = STATE.with(|state| state.borrow().clone());
@@ -82,18 +125,28 @@ fn pre_upgrade() {
 
     let monitor_data = monitor::pre_upgrade_stable_data();
 
-    storage::stable_save((state, cache, monitor_data, http_cache, signatures_cache))
-        .expect("should be able to save");
+    let metrics = METRICS.with(|metrics| metrics.take());
+
+    storage::stable_save((
+        state,
+        cache,
+        monitor_data,
+        http_cache,
+        signatures_cache,
+        metrics,
+    ))
+    .expect("should be able to save");
 }
 
 #[post_upgrade]
 fn post_upgrade() {
-    let (state, cache, monitor_data, http_cache, signatures_cache): (
+    let (state, cache, monitor_data, http_cache, signatures_cache, metrics): (
         OldState,
         RateCache,
         monitor::PostUpgradeStableData,
         HttpCache,
         SignaturesCache,
+        Option<OldMetrics>,
     ) = storage::stable_restore().expect("should be able to restore");
 
     monitor::post_upgrade_stable_data(monitor_data);
@@ -106,6 +159,30 @@ fn post_upgrade() {
     CACHE.with(|c| c.replace(cache));
     HTTP_CACHE.with(|c| c.replace(http_cache));
     SIGNATURES_CACHE.with(|c| c.replace(signatures_cache));
+
+    if let Some(metrics) = metrics {
+        METRICS.with(|m| m.replace(metrics.into()));
+
+        STATE.with(|state| {
+            let state = state.borrow();
+            let pairs = &state.pairs;
+            let mut default_pairs = 0;
+            let mut custom_pairs = 0;
+            for (_, pair) in pairs.0.iter() {
+                match pair.pair_type {
+                    PairType::Default => {
+                        default_pairs += 1;
+                    }
+                    PairType::Custom { .. } => {
+                        custom_pairs += 1;
+                    }
+                }
+            }
+
+            metrics!(set DEFAULT_PAIRS, default_pairs);
+            metrics!(set CUSTOM_PAIRS, custom_pairs);
+        });
+    }
 
     log!("Post upgrade finished");
 

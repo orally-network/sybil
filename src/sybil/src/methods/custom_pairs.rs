@@ -6,6 +6,7 @@ use thiserror::Error;
 use validator::{Validate, ValidationErrors};
 
 use crate::log;
+use crate::metrics;
 use crate::{
     types::{
         pairs::{Pair, PairError, PairsStorage, Source},
@@ -75,6 +76,8 @@ pub async fn _create_custom_pair(req: CreateCustomPairRequest) -> Result<(), Cus
     PairsStorage::get_custom_rate(&pair, &req.sources).await?;
     PairsStorage::add(pair);
 
+    metrics!(inc CUSTOM_PAIRS);
+
     log!(
         "[PAIRS] custom pair created. id: {}, owner: {}",
         req.pair_id,
@@ -108,6 +111,7 @@ pub async fn _remove_custom_pair(
 
         PairsStorage::remove(&id);
 
+        metrics!(dec CUSTOM_PAIRS);
         log!("[PAIRS] custom pair removed. id: {}, owner: {}", id, addr);
         return Ok(());
     }

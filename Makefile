@@ -18,7 +18,7 @@ local_deploy_sybil: local_deploy_xrc
 local_upgrade: local_upgrade_xrc local_upgrade_sybil
 
 local_upgrade_xrc:
-	dfx canister install --mode upgrade --wasm ./xrc.wasm xrc 
+	dfx canister install --mode upgrade --wasm ./xrc.wasm.gz xrc 
 
 local_upgrade_sybil:
 	dfx build sybil 

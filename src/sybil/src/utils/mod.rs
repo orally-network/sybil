@@ -3,6 +3,7 @@ pub mod canister;
 pub mod convertion;
 pub mod encoding;
 pub mod macros;
+pub mod metrics;
 pub mod nat;
 pub mod processors;
 pub mod signature;
