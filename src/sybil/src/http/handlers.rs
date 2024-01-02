@@ -8,7 +8,7 @@ use crate::{types::feeds::FeedStorage, utils::validation};
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
 struct GetAssetDataQueryParams {
     #[validate(regex = "validation::FEED_ID_REGEX")]
-    pair_id: String,
+    feed_id: String,
 }
 
 impl TryFrom<String> for GetAssetDataQueryParams {
@@ -54,7 +54,7 @@ async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Resu
     let params = GetAssetDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let rate = FeedStorage::rate(&params.pair_id, with_signature).await?;
+    let rate = FeedStorage::rate(&params.feed_id, with_signature).await?;
 
     Ok(serde_json::to_vec(&rate)?)
 }

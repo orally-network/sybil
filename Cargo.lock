@@ -2101,6 +2101,7 @@ dependencies = [
  "sha3",
  "siwe",
  "slotmap",
+ "strsim",
  "thiserror",
  "time",
  "tokio",

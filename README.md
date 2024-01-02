@@ -55,13 +55,13 @@ dfx canister call sybil add_to_whitelist "(\"${CALLER}\")"
 dfx canister call sybil eth_address
 dfx canister call sybil deposit "(\"${TX_HASH}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil get_balance "(\"${CALLER}\")"
-dfx canister call sybil create_custom_pair "(record {pair_id=\"QUI/USD\"; update_freq=360:nat; decimals=6:nat; sources=vec {record {uri=\"https://aws.qui0scit.dev/\"; resolver=\"/rate\"; expected_bytes=1048576}};msg=\"${SIWE_MSG}\"; sig=\"${SIWE_SIG}\"})"
+dfx canister call sybil create_custom_feed "(record {feed_id=\"QUI/USD\"; update_freq=360:nat; decimals=6:nat; sources=vec {record {uri=\"https://aws.qui0scit.dev/\"; resolver=\"/rate\"; expected_bytes=1048576}};msg=\"${SIWE_MSG}\"; sig=\"${SIWE_SIG}\"})"
 dfx canister call sybil get_asset_data "(\"QUI/USD\")"
 dfx canister call sybil get_asset_data_with_proof "(\"QUI/USD\")"
-dfx canister call sybil create_default_pair "(record {pair_id=\"ETH/USD\"; update_freq=360:nat; decimals=6:nat})"
+dfx canister call sybil create_default_feed "(record {feed_id=\"ETH/USD\"; update_freq=360:nat; decimals=6:nat})"
 dfx canister call sybil get_asset_data "(\"ETH/USD\")"
 dfx canister call sybil get_asset_data_with_proof "(\"ETH/USD\")"
-dfx canister call sybil get_pairs
+dfx canister call sybil get_feeds
 dfx canister call sybil withdraw "(1:nat, \"${CALLER}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil withdraw_fees "(\"${CALLER}\")"
 dfx canister call sybil create_data_fetcher "(record {update_freq=360:nat; sources=vec {record {uri=\"https://aws.qui0scit.dev/\"; resolver=\"/symbol\"; expected_bytes=1048576}}; msg=\"${SIWE_MSG}\"; sig=\"${SIWE_SIG}\"})"

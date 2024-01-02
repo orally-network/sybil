@@ -34,9 +34,9 @@ const WAITING_BEFORE_RETRY_MS: Duration = Duration::from_millis(500);
 
 #[derive(Error, Debug)]
 pub enum FeedError {
-    #[error("Pair not found")]
+    #[error("Feed not found")]
     FeedNotFound,
-    #[error("Invalid pair id")]
+    #[error("Invalid feed id")]
     InvalidFeedId,
     #[error("Unable to get rate: {0}")]
     UnableToGetRate(String),
@@ -142,6 +142,16 @@ pub enum FeedType {
     },
     #[default]
     Default,
+}
+
+impl FeedType {
+    pub fn are_common_enums(&self, other: &FeedType) -> bool {
+        match (self, other) {
+            (FeedType::Default, FeedType::Default) => true,
+            (FeedType::Custom { .. }, FeedType::Custom { .. }) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
@@ -451,11 +461,75 @@ impl FeedStorage {
         STATE.with(|state| state.borrow().feeds.0.contains_key(feed_id))
     }
 
-    pub fn feeds() -> Vec<Feed> {
-        STATE.with(|state| state.borrow().feeds.0.values().cloned().collect())
+    pub fn get_all(filter: Option<GetFeedsFilter>) -> Vec<Feed> {
+        let feeds: Vec<Feed> =
+            STATE.with(|state| state.borrow().feeds.0.values().cloned().collect());
+
+        match filter {
+            Some(filter) => {
+                let mut feeds = feeds;
+                if let Some(feed_type) = filter.feed_type {
+                    feeds = feeds
+                        .into_iter()
+                        .filter(|feed| feed.feed_type.are_common_enums(&feed_type))
+                        .collect();
+                }
+
+                if let Some(owner) = filter.owner {
+                    feeds = feeds
+                        .into_iter()
+                        .filter(|feed| feed.owner == owner)
+                        .collect();
+                }
+
+                if let Some(search) = filter.search {
+                    feeds = feeds
+                        .into_iter()
+                        .filter(|feed| {
+                            let search = search.trim().to_lowercase();
+
+                            let id = feed.id.trim().to_lowercase();
+                            let owner = feed.owner.trim().to_lowercase();
+                            let sources = match &feed.feed_type {
+                                FeedType::Custom { sources } => sources
+                                    .iter()
+                                    .map(|source| source.uri.trim().to_lowercase())
+                                    .collect::<Vec<_>>(),
+                                _ => vec![],
+                            };
+
+                            id.contains(&search)
+                                || sources
+                                    .iter()
+                                    .any(|source| strsim::jaro(&source, &search) >= 0.65)
+                                || strsim::jaro_winkler(&owner, &search) >= 0.8
+                        })
+                        .collect();
+                }
+
+                feeds
+            }
+            None => feeds,
+        }
     }
 
     pub fn clear() {
         STATE.with(|state| state.borrow_mut().feeds.0.clear());
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn source_search_test() {
+        const THREASHOLD: f64 = 0.65;
+        let s1 = "https://binance.com/api/v3/ticker/price?symbol=BTCUSDT";
+        let s2 = "bin";
+        let s3 = "bybit";
+        let s4 = "BTCUSDT";
+
+        assert!(strsim::jaro(&s1, &s2) >= THREASHOLD);
+        assert!(strsim::jaro(&s1, &s3) < THREASHOLD);
+        assert!(strsim::jaro(&s1, &s4) < THREASHOLD);
     }
 }

@@ -25,14 +25,14 @@ pub enum CustomFeedError {
     ValidationError(#[from] ValidationErrors),
     #[error("Whitelist Error: {0}")]
     WhitelistError(#[from] WhitelistError),
-    #[error("Pair Error: {0}")]
+    #[error("Feed Error: {0}")]
     FeedError(#[from] FeedError),
     #[error("Feed already exists")]
     FeedAlreadyExists,
     #[error("Feed not found")]
     FeedNotFound,
     #[error("Not feed owner")]
-    NotPairOwner,
+    NotFeedOwner,
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]
@@ -69,11 +69,11 @@ pub async fn _create_custom_feed(req: CreateCustomFeedRequest) -> Result<(), Cus
 
     req.validate()?;
 
-    let mut pair = Feed::from(req.clone());
-    pair.set_owner(addr.clone());
+    let mut feed = Feed::from(req.clone());
+    feed.set_owner(addr.clone());
 
-    FeedStorage::get_custom_rate(&pair, &req.sources).await?;
-    FeedStorage::add(pair);
+    FeedStorage::get_custom_rate(&feed, &req.sources).await?;
+    FeedStorage::add(feed);
 
     log!(
         "[FEEDS] custom feed created. id: {}, owner: {}",
@@ -101,16 +101,16 @@ pub async fn _remove_custom_feed(
         return Err(WhitelistError::AddressNotWhitelisted.into());
     }
 
-    if let Some(pair) = FeedStorage::get(&id) {
-        if pair.owner != addr {
-            return Err(CustomFeedError::NotPairOwner)?;
+    if let Some(feed) = FeedStorage::get(&id) {
+        if feed.owner != addr {
+            return Err(CustomFeedError::NotFeedOwner)?;
         }
 
         FeedStorage::remove(&id);
 
-        log!("[PAIRS] custom pair removed. id: {}, owner: {}", id, addr);
+        log!("[FEEDS] custom feed removed. id: {}, owner: {}", id, addr);
         return Ok(());
     }
 
-    Err(CustomFeedError::PairNotFound)
+    Err(CustomFeedError::FeedNotFound)
 }
