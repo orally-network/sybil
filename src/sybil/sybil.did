@@ -12,26 +12,26 @@ type Source = record {
     expected_bytes : nat64;
 };
 
-type PairType = variant { Custom : record { sources : vec Source; }; Default : null };
+type FeedType = variant { Custom : record { sources : vec Source; }; Default : null };
 
-type PairStatus = record {
+type FeedStatus = record {
     last_update : nat64;
     updated_counter : nat64;
     requests_counter : nat64;
 };
 
-type Pair = record {
+type Feed = record {
     id : text;
-    pair_type : PairType;
+    feed_type : FeedType;
     update_freq : nat64;
     decimals : nat64;
-    status : PairStatus;
+    status : FeedStatus;
     owner : text;
     data : opt RateDataLight;
 };
 
-type CreateCustomPairRequest = record {
-    pair_id : text;
+type CreateCustomFeedRequest = record {
+    feed_id : text;
     update_freq : nat;
     decimals : nat;
     sources : vec Source;
@@ -39,8 +39,8 @@ type CreateCustomPairRequest = record {
     sig : text;
 };
 
-type CreateDefaultPairRequest = record {
-    pair_id : text;
+type CreateDefaultFeedRequest = record {
+    feed_id : text;
     update_freq : nat;
     decimals : nat;
 };
@@ -82,6 +82,26 @@ type UpdateCfg = record {
     balances_cfg : opt BalancesCfg;
 };
 
+
+type Pagination = record {
+    page : nat64;
+    size : nat64;
+};
+// Filter struct used to filter output of get_feeds method
+type GetFeedsFilter = record {
+    feed_type : opt FeedType;
+    owner : opt text;
+    search : opt text;
+};
+// PaginationResult struct used as a response to request with pagination
+type GetFeedsResultWithPagination = record {
+    page: nat64;
+    size: nat64;
+    total_items: nat64;
+    total_pages: nat64;
+    items: vec Feed;
+};
+
 type GetAssetDataWithProofResponse = variant { Ok : RateDataLight; Err : text };
 type GetAssetDataResponse = variant { Ok : RateDataLight; Err: text };
 type TextResponse = variant { Ok : text; Err: text };
@@ -91,21 +111,22 @@ type GetCfgResponse = variant { Ok : Cfg; Err: text };
 type GetWhitelistResponse = variant { Ok : vec text; Err: text };
 type Error = variant { Ok : null; Err : text };
 
+
 service : {
-    // custom pairs
-    create_custom_pair : (req : CreateCustomPairRequest) -> (Error);
-    remove_custom_pair : (id : text, msg : text, sig : text) -> (Error);
+    // custom feeds
+    create_custom_feed : (req : CreateCustomFeedRequest) -> (Error);
+    remove_custom_feed : (id : text, msg : text, sig : text) -> (Error);
     
-    // default pairs
-    create_default_pair : (req : CreateDefaultPairRequest) -> (Error);
-    remove_default_pair : (id : text) -> (Error);
+    // default feeds
+    create_default_feed : (req : CreateDefaultFeedRequest) -> (Error);
+    remove_default_feed : (id : text) -> (Error);
 
     // assets 
-    get_asset_data_with_proof : (pair_id : text) -> (GetAssetDataWithProofResponse);
-    get_asset_data : (pair_id : text) -> (GetAssetDataResponse);
-    is_pair_exists : (pair_id : text) -> (bool);
-    get_pairs : () -> (vec Pair);
-
+    get_asset_data_with_proof : (feed_id : text) -> (GetAssetDataWithProofResponse);
+    get_asset_data : (feed_id : text) -> (GetAssetDataResponse);
+    is_feed_exists : (feed_id : text) -> (bool);
+    get_feeds : (filter: opt GetFeedsFilter, pagination: opt Pagination) -> (GetFeedsResultWithPagination);
+    
     // controllers
     update_cfg : (cfg : UpdateCfg) -> (Error);
     get_cfg : () -> (GetCfgResponse);

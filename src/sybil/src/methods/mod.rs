@@ -1,8 +1,8 @@
 pub mod balances;
 pub mod controllers;
-pub mod custom_pairs;
+pub mod custom_feeds;
 pub mod data_fetchers;
-pub mod default_pairs;
+pub mod default_feeds;
 pub mod transforms;
 pub mod whitelist;
 
@@ -17,7 +17,7 @@ use ic_utils::{
 
 use crate::{
     types::{
-        pairs::{Pair, PairError, PairsStorage},
+        feeds::{Feed, FeedError, FeedStorage},
         rate_data::RateDataLight,
     },
     utils::canister,
@@ -25,18 +25,18 @@ use crate::{
 
 #[derive(Error, Debug)]
 pub enum AssetsError {
-    #[error("Pair error: {0}")]
-    PairError(#[from] PairError),
+    #[error("Feed error: {0}")]
+    FeedError(#[from] FeedError),
 }
 
 #[query]
-fn is_pair_exists(pair_id: String) -> bool {
-    PairsStorage::contains(&pair_id)
+fn is_pair_exists(feed_id: String) -> bool {
+    FeedStorage::contains(&feed_id)
 }
 
 #[query]
-fn get_pairs() -> Vec<Pair> {
-    let mut pairs = PairsStorage::pairs();
+fn get_feeds() -> Vec<Feed> {
+    let mut pairs = FeedStorage::feeds();
     pairs.iter_mut().for_each(|pair| pair.shrink_sources());
 
     pairs
@@ -50,7 +50,7 @@ pub async fn get_asset_data_with_proof(pair_id: String) -> Result<RateDataLight,
 }
 
 pub async fn _get_asset_data_with_proof(pair_id: String) -> Result<RateDataLight, AssetsError> {
-    Ok(PairsStorage::rate(&pair_id, true).await?)
+    Ok(FeedStorage::rate(&pair_id, true).await?)
 }
 
 #[update]
@@ -61,7 +61,7 @@ pub async fn get_asset_data(pair_id: String) -> Result<RateDataLight, String> {
 }
 
 async fn _get_asset_data(pair_id: String) -> Result<RateDataLight, AssetsError> {
-    let mut rate = PairsStorage::rate(&pair_id, false).await?;
+    let mut rate = FeedStorage::rate(&pair_id, false).await?;
 
     rate.signature = None;
 

@@ -36,3 +36,4 @@ derivative = "2.2.0"
 futures = "0.3.28"
 ic-cdk-timers = "0.4"
 tokio = { version = "1.34.0", features = ["sync"] }
+paginate = "1.1.11"

@@ -1463,6 +1463,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
+name = "paginate"
+version = "1.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ac1db209d9d6dc8e4435b744ed76198494406cd20eb8ca14baf9828664664c8"
+
+[[package]]
 name = "parity-scale-codec"
 version = "3.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2086,6 +2092,7 @@ dependencies = [
  "lazy_static",
  "matchit",
  "num-bigint",
+ "paginate",
  "regex",
  "serde",
  "serde_bytes",

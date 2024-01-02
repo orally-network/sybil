@@ -8,7 +8,7 @@ use validator::{Validate, ValidationErrors};
 use crate::log;
 use crate::{
     types::{
-        pairs::{Pair, PairError, PairsStorage, Source},
+        feeds::{Feed, FeedError, FeedStorage, Source},
         whitelist::{Whitelist, WhitelistError},
     },
     utils::{
@@ -18,7 +18,7 @@ use crate::{
 };
 
 #[derive(Error, Debug)]
-pub enum CustomPairError {
+pub enum CustomFeedError {
     #[error("SIWE Error: {0}")]
     SIWEError(#[from] SiweError),
     #[error("Validation Error: {0}")]
@@ -26,19 +26,19 @@ pub enum CustomPairError {
     #[error("Whitelist Error: {0}")]
     WhitelistError(#[from] WhitelistError),
     #[error("Pair Error: {0}")]
-    PairError(#[from] PairError),
-    #[error("Pair already exists")]
-    PairAlreadyExists,
-    #[error("Pair not found")]
-    PairNotFound,
-    #[error("Not pair owner")]
+    FeedError(#[from] FeedError),
+    #[error("Feed already exists")]
+    FeedAlreadyExists,
+    #[error("Feed not found")]
+    FeedNotFound,
+    #[error("Not feed owner")]
     NotPairOwner,
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]
-pub struct CreateCustomPairRequest {
-    #[validate(regex = "validation::PAIR_ID_REGEX")]
-    pub pair_id: String,
+pub struct CreateCustomFeedRequest {
+    #[validate(regex = "validation::FEED_ID_REGEX")]
+    pub feed_id: String,
     #[validate(custom = "validation::validate_update_freq")]
     pub update_freq: Nat,
     pub decimals: Nat,
@@ -51,66 +51,66 @@ pub struct CreateCustomPairRequest {
 }
 
 #[update]
-pub async fn create_custom_pair(req: CreateCustomPairRequest) -> Result<(), String> {
-    _create_custom_pair(req)
+pub async fn create_custom_feed(req: CreateCustomFeedRequest) -> Result<(), String> {
+    _create_custom_feed(req)
         .await
-        .map_err(|e| format!("Failed to a create custom pair: {e}"))
+        .map_err(|e| format!("Failed to a create custom feed: {e}"))
 }
 
-pub async fn _create_custom_pair(req: CreateCustomPairRequest) -> Result<(), CustomPairError> {
+pub async fn _create_custom_feed(req: CreateCustomFeedRequest) -> Result<(), CustomFeedError> {
     let addr = siwe::recover(&req.msg, &req.sig).await?;
     if !Whitelist::contains(&addr) {
         return Err(WhitelistError::AddressNotWhitelisted.into());
     }
 
-    if PairsStorage::contains(&req.pair_id) {
-        return Err(CustomPairError::PairAlreadyExists)?;
+    if FeedStorage::contains(&req.feed_id) {
+        return Err(CustomFeedError::FeedAlreadyExists)?;
     }
 
     req.validate()?;
 
-    let mut pair = Pair::from(req.clone());
+    let mut pair = Feed::from(req.clone());
     pair.set_owner(addr.clone());
 
-    PairsStorage::get_custom_rate(&pair, &req.sources).await?;
-    PairsStorage::add(pair);
+    FeedStorage::get_custom_rate(&pair, &req.sources).await?;
+    FeedStorage::add(pair);
 
     log!(
-        "[PAIRS] custom pair created. id: {}, owner: {}",
-        req.pair_id,
+        "[FEEDS] custom feed created. id: {}, owner: {}",
+        req.feed_id,
         addr
     );
     Ok(())
 }
 
 #[update]
-pub async fn remove_custom_pair(id: String, msg: String, sig: String) -> Result<(), String> {
-    _remove_custom_pair(id, msg, sig)
+pub async fn remove_custom_feed(id: String, msg: String, sig: String) -> Result<(), String> {
+    _remove_custom_feed(id, msg, sig)
         .await
-        .map_err(|e| format!("Failed to remove custom pair: {e}"))
+        .map_err(|e| format!("Failed to remove custom feed: {e}"))
 }
 
 #[inline(always)]
-pub async fn _remove_custom_pair(
+pub async fn _remove_custom_feed(
     id: String,
     msg: String,
     sig: String,
-) -> Result<(), CustomPairError> {
+) -> Result<(), CustomFeedError> {
     let addr = siwe::recover(&msg, &sig).await?;
     if !Whitelist::contains(&addr) {
         return Err(WhitelistError::AddressNotWhitelisted.into());
     }
 
-    if let Some(pair) = PairsStorage::get(&id) {
+    if let Some(pair) = FeedStorage::get(&id) {
         if pair.owner != addr {
-            return Err(CustomPairError::NotPairOwner)?;
+            return Err(CustomFeedError::NotPairOwner)?;
         }
 
-        PairsStorage::remove(&id);
+        FeedStorage::remove(&id);
 
         log!("[PAIRS] custom pair removed. id: {}, owner: {}", id, addr);
         return Ok(());
     }
 
-    Err(CustomPairError::PairNotFound)
+    Err(CustomFeedError::PairNotFound)
 }
