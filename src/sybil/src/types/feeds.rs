@@ -156,9 +156,9 @@ impl FeedType {
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub struct FeedStatus {
-    last_update: Timestamp,
-    updated_counter: u64,
-    requests_counter: u64,
+    pub(crate) last_update: Timestamp,
+    pub(crate) updated_counter: u64,
+    pub(crate) requests_counter: u64,
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
@@ -185,7 +185,7 @@ impl Feed {
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
-pub struct FeedStorage(HashMap<String, Feed>);
+pub struct FeedStorage(pub(crate) HashMap<String, Feed>);
 
 impl From<CreateCustomFeedRequest> for Feed {
     fn from(req: CreateCustomFeedRequest) -> Self {
