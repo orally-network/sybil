@@ -21,6 +21,7 @@ use crate::{
     jobs::cache_cleaner,
     log,
     methods::{custom_feeds::CreateCustomFeedRequest, default_feeds::CreateDefaultFeedRequest},
+    metrics,
     types::exchange_rate::Service,
     utils::{canister, nat, siwe::SiweError, sleep, time, validation, vec},
     CACHE, STATE,
@@ -282,6 +283,7 @@ impl FeedStorage {
         };
 
         let xrc = Service(clone_with_state!(exchange_rate_canister));
+        metrics!(inc XRC_CALLS);
 
         let exchange_rate = match Self::call_xrc_with_attempts(
             xrc,
@@ -290,7 +292,10 @@ impl FeedStorage {
         )
         .await
         {
-            Ok(exchange_rate) => exchange_rate,
+            Ok(exchange_rate) => {
+                metrics!(inc SUCCESSFUL_XRC_CALLS);
+                exchange_rate
+            }
             Err(err) => {
                 log!(
                     "[FEEDS] get_default_rate got error from default xrc: {}",
@@ -299,8 +304,15 @@ impl FeedStorage {
 
                 let xrc = Service(clone_with_state!(fallback_xrc));
 
-                Self::call_xrc_with_attempts(xrc, req.clone(), RATE_FETCH_FALLBACK_XRC_MAX_RETRIES)
-                    .await?
+                metrics!(inc FALLBACK_XRC_CALLS);
+                let result = Self::call_xrc_with_attempts(
+                    xrc,
+                    req.clone(),
+                    RATE_FETCH_FALLBACK_XRC_MAX_RETRIES,
+                )
+                .await?;
+                metrics!(inc SUCCESSFUL_FALLBACK_XRC_CALLS);
+                result
             }
         };
 

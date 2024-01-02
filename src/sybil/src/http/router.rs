@@ -50,8 +50,6 @@ impl<H> Router<H> {
     pub fn at(&self, key: &str) -> Option<RouterMatch<H>> {
         let splitted_key = key.split('?').collect::<Vec<&str>>();
 
-        println!("{:?}", splitted_key);
-
         let params = splitted_key.last().expect("invalid key");
 
         let key = splitted_key.first().expect("invalid key").to_string();

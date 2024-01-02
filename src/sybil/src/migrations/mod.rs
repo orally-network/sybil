@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     http::HttpService,
-    log,
+    log, metrics,
     types::{
         balances::{Balances, BalancesCfg},
         cache::{HttpCache, RateCache, SignaturesCache},
@@ -17,7 +17,10 @@ use crate::{
         whitelist::Whitelist,
         Address, rate_data::RateDataLight, Seconds, Timestamp,
     },
-    utils::canister::set_custom_panic_hook,
+    utils::{
+        canister::set_custom_panic_hook,
+        metrics::{Metric, Metrics, METRICS},
+    },
     CACHE, HTTP_CACHE, SIGNATURES_CACHE, STATE,
 };
 
@@ -103,7 +106,8 @@ pub struct OldState {
     pub fallback_xrc: Option<Principal>,
     pub key_name: String,
     pub mock: bool,
-    pub pairs: OldFeedStorage,
+    pub pairs: Option<OldFeedStorage>,
+    pub feeds: Option<FeedStorage>,
     pub balances: Balances,
     pub balances_cfg: BalancesCfg,
     pub eth_address: Option<Address>,
@@ -122,13 +126,59 @@ impl From<OldState> for State {
             }),
             key_name: state.key_name,
             mock: state.mock,
-            feeds: state.pairs.into(),
+            feeds: if let Some(pairs) = state.pairs {
+                pairs.into()
+            } else if let Some(feeds) = state.feeds {
+                feeds
+            } else {
+                unreachable!("No feeds found")
+            },
             balances: state.balances,
             balances_cfg: state.balances_cfg,
             eth_address: state.eth_address,
             whitelist: state.whitelist,
             data_fetchers: state.data_fetchers,
             data_fetchers_indexer: state.data_fetchers_indexer,
+        }
+    }
+}
+
+#[allow(non_snake_case)]
+#[derive(CandidType, Clone, Debug, Default, Deserialize, Serialize)]
+pub struct OldMetrics {
+    pub CUSTOM_PAIRS: Option<Metric>,
+    pub DEFAULT_PAIRS: Option<Metric>,
+    pub GET_ASSET_DATA_CALLS: Option<Metric>,
+    pub SUCCESSFUL_GET_ASSET_DATA_CALLS: Option<Metric>,
+    pub GET_ASSET_DATA_WITH_PROOF_CALLS: Option<Metric>,
+    pub SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS: Option<Metric>,
+    pub FALLBACK_XRC_CALLS: Option<Metric>,
+    pub SUCCESSFUL_FALLBACK_XRC_CALLS: Option<Metric>,
+    pub XRC_CALLS: Option<Metric>,
+    pub SUCCESSFUL_XRC_CALLS: Option<Metric>,
+    pub CYCLES: Option<Metric>,
+}
+
+impl From<OldMetrics> for Metrics {
+    fn from(value: OldMetrics) -> Self {
+        Metrics {
+            CUSTOM_FEEDS: value.CUSTOM_PAIRS.unwrap_or_default(),
+            DEFAULT_FEEDS: value.DEFAULT_PAIRS.unwrap_or_default(),
+            GET_ASSET_DATA_CALLS: value.GET_ASSET_DATA_CALLS.unwrap_or_default(),
+            SUCCESSFUL_GET_ASSET_DATA_CALLS: value
+                .SUCCESSFUL_GET_ASSET_DATA_CALLS
+                .unwrap_or_default(),
+            GET_ASSET_DATA_WITH_PROOF_CALLS: value
+                .GET_ASSET_DATA_WITH_PROOF_CALLS
+                .unwrap_or_default(),
+            SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS: value
+                .SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS
+                .unwrap_or_default(),
+            FALLBACK_XRC_CALLS: value.FALLBACK_XRC_CALLS.unwrap_or_default(),
+            SUCCESSFUL_FALLBACK_XRC_CALLS: value.SUCCESSFUL_FALLBACK_XRC_CALLS.unwrap_or_default(),
+            XRC_CALLS: value.XRC_CALLS.unwrap_or_default(),
+            SUCCESSFUL_XRC_CALLS: value.SUCCESSFUL_XRC_CALLS.unwrap_or_default(),
+            CYCLES: value.CYCLES.unwrap_or_default(),
         }
     }
 }
@@ -143,18 +193,28 @@ fn pre_upgrade() {
 
     let monitor_data = monitor::pre_upgrade_stable_data();
 
-    storage::stable_save((state, cache, monitor_data, http_cache, signatures_cache))
-        .expect("should be able to save");
+    let metrics = METRICS.with(|metrics| metrics.take());
+
+    storage::stable_save((
+        state,
+        cache,
+        monitor_data,
+        http_cache,
+        signatures_cache,
+        metrics,
+    ))
+    .expect("should be able to save");
 }
 
 #[post_upgrade]
 fn post_upgrade() {
-    let (state, cache, monitor_data, http_cache, signatures_cache): (
+    let (state, cache, monitor_data, http_cache, signatures_cache, metrics): (
         OldState,
         RateCache,
         monitor::PostUpgradeStableData,
         HttpCache,
         SignaturesCache,
+        Option<OldMetrics>,
     ) = storage::stable_restore().expect("should be able to restore");
 
     monitor::post_upgrade_stable_data(monitor_data);
@@ -167,6 +227,30 @@ fn post_upgrade() {
     CACHE.with(|c| c.replace(cache));
     HTTP_CACHE.with(|c| c.replace(http_cache));
     SIGNATURES_CACHE.with(|c| c.replace(signatures_cache));
+
+    if let Some(metrics) = metrics {
+        METRICS.with(|m| m.replace(metrics.into()));
+
+        STATE.with(|state| {
+            let state = state.borrow();
+            let feeds = &state.feeds;
+            let mut default_feeds = 0;
+            let mut custom_feeds = 0;
+            for (_, feed) in feeds.0.iter() {
+                match feed.feed_type {
+                    FeedType::Default => {
+                        default_feeds += 1;
+                    }
+                    FeedType::Custom { .. } => {
+                        custom_feeds += 1;
+                    }
+                }
+            }
+
+            metrics!(set DEFAULT_FEEDS, default_feeds);
+            metrics!(set CUSTOM_FEEDS, custom_feeds);
+        });
+    }
 
     log!("Post upgrade finished");
 

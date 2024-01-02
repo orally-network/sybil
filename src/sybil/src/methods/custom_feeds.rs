@@ -6,6 +6,7 @@ use thiserror::Error;
 use validator::{Validate, ValidationErrors};
 
 use crate::log;
+use crate::metrics;
 use crate::{
     types::{
         feeds::{Feed, FeedError, FeedStorage, Source},
@@ -75,6 +76,8 @@ pub async fn _create_custom_feed(req: CreateCustomFeedRequest) -> Result<(), Cus
     FeedStorage::get_custom_rate(&feed, &req.sources).await?;
     FeedStorage::add(feed);
 
+    metrics!(inc CUSTOM_FEEDS);
+
     log!(
         "[FEEDS] custom feed created. id: {}, owner: {}",
         req.feed_id,
@@ -108,6 +111,7 @@ pub async fn _remove_custom_feed(
 
         FeedStorage::remove(&id);
 
+        metrics!(dec CUSTOM_FEEDS);
         log!("[FEEDS] custom feed removed. id: {}, owner: {}", id, addr);
         return Ok(());
     }

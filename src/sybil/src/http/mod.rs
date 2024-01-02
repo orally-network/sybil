@@ -44,7 +44,14 @@ impl HttpService {
     }
 
     pub fn init_query_router() -> HttpRouter {
-        let router = Router::<Handler>::new();
+        let mut router = Router::<Handler>::new();
+
+        router
+            .insert(
+                "/metrics:query",
+                Box::new(|_| Box::pin(handlers::gather_metrics())),
+            )
+            .expect("Failed to insert handler");
 
         let pre_middlewares: Vec<PreMiddleware> = vec![];
 

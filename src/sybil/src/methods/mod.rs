@@ -16,6 +16,7 @@ use ic_utils::{
 };
 
 use crate::{
+    metrics,
     types::{
         feeds::{Feed, FeedError, FeedStorage, GetFeedsFilter},
         pagination::{Pagination, PaginationResult},
@@ -60,7 +61,11 @@ pub async fn get_asset_data_with_proof(feed_id: String) -> Result<RateDataLight,
 }
 
 pub async fn _get_asset_data_with_proof(feed_id: String) -> Result<RateDataLight, AssetsError> {
-    Ok(FeedStorage::rate(&feed_id, true).await?)
+    metrics!(inc GET_ASSET_DATA_WITH_PROOF_CALLS, feed_id);
+    let rate = FeedStorage::rate(&feed_id, true).await?;
+
+    metrics!(inc SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS, feed_id);
+    Ok(rate)
 }
 
 #[update]
@@ -71,10 +76,12 @@ pub async fn get_asset_data(feed_id: String) -> Result<RateDataLight, String> {
 }
 
 async fn _get_asset_data(feed_id: String) -> Result<RateDataLight, AssetsError> {
+    metrics!(inc GET_ASSET_DATA_CALLS, feed_id);
     let mut rate = FeedStorage::rate(&feed_id, false).await?;
 
     rate.signature = None;
 
+    metrics!(inc SUCCESSFUL_GET_ASSET_DATA_CALLS, feed_id);
     Ok(rate)
 }
 
