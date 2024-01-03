@@ -20,11 +20,10 @@ use crate::{
     clone_with_state, defer,
     jobs::cache_cleaner,
     log,
-    methods::{custom_feeds::CreateCustomFeedRequest, default_feeds::CreateDefaultFeedRequest},
     metrics,
     types::exchange_rate::Service,
     utils::{canister, nat, siwe::SiweError, sleep, time, validation, vec},
-    CACHE, STATE,
+    CACHE, STATE, methods::{default_feeds::CreateDefaultFeedRequest, custom_feeds::CreateCustomFeedRequest},
 };
 
 const MIN_EXPECTED_BYTES: u64 = 1;
@@ -131,9 +130,27 @@ impl Source {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, CandidType)]
 pub struct GetFeedsFilter {
-    pub feed_type: Option<FeedType>,
+    pub feed_type: Option<FeedTypeFilter>,
     pub owner: Option<String>,
     pub search: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, CandidType)]
+pub enum FeedTypeFilter {
+    Custom,
+    #[default]
+    Default,
+}
+
+impl FeedTypeFilter {
+    pub fn filter(&self, other: &FeedType) -> bool {
+        match (self, other) {
+            (FeedTypeFilter::Custom, FeedType::Custom { .. }) => true,
+            (FeedTypeFilter::Default, FeedType::Default) => true,
+            _ => false,
+        }
+        
+    }
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
@@ -145,15 +162,6 @@ pub enum FeedType {
     Default,
 }
 
-impl FeedType {
-    pub fn are_common_enums(&self, other: &FeedType) -> bool {
-        match (self, other) {
-            (FeedType::Default, FeedType::Default) => true,
-            (FeedType::Custom { .. }, FeedType::Custom { .. }) => true,
-            _ => false,
-        }
-    }
-}
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub struct FeedStatus {
@@ -483,7 +491,7 @@ impl FeedStorage {
                 if let Some(feed_type) = filter.feed_type {
                     feeds = feeds
                         .into_iter()
-                        .filter(|feed| feed.feed_type.are_common_enums(&feed_type))
+                        .filter(|feed| feed_type.filter(&feed.feed_type))
                         .collect();
                 }
 
