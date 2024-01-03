@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::{
     methods::data_fetchers::CreateDataFetcherRequest,
-    types::pairs::Source,
+    types::feeds::Source,
     utils::{canister, nat, vec},
     STATE,
 };

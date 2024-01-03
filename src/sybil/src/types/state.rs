@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     config::{Cfg, UpdateCfg},
     data_fetchers::{DataFetchersStorage, DataFethcersIndexer},
-    pairs::PairsStorage,
+    feeds::FeedStorage,
     whitelist::Whitelist,
     Address,
 };
@@ -22,7 +22,7 @@ pub struct State {
     pub fallback_xrc: Principal,
     pub key_name: String,
     pub mock: bool,
-    pub pairs: PairsStorage,
+    pub feeds: FeedStorage,
     pub balances: Balances,
     pub balances_cfg: BalancesCfg,
     pub eth_address: Option<Address>,
@@ -38,7 +38,7 @@ impl Default for State {
             fallback_xrc: Principal::from_str("aaaaa-aa").expect("Invalid principal"),
             key_name: "".to_string(),
             mock: false,
-            pairs: PairsStorage::default(),
+            feeds: FeedStorage::default(),
             balances: Balances::default(),
             balances_cfg: BalancesCfg::default(),
             eth_address: None,
@@ -95,7 +95,7 @@ pub fn get_cfg() -> Cfg {
 }
 
 pub fn clear() {
-    PairsStorage::clear();
+    FeedStorage::clear();
     Balances::clear();
     Whitelist::clear();
     DataFetchersStorage::clear();

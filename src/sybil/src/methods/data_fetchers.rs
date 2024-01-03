@@ -7,7 +7,7 @@ use crate::{
     log,
     types::{
         data_fetchers::{DataFetcher, DataFetcherError, DataFetchersStorage},
-        pairs::Source,
+        feeds::Source,
         whitelist::{Whitelist, WhitelistError},
     },
     utils::siwe,

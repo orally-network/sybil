@@ -172,8 +172,8 @@ impl Metric {
 #[allow(non_snake_case)]
 #[derive(CandidType, Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Metrics {
-    pub CUSTOM_PAIRS: Metric,
-    pub DEFAULT_PAIRS: Metric,
+    pub CUSTOM_FEEDS: Metric,
+    pub DEFAULT_FEEDS: Metric,
     pub GET_ASSET_DATA_CALLS: Metric,
     pub SUCCESSFUL_GET_ASSET_DATA_CALLS: Metric,
     pub GET_ASSET_DATA_WITH_PROOF_CALLS: Metric,
@@ -187,8 +187,8 @@ pub struct Metrics {
 
 impl Metrics {
     pub fn encode<W: io::Write>(&self, w: &mut W) -> std::io::Result<()> {
-        self.CUSTOM_PAIRS.encode(w)?;
-        self.DEFAULT_PAIRS.encode(w)?;
+        self.CUSTOM_FEEDS.encode(w)?;
+        self.DEFAULT_FEEDS.encode(w)?;
         self.GET_ASSET_DATA_CALLS.encode(w)?;
         self.SUCCESSFUL_GET_ASSET_DATA_CALLS.encode(w)?;
         self.GET_ASSET_DATA_WITH_PROOF_CALLS.encode(w)?;
@@ -203,15 +203,15 @@ impl Metrics {
 
 thread_local! {
     pub static METRICS: RefCell<Metrics> = RefCell::new(Metrics{
-        CUSTOM_PAIRS: Metric::new(
-                "custom_pairs",
-                "Number of custom pairs",
+        CUSTOM_FEEDS: Metric::new(
+                "custom_feeds",
+                "Number of custom feeds",
                 "gauge",
                 &[],
             ),
-        DEFAULT_PAIRS: Metric::new(
-                "default_pairs",
-                "Number of default pairs",
+        DEFAULT_FEEDS: Metric::new(
+                "default_feeds",
+                "Number of default feeds",
                 "gauge",
                 &[],
             ),
@@ -219,25 +219,25 @@ thread_local! {
                 "get_asset_data_calls",
                 "Number of get_asset_data calls",
                 "counter",
-                &["pair"],
+                &["feed"],
             ),
         SUCCESSFUL_GET_ASSET_DATA_CALLS: Metric::new(
                 "successful_get_asset_data_calls",
                 "Number of successfully returned get_asset_data calls",
                 "counter",
-                &["pair"],
+                &["feed"],
             ),
         GET_ASSET_DATA_WITH_PROOF_CALLS: Metric::new(
                 "get_asset_data_with_proof_calls",
                 "Number of get_asset_data_with_proof calls",
                 "counter",
-                &["pair"],
+                &["feed"],
             ),
         SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS: Metric::new(
                 "successful_get_asset_data_with_proof_calls",
                 "Number of successfully returned get_asset_data_with_proof calls",
                 "counter",
-                &["pair"],
+                &["feed"],
             ),
         FALLBACK_XRC_CALLS: Metric::new(
                 "fallback_xrc_calls",

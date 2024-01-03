@@ -7,11 +7,11 @@ use serde::Deserialize;
 
 use crate::{clear_state, pre_test, sybil_execute};
 
-pub const PAIR_ID: &str = "ETH/USD";
-pub const PAIR_UPDATE_FREQUENCY_CANDID: &str = "5:nat";
-pub const PAIR_UPDATE_FREQUENCY: u64 = 5;
-pub const PAIR_DECIMALS_CANDID: &str = "9:nat";
-pub const PAIR_DECIMALS: u64 = 9;
+pub const FEED_ID: &str = "ETH/USD";
+pub const FEED_UPDATE_FREQUENCY_CANDID: &str = "5:nat";
+pub const FEED_UPDATE_FREQUENCY: u64 = 5;
+pub const FEED_DECIMALS_CANDID: &str = "9:nat";
+pub const FEED_DECIMALS: u64 = 9;
 
 #[derive(Debug, Clone, CandidType, Deserialize)]
 pub struct RateDataLight {
@@ -30,69 +30,69 @@ pub struct Source {
 }
 
 #[derive(Clone, Debug, CandidType, Deserialize)]
-pub enum PairType {
+pub enum FeedType {
     Custom { sources: Vec<Source> },
     Default,
 }
 
 #[derive(Clone, Debug, CandidType, Deserialize)]
-pub struct PairStatus {
+pub struct FeedStatus {
     last_update: u64,
     updated_counter: u64,
     requests_counter: u64,
 }
 
 #[derive(Clone, Debug, CandidType, Deserialize)]
-pub struct Pair {
+pub struct Feed {
     pub id: String,
-    pub pair_type: PairType,
+    pub feed_type: FeedType,
     pub update_freq: u64,
     pub decimals: u64,
-    pub status: PairStatus,
+    pub status: FeedStatus,
     pub owner: String,
 }
 
-pub fn create_default_pair() -> Result<(), String> {
+pub fn create_default_feed() -> Result<(), String> {
     sybil_execute(
-        "create_default_pair",
-        Some(&format!("(record {{pair_id=\"{PAIR_ID}\"; update_freq={PAIR_UPDATE_FREQUENCY_CANDID}; decimals={PAIR_DECIMALS_CANDID}}})"))
+        "create_default_feed",
+        Some(&format!("(record {{feed_id=\"{FEED_ID}\"; update_freq={FEED_UPDATE_FREQUENCY_CANDID}; decimals={FEED_DECIMALS_CANDID}}})"))
     )
 }
 
 pub fn get_asset_data() -> Result<RateDataLight, String> {
-    sybil_execute("get_asset_data", Some(&format!("(\"{PAIR_ID}\")")))
+    sybil_execute("get_asset_data", Some(&format!("(\"{FEED_ID}\")")))
 }
 
 pub fn get_asset_data_with_proof() -> Result<RateDataLight, String> {
     sybil_execute(
         "get_asset_data_with_proof",
-        Some(&format!("(\"{PAIR_ID}\")")),
+        Some(&format!("(\"{FEED_ID}\")")),
     )
 }
 
-pub fn is_pair_exists() -> bool {
-    sybil_execute("is_pair_exists", Some(&format!("(\"{PAIR_ID}\")")))
+pub fn is_feed_exists() -> bool {
+    sybil_execute("is_feed_exists", Some(&format!("(\"{FEED_ID}\")")))
 }
 
-pub fn remove_default_pair() -> Result<(), String> {
-    sybil_execute("remove_default_pair", Some(&format!("(\"{PAIR_ID}\")")))
+pub fn remove_default_feed() -> Result<(), String> {
+    sybil_execute("remove_default_feed", Some(&format!("(\"{FEED_ID}\")")))
 }
 
-pub fn get_pairs() -> Vec<Pair> {
-    sybil_execute("get_pairs", None)
+pub fn get_feeds() -> Vec<Feed> {
+    sybil_execute("get_feeds", None)
 }
 
 #[test]
-fn test_default_pair_with_valid_data() {
+fn test_default_feed_with_valid_data() {
     pre_test().expect("failed to run pre tests");
     defer!(clear_state().expect("failed to clear state"));
 
-    create_default_pair().expect("failed to create default pair");
+    create_default_feed().expect("failed to create default feed");
 
     let rate = get_asset_data().expect("failed to get asset data");
 
-    assert_eq!(rate.symbol, PAIR_ID, "invalid symbol");
-    assert_eq!(rate.decimals, PAIR_DECIMALS, "invalid decimals");
+    assert_eq!(rate.symbol, FEED_ID, "invalid symbol");
+    assert_eq!(rate.decimals, FEED_DECIMALS, "invalid decimals");
     assert_eq!(rate.signature, None, "signature should be None");
 
     let cached_rate = get_asset_data().expect("failed to get asset data");
@@ -101,7 +101,7 @@ fn test_default_pair_with_valid_data() {
         "rate should be cached"
     );
 
-    sleep(Duration::from_secs(PAIR_UPDATE_FREQUENCY + 1));
+    sleep(Duration::from_secs(FEED_UPDATE_FREQUENCY + 1));
 
     let updated_rate = get_asset_data().expect("failed to get asset data");
     assert_ne!(
@@ -109,16 +109,16 @@ fn test_default_pair_with_valid_data() {
         "rate should be updated"
     );
 
-    assert!(is_pair_exists(), "pair should exists");
+    assert!(is_feed_exists(), "feed should exists");
 
     let signed_rate = get_asset_data_with_proof().expect("failed to get asset data with proof");
 
     assert!(signed_rate.signature.is_some(), "signature should be Some");
 
-    let pairs = get_pairs();
-    assert_eq!(pairs.len(), 1, "invalid pairs count");
+    let feeds = get_feeds();
+    assert_eq!(feeds.len(), 1, "invalid feeds count");
 
-    remove_default_pair().expect("failed to remove default pair");
+    remove_default_feed().expect("failed to remove default feed");
 
-    assert!(!is_pair_exists(), "pair should not exists");
+    assert!(!is_feed_exists(), "feed should not exists");
 }
