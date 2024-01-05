@@ -1,8 +1,6 @@
-use std::borrow::Cow;
-
-use serde_bytes::{ByteBuf, Bytes};
-
-use ic_cdk::export::candid::{CandidType, Deserialize, Func};
+use candid::{CandidType, Func};
+use serde::Deserialize;
+use serde_bytes::ByteBuf;
 
 pub type HeaderField = (String, String);
 
@@ -33,6 +31,5 @@ pub struct HttpResponse {
     pub status_code: u16,
     pub upgrade: Option<bool>,
     pub headers: Vec<HeaderField>,
-    pub body: Cow<'static, Bytes>,
-    pub streaming_strategy: Option<StreamingStrategy>,
+    pub body: ByteBuf,
 }

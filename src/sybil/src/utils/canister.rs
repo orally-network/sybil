@@ -4,7 +4,7 @@ use ic_web3_rs::ic::get_eth_addr;
 
 use super::address::{self, AddressError};
 use crate::{
-    clone_with_state,
+    clone_with_state, log,
     types::{
         balances::{BalanceError, Balances},
         Address,
@@ -39,4 +39,15 @@ pub async fn eth_address() -> Result<Address, CanisterError> {
     Balances::add(&formatted_address)?;
 
     Ok(formatted_address)
+}
+
+pub fn set_custom_panic_hook() {
+    _ = std::panic::take_hook(); // clear custom panic hook and set default
+    let old_handler = std::panic::take_hook(); // take default panic hook
+
+    // set custom panic hook
+    std::panic::set_hook(Box::new(move |info| {
+        log!("PANIC OCCURRED: {:#?}", info);
+        old_handler(info);
+    }));
 }

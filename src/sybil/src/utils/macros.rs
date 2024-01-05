@@ -1,9 +1,12 @@
 #[macro_export]
 macro_rules! log {
     ($($arg:tt)*) => {{
+        use crate::metrics;
         ic_cdk::println!($($arg)*);
         ic_utils::logger::log_message(format!($($arg)*));
         ic_utils::monitor::collect_metrics();
+
+        metrics!(set CYCLES, ic_cdk::api::canister_balance() as u128);
     }};
 }
 
@@ -52,11 +55,14 @@ impl<F: FnOnce()> Drop for Defer<F> {
 macro_rules! retry_until_success {
     ($func:expr) => {{
         let mut result = $func.await;
+        const DURATION_BETWEEN_ATTEMPTS: std::time::Duration =
+            std::time::Duration::from_millis(5000);
 
         while result.is_err()
             && format!("{:?}", result.as_ref().unwrap_err())
                 .contains("Canister http responses were different across replicas")
         {
+            crate::utils::sleep(DURATION_BETWEEN_ATTEMPTS).await;
             result = $func.await;
         }
 

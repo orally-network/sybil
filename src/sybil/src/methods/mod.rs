@@ -1,8 +1,8 @@
 pub mod balances;
 pub mod controllers;
-pub mod custom_pairs;
+pub mod custom_feeds;
 pub mod data_fetchers;
-pub mod default_pairs;
+pub mod default_feeds;
 pub mod transforms;
 pub mod whitelist;
 
@@ -16,8 +16,10 @@ use ic_utils::{
 };
 
 use crate::{
+    metrics,
     types::{
-        pairs::{Pair, PairError, PairsStorage},
+        feeds::{Feed, FeedError, FeedStorage, GetFeedsFilter},
+        pagination::{Pagination, PaginationResult},
         rate_data::RateDataLight,
     },
     utils::canister,
@@ -25,46 +27,61 @@ use crate::{
 
 #[derive(Error, Debug)]
 pub enum AssetsError {
-    #[error("Pair error: {0}")]
-    PairError(#[from] PairError),
+    #[error("Feed error: {0}")]
+    FeedError(#[from] FeedError),
 }
 
 #[query]
-fn is_pair_exists(pair_id: String) -> bool {
-    PairsStorage::contains(&pair_id)
+fn is_feed_exists(feed_id: String) -> bool {
+    FeedStorage::contains(&feed_id)
 }
 
 #[query]
-fn get_pairs() -> Vec<Pair> {
-    let mut pairs = PairsStorage::pairs();
-    pairs.iter_mut().for_each(|pair| pair.shrink_sources());
+fn get_feeds(
+    filter: Option<GetFeedsFilter>,
+    pagination: Option<Pagination>,
+) -> PaginationResult<Feed> {
+    let mut feeds = FeedStorage::get_all(filter);
+    feeds.iter_mut().for_each(|feed| feed.shrink_sources());
 
-    pairs
+    match pagination {
+        Some(pagination) => {
+            feeds.sort_by(|l, r| l.id.cmp(&r.id));
+            pagination.paginate(feeds)
+        }
+        None => feeds.into(),
+    }
 }
 
 #[update]
-pub async fn get_asset_data_with_proof(pair_id: String) -> Result<RateDataLight, String> {
-    _get_asset_data_with_proof(pair_id)
+pub async fn get_asset_data_with_proof(feed_id: String) -> Result<RateDataLight, String> {
+    _get_asset_data_with_proof(feed_id)
         .await
         .map_err(|e| format!("failed to get asset data with proof: {}", e))
 }
 
-pub async fn _get_asset_data_with_proof(pair_id: String) -> Result<RateDataLight, AssetsError> {
-    Ok(PairsStorage::rate(&pair_id, true).await?)
+pub async fn _get_asset_data_with_proof(feed_id: String) -> Result<RateDataLight, AssetsError> {
+    metrics!(inc GET_ASSET_DATA_WITH_PROOF_CALLS, feed_id);
+    let rate = FeedStorage::rate(&feed_id, true).await?;
+
+    metrics!(inc SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS, feed_id);
+    Ok(rate)
 }
 
 #[update]
-pub async fn get_asset_data(pair_id: String) -> Result<RateDataLight, String> {
-    _get_asset_data(pair_id)
+pub async fn get_asset_data(feed_id: String) -> Result<RateDataLight, String> {
+    _get_asset_data(feed_id)
         .await
         .map_err(|e| format!("failed to get asset data: {}", e))
 }
 
-async fn _get_asset_data(pair_id: String) -> Result<RateDataLight, AssetsError> {
-    let mut rate = PairsStorage::rate(&pair_id, false).await?;
+async fn _get_asset_data(feed_id: String) -> Result<RateDataLight, AssetsError> {
+    metrics!(inc GET_ASSET_DATA_CALLS, feed_id);
+    let mut rate = FeedStorage::rate(&feed_id, false).await?;
 
     rate.signature = None;
 
+    metrics!(inc SUCCESSFUL_GET_ASSET_DATA_CALLS, feed_id);
     Ok(rate)
 }
 

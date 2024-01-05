@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use candid::{CandidType, Nat};
-use ic_cdk::export::serde::{Deserialize, Serialize};
 use ic_web3_rs::ethabi::Error as EthabiError;
 
 use super::{whitelist::WhitelistError, Address};
@@ -72,13 +72,13 @@ pub enum DepositError {
     InvalidTransferEvent,
 }
 
-#[derive(CandidType, Deserialize, Serialize, Default, Clone)]
+#[derive(Debug, CandidType, Deserialize, Serialize, Default, Clone)]
 pub struct BalanceEntry {
     pub amount: Nat,
     pub nonces: Vec<Nat>,
 }
 
-#[derive(CandidType, Deserialize, Serialize, Default, Clone)]
+#[derive(CandidType, Deserialize, Serialize, Default, Clone, Debug)]
 pub struct Balances(HashMap<Address, BalanceEntry>);
 
 impl Balances {

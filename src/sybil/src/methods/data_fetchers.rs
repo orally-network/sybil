@@ -1,17 +1,13 @@
-use ic_cdk::{
-    export::{
-        candid::{CandidType, Nat},
-        serde::{Deserialize, Serialize},
-    },
-    query, update,
-};
+use candid::{CandidType, Nat};
+use ic_cdk::{query, update};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
     log,
     types::{
         data_fetchers::{DataFetcher, DataFetcherError, DataFetchersStorage},
-        pairs::Source,
+        feeds::Source,
         whitelist::{Whitelist, WhitelistError},
     },
     utils::siwe,

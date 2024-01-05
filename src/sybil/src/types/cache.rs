@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 
+use candid::CandidType;
 use derivative::Derivative;
 use ic_cdk::api::management_canister::ecdsa::{EcdsaCurve, EcdsaKeyId, SignWithEcdsaArgument};
 use ic_cdk::api::management_canister::http_request::{
     http_request, CanisterHttpRequestArgument, HttpResponse,
 };
-use ic_cdk::export::{
-    candid::CandidType,
-    serde::{Deserialize, Serialize},
-};
+use serde::{Deserialize, Serialize};
 
 use hex::FromHexError;
 use ic_web3_rs::signing::keccak256;

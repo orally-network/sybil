@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod balances;
 #[cfg(test)]
-mod default_pairs;
+mod default_feeds;
 #[cfg(test)]
 mod whitelist;
 
