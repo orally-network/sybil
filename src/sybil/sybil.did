@@ -14,6 +14,7 @@ type Source = record {
 
 type FeedType = variant { Custom : record { sources : vec Source; }; Default : null };
 
+
 type FeedStatus = record {
     last_update : nat64;
     updated_counter : nat64;
@@ -89,10 +90,13 @@ type Pagination = record {
 };
 // Filter struct used to filter output of get_feeds method
 type GetFeedsFilter = record {
-    feed_type : opt FeedType;
+    feed_type : opt FeedTypeFilter;
     owner : opt text;
     search : opt text;
 };
+
+type FeedTypeFilter = variant { Custom : null; Default : null };
+
 // PaginationResult struct used as a response to request with pagination
 type GetFeedsResultWithPagination = record {
     page: nat64;
