@@ -9,7 +9,7 @@ type RateDataLight = record {
 type Source = record {
     uri : text;
     resolver : text;
-    expected_bytes : nat64;
+    expected_bytes : opt nat64;
 };
 
 type FeedType = variant { Custom : record { sources : vec Source; }; Default : null };
@@ -46,19 +46,6 @@ type CreateDefaultFeedRequest = record {
     decimals : nat;
 };
 
-type CreateDataFetcherRequest = record {
-    update_freq : nat;
-    sources : vec Source;
-    msg : text;
-    sig : text;
-};
-
-type DataFetcher = record {
-    id : nat;
-    update_freq : nat;
-    owner : text;
-    sources : vec Source;
-};
 
 type BalancesCfg = record {
     rpc : text;
@@ -150,10 +137,4 @@ service : {
     remove_from_whitelist : (address : text) -> (Error);
     is_whitelisted : (address : text) -> (BoolResponse);
     get_whitelist : () -> (GetWhitelistResponse);
-
-    // data fetcher
-    create_data_fetcher : (req : CreateDataFetcherRequest) -> (NatResponse);
-    remove_data_fetcher : (id : nat, msg : text, sig : text) -> (Error);
-    get_data : (id : nat) -> (TextResponse);
-    get_data_fetchers : (owner : text) -> (vec DataFetcher);
 }

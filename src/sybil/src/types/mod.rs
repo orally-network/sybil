@@ -1,7 +1,6 @@
 pub mod balances;
 pub mod cache;
 pub mod config;
-pub mod data_fetchers;
 pub mod exchange_rate;
 pub mod http;
 pub mod feeds;

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, time::Duration};
 
-use candid::{CandidType, Nat};
+use candid::CandidType;
 use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpHeader};
 use ic_web3_rs::futures::future::join_all;
 use jsonptr::{Pointer, Resolve};
@@ -61,20 +61,29 @@ pub struct Source {
     #[validate(regex = "validation::RATE_RESOLVER")]
     pub resolver: String,
     #[validate(range(min = "MIN_EXPECTED_BYTES", max = "MAX_EXPECTED_BYTES"))]
-    pub expected_bytes: u64,
+    pub expected_bytes: Option<u64>,
+}
+
+
+pub struct RateResult {
+    pub rate: u64,
+    pub cached_at: Seconds,
+    pub bytes: usize,
 }
 
 impl Source {
-    pub async fn rate(&self, expr_freq: Seconds) -> Result<(u64, Seconds), HttpCacheError> {
+    pub async fn rate(&self, expr_freq: Seconds) -> Result<RateResult, HttpCacheError> {
         let req = CanisterHttpRequestArgument {
             url: self.uri.clone(),
-            max_response_bytes: Some(self.expected_bytes),
+            max_response_bytes: self.expected_bytes,
             headers: Self::get_default_headers(),
             ..Default::default()
         };
 
         defer!(cache_cleaner::execute());
+
         let (response, cached_at) = HttpCache::request_with_access(&req, expr_freq).await?;
+        let bytes = response.body.len();
 
         let ptr = Pointer::try_from(self.resolver.clone())
             .map_err(|err| HttpCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?;
@@ -89,7 +98,7 @@ impl Source {
                 "value is not number".into(),
             ))?;
 
-        Ok((rate, cached_at))
+        Ok(RateResult{rate, cached_at, bytes})
     }
 
     pub fn get_default_headers() -> Vec<HttpHeader> {
@@ -108,7 +117,7 @@ impl Source {
     pub async fn data(&self, expr_freq: Seconds) -> Result<(String, Seconds), HttpCacheError> {
         let req = CanisterHttpRequestArgument {
             url: self.uri.clone(),
-            max_response_bytes: Some(self.expected_bytes),
+            max_response_bytes: self.expected_bytes,
             ..Default::default()
         };
 
@@ -188,7 +197,7 @@ impl Feed {
 
     pub fn shrink_sources(&mut self) {
         if let FeedType::Custom { sources } = &mut self.feed_type {
-            sources.retain(|source| source.expected_bytes > 0);
+            sources.retain(|source| source.expected_bytes.is_some() && source.expected_bytes.unwrap() > 0);
         }
     }
 }
@@ -405,12 +414,26 @@ impl FeedStorage {
     ) -> Result<RateDataLight, FeedError> {
         let canister_addr = canister::eth_address().await?;
 
-        let bytes = Nat::from(
-            sources
-                .iter()
-                .map(|source| source.expected_bytes)
-                .sum::<u64>(),
-        );
+        let futures = sources
+            .iter()
+            .map(|source| source.rate(feed.update_freq))
+            .collect::<Vec<_>>();
+
+        let results = join_all(futures)
+            .await
+            .into_iter()
+            .filter_map(|res| match res {
+                Ok(res) => {
+                    return Some(res);
+                }
+                Err(err) => {
+                    log!("[FEEDS] error while getting custom rate: {:?}", err);
+                    None
+                }
+            }).collect::<Vec<_>>();
+
+
+        let bytes = results.iter().map(|res| res.bytes).sum::<usize>();
         let fee_per_byte = state::get_cfg().balances_cfg.fee_per_byte;
         let fee = fee_per_byte * bytes;
 
@@ -418,24 +441,11 @@ impl FeedStorage {
             return Err(BalanceError::InsufficientBalance)?;
         };
 
-        let futures = sources
-            .iter()
-            .map(|source| source.rate(feed.update_freq))
-            .collect::<Vec<_>>();
 
-        let (mut results, cached_at_timestamps) = join_all(futures)
-            .await
-            .iter()
-            .filter_map(|res| match res {
-                Ok(res) => {
-                    return Some(res.clone());
-                }
-                Err(err) => {
-                    log!("[FEEDS] error while getting custom rate: {:?}", err);
-                    None
-                }
-            })
-            .unzip::<_, _, Vec<_>, Vec<_>>();
+        let (mut results, cached_at_timestamps): (Vec<_>, Vec<_>) = results
+            .into_iter()
+            .map(|res| (res.rate, res.cached_at))
+            .unzip();
 
         Balances::reduce_amount(&feed.owner, &fee)?;
         Balances::add_amount(&canister_addr, &fee)?;

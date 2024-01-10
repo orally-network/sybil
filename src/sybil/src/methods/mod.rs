@@ -1,7 +1,6 @@
 pub mod balances;
 pub mod controllers;
 pub mod custom_feeds;
-pub mod data_fetchers;
 pub mod default_feeds;
 pub mod transforms;
 pub mod whitelist;

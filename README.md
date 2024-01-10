@@ -64,9 +64,7 @@ dfx canister call sybil get_asset_data_with_proof "(\"ETH/USD\")"
 dfx canister call sybil get_feeds
 dfx canister call sybil withdraw "(1:nat, \"${CALLER}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil withdraw_fees "(\"${CALLER}\")"
-dfx canister call sybil create_data_fetcher "(record {update_freq=360:nat; sources=vec {record {uri=\"https://aws.qui0scit.dev/\"; resolver=\"/symbol\"; expected_bytes=1048576}}; msg=\"${SIWE_MSG}\"; sig=\"${SIWE_SIG}\"})"
 dfx canister call sybil get_data "(1:nat)"
-dfx canister call sybil get_data_fetchers "(\"${CALLER}\")"
 ```
 
 ## Test Enviroment Set Up

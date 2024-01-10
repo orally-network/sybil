@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use candid::{CandidType, Principal};
+use candid::{CandidType, Principal, Nat};
 use ic_cdk::{post_upgrade, pre_upgrade, storage};
 use ic_utils::monitor;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,6 @@ use crate::{
     types::{
         balances::{Balances, BalancesCfg},
         cache::{HttpCache, RateCache, SignaturesCache},
-        data_fetchers::{DataFetchersStorage, DataFethcersIndexer},
         feeds::{Source, FeedStorage, Feed, FeedType, FeedStatus},
         state::State,
         whitelist::Whitelist,
@@ -100,6 +99,21 @@ impl From<OldFeedStatus> for FeedStatus {
 }
 
 
+#[derive(CandidType, Serialize, Deserialize, Debug, Clone, Default)]
+pub struct DataFetchersStorage(HashMap<Nat, DataFetcher>);
+
+#[derive(CandidType, Serialize, Deserialize, Debug, Clone, Default)]
+pub struct DataFethcersIndexer(Nat);
+
+#[derive(CandidType, Serialize, Deserialize, Debug, Clone, Default)]
+pub struct DataFetcher {
+    pub id: Nat,
+    pub update_freq: Nat,
+    pub owner: Address,
+    pub sources: Vec<Source>,
+}
+
+
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug)]
 pub struct OldState {
     pub exchange_rate_canister: Principal,
@@ -112,8 +126,8 @@ pub struct OldState {
     pub balances_cfg: BalancesCfg,
     pub eth_address: Option<Address>,
     pub whitelist: Whitelist,
-    pub data_fetchers: DataFetchersStorage,
-    pub data_fetchers_indexer: DataFethcersIndexer,
+    pub data_fetchers: Option<DataFetchersStorage>,
+    pub data_fetchers_indexer: Option<DataFethcersIndexer>,
 }
 
 
@@ -137,8 +151,6 @@ impl From<OldState> for State {
             balances_cfg: state.balances_cfg,
             eth_address: state.eth_address,
             whitelist: state.whitelist,
-            data_fetchers: state.data_fetchers,
-            data_fetchers_indexer: state.data_fetchers_indexer,
         }
     }
 }
