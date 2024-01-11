@@ -184,7 +184,7 @@ pub struct Feed {
     pub id: String,
     pub feed_type: FeedType,
     pub update_freq: Seconds,
-    pub decimals: u64,
+    pub decimals: Option<u64>,
     pub status: FeedStatus,
     pub owner: Address,
     pub data: Option<RateDataLight>,
@@ -213,7 +213,6 @@ impl From<CreateCustomFeedRequest> for Feed {
                 sources: req.sources,
             },
             update_freq: nat::to_u64(&req.update_freq),
-            decimals: nat::to_u64(&req.decimals),
             ..Default::default()
         }
     }
@@ -225,7 +224,7 @@ impl From<CreateDefaultFeedRequest> for Feed {
             id: req.feed_id,
             feed_type: FeedType::Default,
             update_freq: nat::to_u64(&req.update_freq),
-            decimals: nat::to_u64(&req.decimals),
+            decimals: Some(nat::to_u64(&req.decimals)),
             ..Default::default()
         }
     }

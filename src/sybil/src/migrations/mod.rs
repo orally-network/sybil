@@ -56,7 +56,7 @@ pub struct OldFeed {
     pub id: String,
     pub pair_type: OldFeedType,
     pub update_freq: Seconds,
-    pub decimals: u64,
+    pub decimals: Option<u64>,
     pub status: OldFeedStatus,
     pub owner: Address,
     pub data: Option<RateDataLight>,

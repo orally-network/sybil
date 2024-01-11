@@ -1,7 +1,7 @@
 type RateDataLight = record {
     symbol : text;
     rate : nat64;
-    decimals : nat64;
+    decimals : opt nat64;
     timestamp : nat64;
     signature : opt text;
 };
@@ -25,7 +25,7 @@ type Feed = record {
     id : text;
     feed_type : FeedType;
     update_freq : nat64;
-    decimals : nat64;
+    decimals : opt nat64;
     status : FeedStatus;
     owner : text;
     data : opt RateDataLight;
@@ -34,7 +34,6 @@ type Feed = record {
 type CreateCustomFeedRequest = record {
     feed_id : text;
     update_freq : nat;
-    decimals : nat;
     sources : vec Source;
     msg : text;
     sig : text;

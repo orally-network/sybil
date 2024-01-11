@@ -17,19 +17,28 @@ pub enum RateDataError {
 pub struct RateDataLight {
     pub symbol: String,
     pub rate: u64,
-    pub decimals: u64,
+    pub decimals: Option<u64>,
     pub timestamp: u64,
     pub signature: Option<String>,
 }
 
 impl RateDataLight {
     fn encode_packed(&self) -> Vec<u8> {
-        let raw_data = vec![
-            Token::String(self.symbol.clone()),
-            Token::Uint(self.rate.into()),
-            Token::Uint(self.decimals.into()),
-            Token::Uint(self.timestamp.into()),
-        ];
+        let raw_data;
+        if let Some(decimals) = self.decimals {
+            raw_data = vec![
+                Token::String(self.symbol.clone()),
+                Token::Uint(self.rate.into()),
+                Token::Uint(decimals.into()),
+                Token::Uint(self.timestamp.into()),
+            ];
+        } else {
+            raw_data = vec![
+                Token::String(self.symbol.clone()),
+                Token::Uint(self.rate.into()),
+                Token::Uint(self.timestamp.into()),
+            ];
+        }
 
         encode_packed(&raw_data).expect("tokens should be valid")
     }
