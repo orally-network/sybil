@@ -1,35 +1,62 @@
-pub fn find_most_frequent_value<T: PartialEq + Clone>(arr: &[T]) -> Option<&T> {
-    if arr.is_empty() {
-        return None;
-    }
+use core::hash::Hash;
+use std::hash::Hasher;
 
-    if arr.len() == 1 {
-        return Some(&arr[0]);
-    }
+use serde_json::Value;
 
-    let mut current_value = &arr[0];
-    let mut current_count = 1;
-    let mut max_value = &arr[0];
-    let mut max_count = 1;
+// trait Hashable {
+//     fn hash(&self) -> u64;
+// };
 
-    for v in arr.iter().skip(1) {
-        if *v == *current_value {
-            current_count += 1;
-        } else {
-            if current_count > max_count {
-                max_value = current_value;
-                max_count = current_count;
-            }
-            current_value = v;
-            current_count = 1;
-        }
-    }
 
-    if current_count > max_count {
-        max_value = current_value;
-    }
+// impl Hashable for Value {
+//     fn hash(&self) -> u64 {
+//         match self {
+//             Value::Null => 0,
+//             Value::Bool(b) => {
+//                 if *b {
+//                     11
+//                 } else {
+//                     12
+//                 }
+//             }
+//             Value::Number(n) => {
+//                 if n.is_i64() {
+//                     n.as_i64().unwrap() as u64
+//                 } else {
+//                     n.as_f64().unwrap() as u64
+//                 }
+//             }
+//             Value::String(s) => {
+//                 let mut hasher = std::collections::hash_map::DefaultHasher::new();
+//                 s.hash(&mut hasher);
+//                 hasher.finish()
+//             }
+//             Value::Array(_) => {
+//                 let mut hasher = std::collections::hash_map::DefaultHasher::new();
+//                 self.to_string().hash(&mut hasher);
+//                 hasher.finish()
+//             }
+//             Value::Object(_) => {
+//                 let mut hasher = std::collections::hash_map::DefaultHasher::new();
+//                 self.to_string().hash(&mut hasher);
+//                 hasher.finish()
+//             }
+//         }
+//     }
+// }
 
-    Some(max_value)
+
+
+
+pub fn find_most_frequent_value<T: PartialEq + Clone + Eq + Hash>(arr: &[T]) -> Option<&T> {
+    let map = arr.iter().fold(std::collections::HashMap::new(), |mut acc, x| {
+        *acc.entry(x).or_insert(0) += 1;
+        acc
+    });
+
+    let max_value = map.iter().max_by(|(_, v1), (_, v2)| v1.cmp(v2)).map(|(k, _)| k).cloned();
+
+    max_value
 }
 
 #[cfg(test)]

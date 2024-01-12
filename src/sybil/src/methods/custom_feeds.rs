@@ -7,6 +7,7 @@ use validator::{Validate, ValidationErrors};
 
 use crate::log;
 use crate::metrics;
+use crate::types::feeds::FeedType;
 use crate::{
     types::{
         feeds::{Feed, FeedError, FeedStorage, Source},
@@ -36,12 +37,14 @@ pub enum CustomFeedError {
     NotFeedOwner,
 }
 
+
+
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]
 pub struct CreateCustomFeedRequest {
-    #[validate(regex = "validation::FEED_ID_REGEX")]
     pub feed_id: String,
     #[validate(custom = "validation::validate_update_freq")]
     pub update_freq: Nat,
+    pub feed_type: FeedType,
     #[validate(length(min = 1, max = 5))]
     // second one is used for a nested validation of all sources
     #[validate]
@@ -117,3 +120,4 @@ pub async fn _remove_custom_feed(
 
     Err(CustomFeedError::FeedNotFound)
 }
+

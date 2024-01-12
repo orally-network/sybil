@@ -26,7 +26,7 @@ use crate::{
 };
 use crate::{HTTP_CACHE, SIGNATURES_CACHE};
 
-use super::rate_data::RateDataLight;
+use super::rate_data::AssetDataResult;
 use super::{Seconds, Timestamp};
 
 const HTTP_WAITING_DELAY_SECS: u64 = 3;
@@ -41,11 +41,11 @@ pub struct RateCache(HashMap<String, RateCacheEntry>);
 #[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
 struct RateCacheEntry {
     expired_at: u64,
-    data: RateDataLight,
+    data: AssetDataResult,
 }
 
 impl RateCache {
-    pub fn add_entry(&mut self, key: String, data: RateDataLight, expiration: Seconds) {
+    pub fn add_entry(&mut self, key: String, data: AssetDataResult, expiration: Seconds) {
         let entry = RateCacheEntry {
             expired_at: time::in_seconds() + expiration,
             data,
@@ -54,7 +54,7 @@ impl RateCache {
         self.0.insert(key, entry);
     }
 
-    pub fn get_entry(&mut self, key: &str) -> Option<RateDataLight> {
+    pub fn get_entry(&mut self, key: &str) -> Option<AssetDataResult> {
         let entry = self.0.get(key);
 
         if let Some(entry) = entry {
