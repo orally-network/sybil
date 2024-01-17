@@ -214,6 +214,7 @@ impl From<CreateCustomFeedRequest> for Feed {
             feed_type: req.feed_type,
             sources: Some(req.sources),
             update_freq: nat::to_u64(&req.update_freq),
+            decimals: req.decimals,
             ..Default::default()
         }
     }

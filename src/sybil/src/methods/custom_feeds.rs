@@ -45,6 +45,7 @@ pub struct CreateCustomFeedRequest {
     #[validate(custom = "validation::validate_update_freq")]
     pub update_freq: Nat,
     pub feed_type: FeedType,
+    pub decimals: Option<u64>,
     #[validate(length(min = 1, max = 5))]
     // second one is used for a nested validation of all sources
     #[validate]
