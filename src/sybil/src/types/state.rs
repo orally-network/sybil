@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     config::{Cfg, UpdateCfg},
-    data_fetchers::{DataFetchersStorage, DataFethcersIndexer},
     feeds::FeedStorage,
     whitelist::Whitelist,
     Address,
@@ -27,8 +26,6 @@ pub struct State {
     pub balances_cfg: BalancesCfg,
     pub eth_address: Option<Address>,
     pub whitelist: Whitelist,
-    pub data_fetchers: DataFetchersStorage,
-    pub data_fetchers_indexer: DataFethcersIndexer,
 }
 
 impl Default for State {
@@ -43,8 +40,6 @@ impl Default for State {
             balances_cfg: BalancesCfg::default(),
             eth_address: None,
             whitelist: Whitelist::default(),
-            data_fetchers: DataFetchersStorage::default(),
-            data_fetchers_indexer: DataFethcersIndexer::default(),
         }
     }
 }
@@ -98,6 +93,4 @@ pub fn clear() {
     FeedStorage::clear();
     Balances::clear();
     Whitelist::clear();
-    DataFetchersStorage::clear();
-    DataFethcersIndexer::reset();
 }

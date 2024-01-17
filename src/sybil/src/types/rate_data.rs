@@ -13,23 +13,84 @@ pub enum RateDataError {
     SignaturesCacheError(#[from] SignaturesCacheError),
 }
 
-#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
-pub struct RateDataLight {
-    pub symbol: String,
-    pub rate: u64,
-    pub decimals: u64,
-    pub timestamp: u64,
-    pub signature: Option<String>,
+
+#[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
+pub enum AssetData {
+    DefaultPriceFeed {
+        symbol: String,
+        rate: u64,
+        decimals: u64,
+        timestamp: u64,
+    },
+    CustomPriceFeed {
+        symbol: String,
+        rate: u64,
+        decimals: Option<u64>,
+        timestamp: u64,
+    },
+    CustomNumber {
+        id: String,
+        value: u64,
+    },
+    CustomString {
+        id: String,
+        value: String,
+    },
 }
 
-impl RateDataLight {
+
+impl Default for AssetData {
+    fn default() -> Self {
+        AssetData::DefaultPriceFeed {
+            symbol: "".to_string(),
+            rate: 0,
+            decimals: 0,
+            timestamp: 0,
+        } 
+    }
+}
+
+
+#[derive(Clone, Default, Debug, CandidType, Serialize, Deserialize)]
+pub struct AssetDataResult {
+    pub data: AssetData,
+    pub signature: Option<String>
+}
+
+impl AssetDataResult {
     fn encode_packed(&self) -> Vec<u8> {
-        let raw_data = vec![
-            Token::String(self.symbol.clone()),
-            Token::Uint(self.rate.into()),
-            Token::Uint(self.decimals.into()),
-            Token::Uint(self.timestamp.into()),
-        ];
+        let raw_data = match self.data.clone() {
+            AssetData::DefaultPriceFeed { symbol, rate, decimals, timestamp } => 
+                vec![
+                        Token::String(symbol.clone()),
+                        Token::Uint(rate.into()),
+                        Token::Uint(decimals.into()),
+                        Token::Uint(timestamp.into()),
+                    ],
+            AssetData::CustomPriceFeed { symbol, rate, decimals, timestamp } => 
+                if let Some(decimals) = decimals {
+                    vec![
+                        Token::String(symbol.clone()),
+                        Token::Uint(rate.into()),
+                        Token::Uint(decimals.into()),
+                        Token::Uint(timestamp.into()),
+                    ]
+                } else {
+                    vec![
+                        Token::String(symbol.clone()),
+                        Token::Uint(rate.into()),
+                        Token::Uint(timestamp.into()),
+                    ]
+                },
+            AssetData::CustomNumber { id, value } => vec![
+                Token::String(id.clone()),
+                Token::Uint(value.into()),
+            ],
+            AssetData::CustomString { id, value } => vec![
+                Token::String(id.clone()),
+                Token::String(value.clone()),
+            ],
+        };
 
         encode_packed(&raw_data).expect("tokens should be valid")
     }
@@ -43,4 +104,6 @@ impl RateDataLight {
 
         Ok(())
     }
+
 }
+

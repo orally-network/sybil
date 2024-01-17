@@ -1,18 +1,10 @@
-type RateDataLight = record {
-    symbol : text;
-    rate : nat64;
-    decimals : nat64;
-    timestamp : nat64;
-    signature : opt text;
-};
-
 type Source = record {
     uri : text;
     resolver : text;
-    expected_bytes : nat64;
+    expected_bytes : opt nat64;
 };
 
-type FeedType = variant { Custom : record { sources : vec Source; }; Default : null };
+type FeedType = variant { Custom : null; CustomNumber : null; CustomString : null; Default : null };
 
 
 type FeedStatus = record {
@@ -25,16 +17,16 @@ type Feed = record {
     id : text;
     feed_type : FeedType;
     update_freq : nat64;
-    decimals : nat64;
+    sources : opt vec Source;
+    decimals : opt nat64;
     status : FeedStatus;
     owner : text;
-    data : opt RateDataLight;
 };
 
 type CreateCustomFeedRequest = record {
     feed_id : text;
     update_freq : nat;
-    decimals : nat;
+    feed_type : FeedType;
     sources : vec Source;
     msg : text;
     sig : text;
@@ -46,19 +38,6 @@ type CreateDefaultFeedRequest = record {
     decimals : nat;
 };
 
-type CreateDataFetcherRequest = record {
-    update_freq : nat;
-    sources : vec Source;
-    msg : text;
-    sig : text;
-};
-
-type DataFetcher = record {
-    id : nat;
-    update_freq : nat;
-    owner : text;
-    sources : vec Source;
-};
 
 type BalancesCfg = record {
     rpc : text;
@@ -106,8 +85,37 @@ type GetFeedsResultWithPagination = record {
     items: vec Feed;
 };
 
-type GetAssetDataWithProofResponse = variant { Ok : RateDataLight; Err : text };
-type GetAssetDataResponse = variant { Ok : RateDataLight; Err: text };
+
+type AssetDataResult = record {
+    data: AssetData;
+    signature: opt text;
+};
+
+type AssetData = variant {
+    DefaultPriceFeed: record {
+        symbol: text;
+        rate: nat64;
+        decimals: nat64;
+        timestamp: nat64;
+    };
+    CustomPriceFeed: record {
+        symbol: text;
+        rate: nat64;
+        decimals: opt nat64;
+        timestamp: nat64;
+    };
+    CustomNumber: record {
+        id: text;
+        value: nat64;
+    };
+    CustomString: record {
+        id: text;
+        value: text;
+    };
+};
+
+type GetAssetDataWithProofResponse = variant { Ok : AssetDataResult; Err : text };
+type GetAssetDataResponse = variant { Ok : AssetDataResult; Err: text };
 type TextResponse = variant { Ok : text; Err: text };
 type NatResponse = variant { Ok : nat; Err: text };
 type BoolResponse = variant { Ok : bool; Err: text };
@@ -150,10 +158,4 @@ service : {
     remove_from_whitelist : (address : text) -> (Error);
     is_whitelisted : (address : text) -> (BoolResponse);
     get_whitelist : () -> (GetWhitelistResponse);
-
-    // data fetcher
-    create_data_fetcher : (req : CreateDataFetcherRequest) -> (NatResponse);
-    remove_data_fetcher : (id : nat, msg : text, sig : text) -> (Error);
-    get_data : (id : nat) -> (TextResponse);
-    get_data_fetchers : (owner : text) -> (vec DataFetcher);
 }

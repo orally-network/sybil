@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use candid::{CandidType, Principal};
+use candid::{CandidType, Principal, Nat};
 use ic_cdk::{post_upgrade, pre_upgrade, storage};
 use ic_utils::monitor;
 use serde::{Deserialize, Serialize};
@@ -11,11 +11,10 @@ use crate::{
     types::{
         balances::{Balances, BalancesCfg},
         cache::{HttpCache, RateCache, SignaturesCache},
-        data_fetchers::{DataFetchersStorage, DataFethcersIndexer},
         feeds::{Source, FeedStorage, Feed, FeedType, FeedStatus},
         state::State,
         whitelist::Whitelist,
-        Address, rate_data::RateDataLight, Seconds, Timestamp,
+        Address, Seconds, Timestamp,
     },
     utils::{
         canister::set_custom_panic_hook,
@@ -23,6 +22,32 @@ use crate::{
     },
     CACHE, HTTP_CACHE, SIGNATURES_CACHE, STATE,
 };
+
+
+
+#[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
+pub struct OldRateCache(HashMap<String, OldRateCacheEntry>);
+
+impl From<OldRateCache> for RateCache {
+    fn from(_: OldRateCache) -> Self {
+        RateCache::default()
+    }
+}
+
+#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
+pub struct OldRateDataLight {
+    pub symbol: String,
+    pub rate: u64,
+    pub decimals: Option<u64>,
+    pub timestamp: u64,
+    pub signature: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
+struct OldRateCacheEntry {
+    expired_at: u64,
+    data: OldRateDataLight,
+}
 
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
@@ -41,12 +66,16 @@ impl From<OldFeed> for Feed {
     fn from(old: OldFeed) -> Self {
         Self {
             id: old.id,
-            feed_type: old.pair_type.into(),
+            feed_type: old.pair_type.clone().into(),
             update_freq: old.update_freq,
+            sources: if let OldFeedType::Custom { sources } = old.pair_type {
+                Some(sources)
+            } else {
+                None
+            },
             decimals: old.decimals,
             status: old.status.into(),
             owner: old.owner,
-            data: old.data,
         }
     }
 }
@@ -57,10 +86,10 @@ pub struct OldFeed {
     pub id: String,
     pub pair_type: OldFeedType,
     pub update_freq: Seconds,
-    pub decimals: u64,
+    pub decimals: Option<u64>,
     pub status: OldFeedStatus,
     pub owner: Address,
-    pub data: Option<RateDataLight>,
+    pub data: Option<OldRateDataLight>,
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
@@ -76,7 +105,7 @@ pub enum OldFeedType {
 impl From<OldFeedType> for FeedType {
     fn from(old: OldFeedType) -> Self {
         match old {
-            OldFeedType::Custom { sources } => FeedType::Custom { sources },
+            OldFeedType::Custom { .. } => FeedType::Custom,
             OldFeedType::Default => FeedType::Default,
         }
     }
@@ -100,6 +129,21 @@ impl From<OldFeedStatus> for FeedStatus {
 }
 
 
+#[derive(CandidType, Serialize, Deserialize, Debug, Clone, Default)]
+pub struct DataFetchersStorage(HashMap<Nat, DataFetcher>);
+
+#[derive(CandidType, Serialize, Deserialize, Debug, Clone, Default)]
+pub struct DataFethcersIndexer(Nat);
+
+#[derive(CandidType, Serialize, Deserialize, Debug, Clone, Default)]
+pub struct DataFetcher {
+    pub id: Nat,
+    pub update_freq: Nat,
+    pub owner: Address,
+    pub sources: Vec<Source>,
+}
+
+
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug)]
 pub struct OldState {
     pub exchange_rate_canister: Principal,
@@ -112,8 +156,8 @@ pub struct OldState {
     pub balances_cfg: BalancesCfg,
     pub eth_address: Option<Address>,
     pub whitelist: Whitelist,
-    pub data_fetchers: DataFetchersStorage,
-    pub data_fetchers_indexer: DataFethcersIndexer,
+    pub data_fetchers: Option<DataFetchersStorage>,
+    pub data_fetchers_indexer: Option<DataFethcersIndexer>,
 }
 
 
@@ -137,8 +181,6 @@ impl From<OldState> for State {
             balances_cfg: state.balances_cfg,
             eth_address: state.eth_address,
             whitelist: state.whitelist,
-            data_fetchers: state.data_fetchers,
-            data_fetchers_indexer: state.data_fetchers_indexer,
         }
     }
 }
@@ -210,7 +252,7 @@ fn pre_upgrade() {
 fn post_upgrade() {
     let (state, cache, monitor_data, http_cache, signatures_cache, metrics): (
         OldState,
-        RateCache,
+        OldRateCache,
         monitor::PostUpgradeStableData,
         HttpCache,
         SignaturesCache,
@@ -224,7 +266,7 @@ fn post_upgrade() {
     set_custom_panic_hook();
 
     STATE.with(|s| s.replace(state));
-    CACHE.with(|c| c.replace(cache));
+    CACHE.with(|c| c.replace(cache.into()));
     HTTP_CACHE.with(|c| c.replace(http_cache));
     SIGNATURES_CACHE.with(|c| c.replace(signatures_cache));
 
@@ -241,9 +283,10 @@ fn post_upgrade() {
                     FeedType::Default => {
                         default_feeds += 1;
                     }
-                    FeedType::Custom { .. } => {
+                    FeedType::Custom  => {
                         custom_feeds += 1;
                     }
+                    _ => {}
                 }
             }
 
