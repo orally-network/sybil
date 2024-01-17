@@ -190,6 +190,7 @@ pub struct Feed {
     pub decimals: Option<u64>,
     pub status: FeedStatus,
     pub owner: Address,
+    pub data: Option<AssetDataResult>,
 }
 
 impl Feed {
@@ -267,6 +268,19 @@ impl FeedStorage {
         if with_signature {
             rate.sign().await?;
         }
+
+        STATE.with(|state| {
+            let mut state = state.borrow_mut();
+            let feed = state
+                .feeds
+                .0
+                .get_mut(feed_id)
+                .ok_or(FeedError::FeedNotFound)?;
+
+            feed.data = Some(rate.clone());
+
+            Result::<(), FeedError>::Ok(())
+        })?;
 
         log!("[FEEDS] requested rate: {:#?}", rate);
 

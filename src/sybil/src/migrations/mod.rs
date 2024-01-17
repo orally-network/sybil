@@ -9,12 +9,7 @@ use crate::{
     http::HttpService,
     log, metrics,
     types::{
-        balances::{Balances, BalancesCfg},
-        cache::{HttpCache, RateCache, SignaturesCache},
-        feeds::{Source, FeedStorage, Feed, FeedType, FeedStatus},
-        state::State,
-        whitelist::Whitelist,
-        Address, Seconds, Timestamp,
+        balances::{Balances, BalancesCfg}, cache::{HttpCache, RateCache, SignaturesCache}, feeds::{Source, FeedStorage, Feed, FeedType, FeedStatus}, rate_data::AssetDataResult, state::State, whitelist::Whitelist, Address, Seconds, Timestamp
     },
     utils::{
         canister::set_custom_panic_hook,
@@ -34,19 +29,11 @@ impl From<OldRateCache> for RateCache {
     }
 }
 
-#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
-pub struct OldRateDataLight {
-    pub symbol: String,
-    pub rate: u64,
-    pub decimals: Option<u64>,
-    pub timestamp: u64,
-    pub signature: Option<String>,
-}
 
 #[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
 struct OldRateCacheEntry {
     expired_at: u64,
-    data: OldRateDataLight,
+    data: AssetDataResult,
 }
 
 
@@ -76,6 +63,7 @@ impl From<OldFeed> for Feed {
             decimals: old.decimals,
             status: old.status.into(),
             owner: old.owner,
+            data:   old.data,
         }
     }
 }
@@ -89,7 +77,7 @@ pub struct OldFeed {
     pub decimals: Option<u64>,
     pub status: OldFeedStatus,
     pub owner: Address,
-    pub data: Option<OldRateDataLight>,
+    pub data: Option<AssetDataResult>,
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]

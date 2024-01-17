@@ -21,6 +21,7 @@ type Feed = record {
     decimals : opt nat64;
     status : FeedStatus;
     owner : text;
+    data : opt AssetDataResult;
 };
 
 type CreateCustomFeedRequest = record {
