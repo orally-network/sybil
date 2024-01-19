@@ -191,7 +191,7 @@ pub fn get_balance(addr: String) -> Result<Nat, String> {
 
 #[inline(always)]
 fn _get_balance(addr: String) -> Result<Nat, BalancesError> {
-    Ok(Balances::get_amount(&address::from_str(&addr)?)?)
+    Ok(Balances::get_amount(&address::from_str(&addr)?).unwrap_or_default())
 }
 
 #[update]
