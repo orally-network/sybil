@@ -1,4 +1,13 @@
 use core::hash::Hash;
+use std::{iter::Sum, ops::Div};
+
+pub fn find_average<'a, T: Sum<&'a T> + Div<Output = T> + From<u32>>(arr: &'a [T]) -> T {
+    let sum: T = arr.into_iter().sum();
+    let count = arr.len() as u32;
+
+    return sum / count.into();
+}
+
 pub fn find_most_frequent_value<T: PartialEq + Clone + Eq + Hash>(arr: &[T]) -> Option<&T> {
     let map = arr
         .iter()

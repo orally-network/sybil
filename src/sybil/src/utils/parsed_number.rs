@@ -1,7 +1,4 @@
-use anyhow::{anyhow, Result};
-use candid::Nat;
-
-use super::nat;
+use anyhow::Result;
 
 #[derive(Debug)]
 /// Used for parsing f64 from strings into integer number with number of decimals

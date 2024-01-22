@@ -24,12 +24,13 @@ pub enum AssetData {
     CustomPriceFeed {
         symbol: String,
         rate: u64,
-        decimals: Option<u64>,
+        decimals: u64,
         timestamp: u64,
     },
     CustomNumber {
         id: String,
         value: u64,
+        decimals: u64,
     },
     CustomString {
         id: String,
@@ -74,23 +75,23 @@ impl AssetDataResult {
                 decimals,
                 timestamp,
             } => {
-                if let Some(decimals) = decimals {
-                    vec![
-                        Token::String(symbol.clone()),
-                        Token::Uint(rate.into()),
-                        Token::Uint(decimals.into()),
-                        Token::Uint(timestamp.into()),
-                    ]
-                } else {
-                    vec![
-                        Token::String(symbol.clone()),
-                        Token::Uint(rate.into()),
-                        Token::Uint(timestamp.into()),
-                    ]
-                }
+                vec![
+                    Token::String(symbol.clone()),
+                    Token::Uint(rate.into()),
+                    Token::Uint(decimals.into()),
+                    Token::Uint(timestamp.into()),
+                ]
             }
-            AssetData::CustomNumber { id, value } => {
-                vec![Token::String(id.clone()), Token::Uint(value.into())]
+            AssetData::CustomNumber {
+                id,
+                value,
+                decimals,
+            } => {
+                vec![
+                    Token::String(id.clone()),
+                    Token::Uint(value.into()),
+                    Token::Uint(decimals.into()),
+                ]
             }
             AssetData::CustomString { id, value } => {
                 vec![Token::String(id.clone()), Token::String(value.clone())]

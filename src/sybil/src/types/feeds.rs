@@ -24,7 +24,11 @@ use crate::{
     metrics,
     types::exchange_rate::Service,
     utils::{
-        canister, nat, parsed_number::ParsedNumber, siwe::SiweError, sleep, time, validation, vec,
+        canister, nat,
+        parsed_number::ParsedNumber,
+        siwe::SiweError,
+        sleep, time, validation,
+        vec::{self, find_average},
     },
     CACHE, STATE,
 };
@@ -468,20 +472,22 @@ impl FeedStorage {
                     .iter()
                     .map(|value| {
                         value
-                            .as_u64()
+                            .as_f64()
                             .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType)
                             .map(|rate| rate)
                     })
                     .collect::<Result<Vec<_>, _>>()?;
 
-                let value = vec::find_most_frequent_value(&rate)
-                    .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType)?
-                    .clone();
+                let value = find_average(&rate);
+
+                let parsed_number = ParsedNumber::parse(&value.to_string(), feed.decimals)
+                    .map_err(|err| FeedError::UnableToConvertRate(err.to_string()))?;
 
                 return Ok(AssetDataResult {
                     data: AssetData::CustomNumber {
                         id: feed.id.clone(),
-                        value,
+                        value: parsed_number.number,
+                        decimals: parsed_number.decimals,
                     },
                     ..Default::default()
                 });
@@ -513,26 +519,21 @@ impl FeedStorage {
                 let rate = results
                     .iter()
                     .map(|rate| {
-                        let float_val = rate
-                            .as_f64()
-                            .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType);
-
-                        float_val.map(|val| val.to_string())
+                        rate.as_f64()
+                            .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType)
                     })
                     .collect::<Result<Vec<_>, _>>()?;
 
-                let value = vec::find_most_frequent_value(&rate)
-                    .ok_or(FeedError::NoRateValueGotFromSources)?
-                    .clone();
+                let value = vec::find_average(&rate);
 
-                let parsed_number = ParsedNumber::parse(&value, feed.decimals)
+                let parsed_number = ParsedNumber::parse(&value.to_string(), feed.decimals)
                     .map_err(|err| FeedError::UnableToConvertRate(err.to_string()))?;
 
                 return Ok(AssetDataResult {
                     data: AssetData::CustomPriceFeed {
                         symbol: feed.id.clone(),
                         rate: parsed_number.number,
-                        decimals: Some(parsed_number.decimals),
+                        decimals: parsed_number.decimals,
                         timestamp: cached_at_timestamps
                             .iter()
                             .max()
