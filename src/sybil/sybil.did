@@ -103,12 +103,13 @@ type AssetData = variant {
     CustomPriceFeed: record {
         symbol: text;
         rate: nat64;
-        decimals: opt nat64;
+        decimals: nat64;
         timestamp: nat64;
     };
     CustomNumber: record {
         id: text;
         value: nat64;
+        decimals: nat64;
     };
     CustomString: record {
         id: text;
