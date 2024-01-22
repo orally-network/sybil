@@ -28,7 +28,7 @@ type CreateCustomFeedRequest = record {
     feed_id : text;
     update_freq : nat;
     feed_type : FeedType;
-    decimals : opt nat;
+    decimals : opt nat64;
     sources : vec Source;
     msg : text;
     sig : text;
