@@ -1,11 +1,17 @@
 use core::hash::Hash;
 pub fn find_most_frequent_value<T: PartialEq + Clone + Eq + Hash>(arr: &[T]) -> Option<&T> {
-    let map = arr.iter().fold(std::collections::HashMap::new(), |mut acc, x| {
-        *acc.entry(x).or_insert(0) += 1;
-        acc
-    });
+    let map = arr
+        .iter()
+        .fold(std::collections::HashMap::new(), |mut acc, x| {
+            *acc.entry(x).or_insert(0) += 1;
+            acc
+        });
 
-    let max_value = map.iter().max_by(|(_, v1), (_, v2)| v1.cmp(v2)).map(|(k, _)| k).cloned();
+    let max_value = map
+        .iter()
+        .max_by(|(_, v1), (_, v2)| v1.cmp(v2))
+        .map(|(k, _)| k)
+        .cloned();
 
     max_value
 }

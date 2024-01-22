@@ -13,17 +13,20 @@ use super::{
     balances::{BalanceError, Balances},
     cache::{HttpCache, HttpCacheError},
     exchange_rate::{Asset, AssetClass, ExchangeRate, ExchangeRateError, GetExchangeRateRequest},
-    rate_data::{RateDataError, AssetDataResult, AssetData},
+    rate_data::{AssetData, AssetDataResult, RateDataError},
     state, Address, Seconds, Timestamp,
 };
 use crate::{
     clone_with_state, defer,
     jobs::cache_cleaner,
     log,
+    methods::{custom_feeds::CreateCustomFeedRequest, default_feeds::CreateDefaultFeedRequest},
     metrics,
     types::exchange_rate::Service,
-    utils::{canister, nat, siwe::SiweError, sleep, time, validation, vec},
-    CACHE, STATE, methods::{default_feeds::CreateDefaultFeedRequest, custom_feeds::CreateCustomFeedRequest},
+    utils::{
+        canister, nat, parsed_number::ParsedNumber, siwe::SiweError, sleep, time, validation, vec,
+    },
+    CACHE, STATE,
 };
 
 const MIN_EXPECTED_BYTES: u64 = 1;
@@ -40,6 +43,8 @@ pub enum FeedError {
     InvalidFeedId,
     #[error("Unable to get rate: {0}")]
     UnableToGetRate(String),
+    #[error("Unable to convert rate: {0}")]
+    UnableToConvertRate(String),
     #[error("Exchange rate canister error: {0}")]
     ExchangeRateCanisterError(#[from] ExchangeRateError),
     #[error("No rate value got from sources")]
@@ -65,7 +70,6 @@ pub struct Source {
     #[validate(range(min = "MIN_EXPECTED_BYTES", max = "MAX_EXPECTED_BYTES"))]
     pub expected_bytes: Option<u64>,
 }
-
 
 pub struct RateResult {
     pub rate: Value,
@@ -94,9 +98,14 @@ impl Source {
 
         let rate = data
             .resolve(&ptr)
-            .map_err(|err| HttpCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?.clone();
+            .map_err(|err| HttpCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?
+            .clone();
 
-        Ok(RateResult{rate, cached_at, bytes})
+        Ok(RateResult {
+            rate,
+            cached_at,
+            bytes,
+        })
     }
 
     pub fn get_default_headers() -> Vec<HttpHeader> {
@@ -160,19 +169,17 @@ impl FeedTypeFilter {
             (FeedTypeFilter::CustomString, FeedType::CustomString) => true,
             _ => false,
         }
-        
     }
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub enum FeedType {
     Custom,
-    CustomNumber, 
+    CustomNumber,
     CustomString,
     #[default]
     Default,
 }
-
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub struct FeedStatus {
@@ -200,7 +207,9 @@ impl Feed {
 
     pub fn shrink_sources(&mut self) {
         if let Some(sources) = &mut self.sources {
-            sources.retain(|source| source.expected_bytes.is_some() && source.expected_bytes.unwrap() > 0);
+            sources.retain(|source| {
+                source.expected_bytes.is_some() && source.expected_bytes.unwrap() > 0
+            });
         }
     }
 }
@@ -253,7 +262,7 @@ impl FeedStorage {
                     log!("[FEEDS] default feed requested: feed ID: {}", feed_id);
                     Self::get_default_rate(&feed).await
                 }
-                FeedType::Custom | FeedType::CustomNumber | FeedType::CustomString  => {
+                FeedType::Custom | FeedType::CustomNumber | FeedType::CustomString => {
                     log!(
                         "[FEEDS] cusom feed requested: feed ID: {}, sources: {:#?}",
                         feed_id,
@@ -434,8 +443,8 @@ impl FeedStorage {
                     log!("[FEEDS] error while getting custom rate: {:?}", err);
                     None
                 }
-            }).collect::<Vec<_>>();
-
+            })
+            .collect::<Vec<_>>();
 
         let bytes = results.iter().map(|res| res.bytes).sum::<usize>();
         let fee_per_byte = state::get_cfg().balances_cfg.fee_per_byte;
@@ -445,12 +454,10 @@ impl FeedStorage {
             return Err(BalanceError::InsufficientBalance)?;
         };
 
-
         let (results, cached_at_timestamps): (Vec<_>, Vec<_>) = results
             .into_iter()
             .map(|res| (res.rate, res.cached_at))
             .unzip();
-
 
         Balances::reduce_amount(&feed.owner, &fee)?;
         Balances::add_amount(&canister_addr, &fee)?;
@@ -460,13 +467,16 @@ impl FeedStorage {
                 let rate = results
                     .iter()
                     .map(|value| {
-                        value.as_u64()
+                        value
+                            .as_u64()
                             .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType)
                             .map(|rate| rate)
-                    }).collect::<Result<Vec<_>, _>>()?;
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
 
                 let value = vec::find_most_frequent_value(&rate)
-                    .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType)?.clone();
+                    .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType)?
+                    .clone();
 
                 return Ok(AssetDataResult {
                     data: AssetData::CustomNumber {
@@ -480,13 +490,16 @@ impl FeedStorage {
                 let string = results
                     .iter()
                     .map(|value| {
-                        value.as_str()
+                        value
+                            .as_str()
                             .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType)
                             .map(|rate| rate.to_string())
-                    }).collect::<Result<Vec<_>, _>>()?;
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
 
                 let value = vec::find_most_frequent_value(&string)
-                    .ok_or(FeedError::NoRateValueGotFromSources)?.clone();
+                    .ok_or(FeedError::NoRateValueGotFromSources)?
+                    .clone();
 
                 return Ok(AssetDataResult {
                     data: AssetData::CustomString {
@@ -500,19 +513,26 @@ impl FeedStorage {
                 let rate = results
                     .iter()
                     .map(|rate| {
-                        rate.as_u64()
-                            .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType)
-                    }).collect::<Result<Vec<_>, _>>()?;
+                        let float_val = rate
+                            .as_f64()
+                            .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType);
 
-                let value = vec::find_most_frequent_value(&rate).ok_or(
-                    FeedError::NoRateValueGotFromSources,
-                )?.clone();
+                        float_val.map(|val| val.to_string())
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                let value = vec::find_most_frequent_value(&rate)
+                    .ok_or(FeedError::NoRateValueGotFromSources)?
+                    .clone();
+
+                let parsed_number = ParsedNumber::parse(&value, feed.decimals)
+                    .map_err(|err| FeedError::UnableToConvertRate(err.to_string()))?;
 
                 return Ok(AssetDataResult {
                     data: AssetData::CustomPriceFeed {
                         symbol: feed.id.clone(),
-                        rate: value,
-                        decimals: feed.decimals,
+                        rate: parsed_number.number,
+                        decimals: Some(parsed_number.decimals),
                         timestamp: cached_at_timestamps
                             .iter()
                             .max()

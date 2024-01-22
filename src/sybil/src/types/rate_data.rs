@@ -13,7 +13,6 @@ pub enum RateDataError {
     SignaturesCacheError(#[from] SignaturesCacheError),
 }
 
-
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
 pub enum AssetData {
     DefaultPriceFeed {
@@ -38,7 +37,6 @@ pub enum AssetData {
     },
 }
 
-
 impl Default for AssetData {
     fn default() -> Self {
         AssetData::DefaultPriceFeed {
@@ -46,28 +44,36 @@ impl Default for AssetData {
             rate: 0,
             decimals: 0,
             timestamp: 0,
-        } 
+        }
     }
 }
-
 
 #[derive(Clone, Default, Debug, CandidType, Serialize, Deserialize)]
 pub struct AssetDataResult {
     pub data: AssetData,
-    pub signature: Option<String>
+    pub signature: Option<String>,
 }
 
 impl AssetDataResult {
     fn encode_packed(&self) -> Vec<u8> {
         let raw_data = match self.data.clone() {
-            AssetData::DefaultPriceFeed { symbol, rate, decimals, timestamp } => 
-                vec![
-                        Token::String(symbol.clone()),
-                        Token::Uint(rate.into()),
-                        Token::Uint(decimals.into()),
-                        Token::Uint(timestamp.into()),
-                    ],
-            AssetData::CustomPriceFeed { symbol, rate, decimals, timestamp } => 
+            AssetData::DefaultPriceFeed {
+                symbol,
+                rate,
+                decimals,
+                timestamp,
+            } => vec![
+                Token::String(symbol.clone()),
+                Token::Uint(rate.into()),
+                Token::Uint(decimals.into()),
+                Token::Uint(timestamp.into()),
+            ],
+            AssetData::CustomPriceFeed {
+                symbol,
+                rate,
+                decimals,
+                timestamp,
+            } => {
                 if let Some(decimals) = decimals {
                     vec![
                         Token::String(symbol.clone()),
@@ -81,15 +87,14 @@ impl AssetDataResult {
                         Token::Uint(rate.into()),
                         Token::Uint(timestamp.into()),
                     ]
-                },
-            AssetData::CustomNumber { id, value } => vec![
-                Token::String(id.clone()),
-                Token::Uint(value.into()),
-            ],
-            AssetData::CustomString { id, value } => vec![
-                Token::String(id.clone()),
-                Token::String(value.clone()),
-            ],
+                }
+            }
+            AssetData::CustomNumber { id, value } => {
+                vec![Token::String(id.clone()), Token::Uint(value.into())]
+            }
+            AssetData::CustomString { id, value } => {
+                vec![Token::String(id.clone()), Token::String(value.clone())]
+            }
         };
 
         encode_packed(&raw_data).expect("tokens should be valid")
@@ -104,6 +109,4 @@ impl AssetDataResult {
 
         Ok(())
     }
-
 }
-
