@@ -37,8 +37,6 @@ pub enum CustomFeedError {
     NotFeedOwner,
 }
 
-
-
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]
 pub struct CreateCustomFeedRequest {
     pub feed_id: String,
@@ -61,7 +59,9 @@ pub async fn create_custom_feed(req: CreateCustomFeedRequest) -> Result<(), Stri
         .map_err(|e| format!("Failed to a create custom feed: {e}"))
 }
 
-pub async fn _create_custom_feed(req: CreateCustomFeedRequest) -> Result<(), CustomFeedError> {
+pub async fn _create_custom_feed(mut req: CreateCustomFeedRequest) -> Result<(), CustomFeedError> {
+    req.feed_id = format!("custom_{}", req.feed_id);
+
     let addr = siwe::recover(&req.msg, &req.sig).await?;
     if !Whitelist::contains(&addr) {
         return Err(WhitelistError::AddressNotWhitelisted.into());
@@ -121,4 +121,3 @@ pub async fn _remove_custom_feed(
 
     Err(CustomFeedError::FeedNotFound)
 }
-

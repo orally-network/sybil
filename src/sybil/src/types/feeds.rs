@@ -225,7 +225,7 @@ pub struct FeedStorage(pub(crate) HashMap<String, Feed>);
 impl From<CreateCustomFeedRequest> for Feed {
     fn from(req: CreateCustomFeedRequest) -> Self {
         Self {
-            id: format!("custom_{}", req.feed_id),
+            id: req.feed_id,
             feed_type: req.feed_type,
             sources: Some(req.sources),
             update_freq: nat::to_u64(&req.update_freq),
