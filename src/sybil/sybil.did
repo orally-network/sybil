@@ -145,6 +145,7 @@ service : {
     get_feeds : (filter: opt GetFeedsFilter, pagination: opt Pagination) -> (GetFeedsResultWithPagination);
     
     // controllers
+    sign_message : (msg : text) -> (TextResponse);
     update_cfg : (cfg : UpdateCfg) -> (Error);
     get_cfg : () -> (GetCfgResponse);
     clear_state : () -> (Error);
