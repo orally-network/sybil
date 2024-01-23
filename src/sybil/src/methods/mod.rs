@@ -2,6 +2,7 @@ pub mod balances;
 pub mod controllers;
 pub mod custom_feeds;
 pub mod default_feeds;
+pub mod signatures;
 pub mod transforms;
 pub mod whitelist;
 

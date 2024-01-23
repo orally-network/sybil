@@ -5,6 +5,7 @@ pub mod encoding;
 pub mod macros;
 pub mod metrics;
 pub mod nat;
+pub mod parsed_number;
 pub mod processors;
 pub mod signature;
 pub mod siwe;

@@ -28,7 +28,7 @@ type CreateCustomFeedRequest = record {
     feed_id : text;
     update_freq : nat;
     feed_type : FeedType;
-    decimals : opt nat;
+    decimals : opt nat64;
     sources : vec Source;
     msg : text;
     sig : text;
@@ -51,6 +51,7 @@ type BalancesCfg = record {
 type Cfg = record {
     exchange_rate_canister : principal;
     fallback_xrc : principal;
+    rpc_wrapper : text;
     mock : bool;
     key_name : text;
     balances_cfg : BalancesCfg;
@@ -59,6 +60,7 @@ type Cfg = record {
 type UpdateCfg = record {
     exchange_rate_canister : opt principal;
     fallback_xrc : opt principal;
+    rpc_wrapper : opt text; 
     mock : opt bool;
     key_name : opt text;
     balances_cfg : opt BalancesCfg;
@@ -103,12 +105,13 @@ type AssetData = variant {
     CustomPriceFeed: record {
         symbol: text;
         rate: nat64;
-        decimals: opt nat64;
+        decimals: nat64;
         timestamp: nat64;
     };
     CustomNumber: record {
         id: text;
         value: nat64;
+        decimals: nat64;
     };
     CustomString: record {
         id: text;
@@ -142,6 +145,7 @@ service : {
     get_feeds : (filter: opt GetFeedsFilter, pagination: opt Pagination) -> (GetFeedsResultWithPagination);
     
     // controllers
+    sign_message : (msg : text) -> (TextResponse);
     update_cfg : (cfg : UpdateCfg) -> (Error);
     get_cfg : () -> (GetCfgResponse);
     clear_state : () -> (Error);
