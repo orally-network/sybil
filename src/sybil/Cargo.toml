@@ -39,3 +39,4 @@ tokio = { version = "1.34.0", features = ["sync"] }
 paginate = "1.1.11"
 strsim = "0.10.0"
 float-ord = "0.3.2"
+urlencoding = "2.1.3"

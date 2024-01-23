@@ -85,7 +85,7 @@ impl Source {
     pub async fn rate(&self, expr_freq: Seconds) -> Result<RateResult, HttpCacheError> {
         let rpc_wrapper = clone_with_state!(rpc_wrapper);
         let req = CanisterHttpRequestArgument {
-            url: format!("{}{}", rpc_wrapper, self.uri.clone()),
+            url: format!("{}{}", rpc_wrapper, urlencoding::encode(&self.uri.clone())),
             max_response_bytes: self.expected_bytes,
             headers: Self::get_default_headers(),
             ..Default::default()
