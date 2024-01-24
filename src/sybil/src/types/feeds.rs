@@ -64,6 +64,8 @@ pub enum FeedError {
     Balance(#[from] BalanceError),
     #[error("Canister error: {0}")]
     Canister(#[from] canister::CanisterError),
+    #[error("Error in sources: {0:?}")]
+    SourceError(Vec<HttpCacheError>),
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]
@@ -439,6 +441,8 @@ impl FeedStorage {
             .map(|source| source.rate(feed.update_freq))
             .collect::<Vec<_>>();
 
+        let mut source_errs = Vec::new();
+
         let results = join_all(futures)
             .await
             .into_iter()
@@ -448,10 +452,15 @@ impl FeedStorage {
                 }
                 Err(err) => {
                     log!("[FEEDS] error while getting custom rate: {:?}", err);
+                    source_errs.push(err);
                     None
                 }
             })
             .collect::<Vec<_>>();
+
+        if !source_errs.is_empty() {
+            return Err(FeedError::SourceError(source_errs));
+        }
 
         let bytes = results.iter().map(|res| res.bytes).sum::<usize>();
         let fee_per_byte = state::get_cfg().balances_cfg.fee_per_byte;
