@@ -3,11 +3,10 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 use super::{response, HttpRequest, HttpResponse, HTTP_SERVICE};
-use crate::{types::feeds::FeedStorage, utils::validation};
+use crate::types::feeds::FeedStorage;
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
 struct GetAssetDataQueryParams {
-    #[validate(regex = "validation::FEED_ID_REGEX")]
     id: String,
 }
 

@@ -80,6 +80,20 @@ impl HttpService {
             )
             .expect("Failed to insert handler");
 
+        router
+            .insert(
+                "/get_feed_data:query",
+                Box::new(|request| Box::pin(handlers::get_asset_data_request(request))),
+            )
+            .expect("Failed to insert handler");
+
+        router
+            .insert(
+                "/get_feed_data_with_proof:query",
+                Box::new(|request| Box::pin(handlers::get_asset_data_with_proof_request(request))),
+            )
+            .expect("Failed to insert handler");
+
         let pre_middlewares: Vec<PreMiddleware> =
             vec![Box::new(|request| Box::pin(middlewares::logger(request)))];
 
