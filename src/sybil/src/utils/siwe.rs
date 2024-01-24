@@ -14,7 +14,7 @@ use crate::{clone_with_state, types::Address};
 
 #[derive(Error, Debug)]
 pub enum SiweError {
-    #[error("invalid message")]
+    #[error("invalid message: {0}")]
     InvalidMessage(#[from] ParseError),
     #[error("invalid timestamp")]
     InvalidTimestamp(#[from] TimeError),

@@ -55,7 +55,7 @@ pub struct Feed {
 pub fn create_default_feed() -> Result<(), String> {
     sybil_execute(
         "create_default_feed",
-        Some(&format!("(record {{feed_id=\"{FEED_ID}\"; update_freq={FEED_UPDATE_FREQUENCY_CANDID}; decimals={FEED_DECIMALS_CANDID}}})"))
+        Some(&format!("(record {{id=\"{FEED_ID}\"; update_freq={FEED_UPDATE_FREQUENCY_CANDID}; decimals={FEED_DECIMALS_CANDID}}})"))
     )
 }
 

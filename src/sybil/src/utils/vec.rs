@@ -1,35 +1,28 @@
-pub fn find_most_frequent_value<T: PartialEq + Clone>(arr: &[T]) -> Option<&T> {
-    if arr.is_empty() {
-        return None;
-    }
+use core::hash::Hash;
+use std::{iter::Sum, ops::Div};
 
-    if arr.len() == 1 {
-        return Some(&arr[0]);
-    }
+pub fn find_average<'a, T: Sum<&'a T> + Div<Output = T> + From<u32>>(arr: &'a [T]) -> T {
+    let sum: T = arr.into_iter().sum();
+    let count = arr.len() as u32;
 
-    let mut current_value = &arr[0];
-    let mut current_count = 1;
-    let mut max_value = &arr[0];
-    let mut max_count = 1;
+    return sum / count.into();
+}
 
-    for v in arr.iter().skip(1) {
-        if *v == *current_value {
-            current_count += 1;
-        } else {
-            if current_count > max_count {
-                max_value = current_value;
-                max_count = current_count;
-            }
-            current_value = v;
-            current_count = 1;
-        }
-    }
+pub fn find_most_frequent_value<T: PartialEq + Clone + Eq + Hash>(arr: &[T]) -> Option<&T> {
+    let map = arr
+        .iter()
+        .fold(std::collections::HashMap::new(), |mut acc, x| {
+            *acc.entry(x).or_insert(0) += 1;
+            acc
+        });
 
-    if current_count > max_count {
-        max_value = current_value;
-    }
+    let max_value = map
+        .iter()
+        .max_by(|(_, v1), (_, v2)| v1.cmp(v2))
+        .map(|(k, _)| k)
+        .cloned();
 
-    Some(max_value)
+    max_value
 }
 
 #[cfg(test)]

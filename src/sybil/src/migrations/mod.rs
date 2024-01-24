@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use candid::{CandidType, Principal};
+use candid::{CandidType, Nat, Principal};
 use ic_cdk::{post_upgrade, pre_upgrade, storage};
 use ic_utils::monitor;
 use serde::{Deserialize, Serialize};
@@ -11,11 +11,11 @@ use crate::{
     types::{
         balances::{Balances, BalancesCfg},
         cache::{HttpCache, RateCache, SignaturesCache},
-        data_fetchers::{DataFetchersStorage, DataFethcersIndexer},
-        feeds::{Source, FeedStorage, Feed, FeedType, FeedStatus},
+        feeds::{Feed, FeedStatus, FeedStorage, FeedType, Source},
+        rate_data::AssetDataResult,
         state::State,
         whitelist::Whitelist,
-        Address, rate_data::RateDataLight, Seconds, Timestamp,
+        Address, Seconds, Timestamp,
     },
     utils::{
         canister::set_custom_panic_hook,
@@ -24,25 +24,53 @@ use crate::{
     CACHE, HTTP_CACHE, SIGNATURES_CACHE, STATE,
 };
 
+#[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
+pub struct OldRateCache(HashMap<String, OldRateCacheEntry>);
+
+impl From<OldRateCache> for RateCache {
+    fn from(_: OldRateCache) -> Self {
+        RateCache::default()
+    }
+}
+
+#[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
+struct OldRateCacheEntry {
+    expired_at: u64,
+    data: Option<AssetDataResult>,
+}
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub struct OldFeedStorage(HashMap<String, OldFeed>);
 
 impl From<OldFeedStorage> for FeedStorage {
     fn from(old: OldFeedStorage) -> Self {
-        let new = old.0.into_iter().map(|(id, feed)| (id, feed.into())).collect();
+        let new = old
+            .0
+            .into_iter()
+            .map(|(id, feed)| (id, feed.into()))
+            .collect();
 
         FeedStorage(new)
     }
 }
 
-
 impl From<OldFeed> for Feed {
     fn from(old: OldFeed) -> Self {
         Self {
-            id: old.id,
-            feed_type: old.pair_type.into(),
+            id: if let Some(id) = old.id {
+                id
+            } else if let Some(feed_id) = old.feed_id {
+                feed_id
+            } else {
+                unreachable!("No feed id found")
+            },
+            feed_type: old.pair_type.clone().into(),
             update_freq: old.update_freq,
+            sources: if let OldFeedType::Custom { sources } = old.pair_type {
+                Some(sources)
+            } else {
+                None
+            },
             decimals: old.decimals,
             status: old.status.into(),
             owner: old.owner,
@@ -51,16 +79,16 @@ impl From<OldFeed> for Feed {
     }
 }
 
-
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub struct OldFeed {
-    pub id: String,
+    pub id: Option<String>,
+    pub feed_id: Option<String>,
     pub pair_type: OldFeedType,
     pub update_freq: Seconds,
-    pub decimals: u64,
+    pub decimals: Option<u64>,
     pub status: OldFeedStatus,
     pub owner: Address,
-    pub data: Option<RateDataLight>,
+    pub data: Option<AssetDataResult>,
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
@@ -72,11 +100,10 @@ pub enum OldFeedType {
     Default,
 }
 
-
 impl From<OldFeedType> for FeedType {
     fn from(old: OldFeedType) -> Self {
         match old {
-            OldFeedType::Custom { sources } => FeedType::Custom { sources },
+            OldFeedType::Custom { .. } => FeedType::Custom,
             OldFeedType::Default => FeedType::Default,
         }
     }
@@ -99,11 +126,25 @@ impl From<OldFeedStatus> for FeedStatus {
     }
 }
 
+#[derive(CandidType, Serialize, Deserialize, Debug, Clone, Default)]
+pub struct DataFetchersStorage(HashMap<Nat, DataFetcher>);
+
+#[derive(CandidType, Serialize, Deserialize, Debug, Clone, Default)]
+pub struct DataFethcersIndexer(Nat);
+
+#[derive(CandidType, Serialize, Deserialize, Debug, Clone, Default)]
+pub struct DataFetcher {
+    pub id: Nat,
+    pub update_freq: Nat,
+    pub owner: Address,
+    pub sources: Vec<Source>,
+}
 
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug)]
 pub struct OldState {
     pub exchange_rate_canister: Principal,
     pub fallback_xrc: Option<Principal>,
+    pub rpc_wrapper: Option<String>,
     pub key_name: String,
     pub mock: bool,
     pub pairs: Option<OldFeedStorage>,
@@ -112,10 +153,9 @@ pub struct OldState {
     pub balances_cfg: BalancesCfg,
     pub eth_address: Option<Address>,
     pub whitelist: Whitelist,
-    pub data_fetchers: DataFetchersStorage,
-    pub data_fetchers_indexer: DataFethcersIndexer,
+    pub data_fetchers: Option<DataFetchersStorage>,
+    pub data_fetchers_indexer: Option<DataFethcersIndexer>,
 }
-
 
 impl From<OldState> for State {
     fn from(state: OldState) -> Self {
@@ -124,6 +164,7 @@ impl From<OldState> for State {
             fallback_xrc: state.fallback_xrc.unwrap_or_else(|| {
                 Principal::from_text("a3uxy-eiaaa-aaaao-a2qaa-cai").expect("Invalid principal")
             }),
+            rpc_wrapper: state.rpc_wrapper.unwrap_or_default(),
             key_name: state.key_name,
             mock: state.mock,
             feeds: if let Some(pairs) = state.pairs {
@@ -137,8 +178,6 @@ impl From<OldState> for State {
             balances_cfg: state.balances_cfg,
             eth_address: state.eth_address,
             whitelist: state.whitelist,
-            data_fetchers: state.data_fetchers,
-            data_fetchers_indexer: state.data_fetchers_indexer,
         }
     }
 }
@@ -210,7 +249,7 @@ fn pre_upgrade() {
 fn post_upgrade() {
     let (state, cache, monitor_data, http_cache, signatures_cache, metrics): (
         OldState,
-        RateCache,
+        OldRateCache,
         monitor::PostUpgradeStableData,
         HttpCache,
         SignaturesCache,
@@ -224,7 +263,7 @@ fn post_upgrade() {
     set_custom_panic_hook();
 
     STATE.with(|s| s.replace(state));
-    CACHE.with(|c| c.replace(cache));
+    CACHE.with(|c| c.replace(cache.into()));
     HTTP_CACHE.with(|c| c.replace(http_cache));
     SIGNATURES_CACHE.with(|c| c.replace(signatures_cache));
 
@@ -241,9 +280,10 @@ fn post_upgrade() {
                     FeedType::Default => {
                         default_feeds += 1;
                     }
-                    FeedType::Custom { .. } => {
+                    FeedType::Custom => {
                         custom_feeds += 1;
                     }
+                    _ => {}
                 }
             }
 

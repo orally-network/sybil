@@ -54,16 +54,22 @@ impl<F: FnOnce()> Drop for Defer<F> {
 #[macro_export]
 macro_rules! retry_until_success {
     ($func:expr) => {{
-        let mut result = $func.await;
+        const MAX_RETRIES: u32 = 5;
         const DURATION_BETWEEN_ATTEMPTS: std::time::Duration =
-            std::time::Duration::from_millis(5000);
+            std::time::Duration::from_millis(1000);
+
+        let mut attempts = 0u32;
+        let mut result = $func.await;
 
         while result.is_err()
-            && format!("{:?}", result.as_ref().unwrap_err())
+            && (format!("{:?}", result.as_ref().unwrap_err())
                 .contains("Canister http responses were different across replicas")
+                || format!("{:?}", result.as_ref().unwrap_err()).contains("Timeout expired"))
+            && attempts < MAX_RETRIES
         {
             crate::utils::sleep(DURATION_BETWEEN_ATTEMPTS).await;
             result = $func.await;
+            attempts += 1;
         }
 
         result

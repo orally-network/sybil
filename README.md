@@ -44,7 +44,7 @@ Version: 1
 Chain ID: 324
 Nonce: NUY87tYWuZwkxrTZM
 Issued At: 2023-11-03T11:40:39.690Z" &&
-SIWE_SIG="31f8f8ea2104062e242dc13b9729c75b866e1ab1635c69404a1e7438221ff23849ea6a82e2544d28b4a16075f27fd3db6569e8664191af501572ad342e616c0300" &&
+SIWE_SIG="31f8f8ea2104062e242dc13b9729c75b866e1ab1635c69404a1e7438221ff23849ea6a82e2544d28b4a16075f27fd3db6569e8664191af501572ad342e616c0300" 
 TX_HASH="{Enter tx hash here, where you sent some tokens to the sybil address}" 
 ```
 
@@ -55,18 +55,17 @@ dfx canister call sybil add_to_whitelist "(\"${CALLER}\")"
 dfx canister call sybil eth_address
 dfx canister call sybil deposit "(\"${TX_HASH}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil get_balance "(\"${CALLER}\")"
-dfx canister call sybil create_custom_feed "(record {feed_id=\"QUI/USD\"; update_freq=360:nat; decimals=6:nat; sources=vec {record {uri=\"https://aws.qui0scit.dev/\"; resolver=\"/rate\"; expected_bytes=1048576}};msg=\"${SIWE_MSG}\"; sig=\"${SIWE_SIG}\"})"
-dfx canister call sybil get_asset_data "(\"QUI/USD\")"
+dfx canister call sybil create_custom_feed "(record {id=\"BTC/USDT\"; feed_type=variant {Custom}; update_freq=3600:nat; decimals=opt 6; sources=vec {record {uri=\"https://api.pro.coinbase.com/products/BTC-USDT/candles?granularity=60\"; resolver=\"/0/1\"}};msg=\"${SIWE_MSG}\"; sig=\"${SIWE_SIG}\"})"
+dfx canister call sybil remove_custom_feed "(\"custom_BTC/USDT\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
+dfx canister call sybil get_asset_data "(\"custom_BTC/USDT\")"
 dfx canister call sybil get_asset_data_with_proof "(\"QUI/USD\")"
-dfx canister call sybil create_default_feed "(record {feed_id=\"ETH/USD\"; update_freq=360:nat; decimals=6:nat})"
+dfx canister call sybil create_default_feed "(record {id=\"ETH/USD\"; update_freq=360:nat; decimals=6:nat})"
 dfx canister call sybil get_asset_data "(\"ETH/USD\")"
 dfx canister call sybil get_asset_data_with_proof "(\"ETH/USD\")"
 dfx canister call sybil get_feeds
 dfx canister call sybil withdraw "(1:nat, \"${CALLER}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil withdraw_fees "(\"${CALLER}\")"
-dfx canister call sybil create_data_fetcher "(record {update_freq=360:nat; sources=vec {record {uri=\"https://aws.qui0scit.dev/\"; resolver=\"/symbol\"; expected_bytes=1048576}}; msg=\"${SIWE_MSG}\"; sig=\"${SIWE_SIG}\"})"
 dfx canister call sybil get_data "(1:nat)"
-dfx canister call sybil get_data_fetchers "(\"${CALLER}\")"
 ```
 
 ## Test Enviroment Set Up

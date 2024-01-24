@@ -7,6 +7,7 @@ use validator::{Validate, ValidationErrors};
 
 use crate::log;
 use crate::metrics;
+use crate::types::feeds::FeedType;
 use crate::{
     types::{
         feeds::{Feed, FeedError, FeedStorage, Source},
@@ -38,11 +39,11 @@ pub enum CustomFeedError {
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]
 pub struct CreateCustomFeedRequest {
-    #[validate(regex = "validation::FEED_ID_REGEX")]
-    pub feed_id: String,
+    pub id: String,
     #[validate(custom = "validation::validate_update_freq")]
     pub update_freq: Nat,
-    pub decimals: Nat,
+    pub feed_type: FeedType,
+    pub decimals: Option<u64>,
     #[validate(length(min = 1, max = 5))]
     // second one is used for a nested validation of all sources
     #[validate]
@@ -58,13 +59,15 @@ pub async fn create_custom_feed(req: CreateCustomFeedRequest) -> Result<(), Stri
         .map_err(|e| format!("Failed to a create custom feed: {e}"))
 }
 
-pub async fn _create_custom_feed(req: CreateCustomFeedRequest) -> Result<(), CustomFeedError> {
+pub async fn _create_custom_feed(mut req: CreateCustomFeedRequest) -> Result<(), CustomFeedError> {
+    req.id = format!("custom_{}", req.id);
+
     let addr = siwe::recover(&req.msg, &req.sig).await?;
     if !Whitelist::contains(&addr) {
         return Err(WhitelistError::AddressNotWhitelisted.into());
     }
 
-    if FeedStorage::contains(&req.feed_id) {
+    if FeedStorage::contains(&req.id) {
         return Err(CustomFeedError::FeedAlreadyExists)?;
     }
 
@@ -80,7 +83,7 @@ pub async fn _create_custom_feed(req: CreateCustomFeedRequest) -> Result<(), Cus
 
     log!(
         "[FEEDS] custom feed created. id: {}, owner: {}",
-        req.feed_id,
+        req.id,
         addr
     );
     Ok(())

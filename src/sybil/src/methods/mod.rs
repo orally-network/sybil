@@ -1,8 +1,8 @@
 pub mod balances;
 pub mod controllers;
 pub mod custom_feeds;
-pub mod data_fetchers;
 pub mod default_feeds;
+pub mod signatures;
 pub mod transforms;
 pub mod whitelist;
 
@@ -20,7 +20,7 @@ use crate::{
     types::{
         feeds::{Feed, FeedError, FeedStorage, GetFeedsFilter},
         pagination::{Pagination, PaginationResult},
-        rate_data::RateDataLight,
+        rate_data::AssetDataResult,
     },
     utils::canister,
 };
@@ -32,8 +32,8 @@ pub enum AssetsError {
 }
 
 #[query]
-fn is_feed_exists(feed_id: String) -> bool {
-    FeedStorage::contains(&feed_id)
+fn is_feed_exists(id: String) -> bool {
+    FeedStorage::contains(&id)
 }
 
 #[query]
@@ -54,34 +54,34 @@ fn get_feeds(
 }
 
 #[update]
-pub async fn get_asset_data_with_proof(feed_id: String) -> Result<RateDataLight, String> {
-    _get_asset_data_with_proof(feed_id)
+pub async fn get_asset_data_with_proof(id: String) -> Result<AssetDataResult, String> {
+    _get_asset_data_with_proof(id)
         .await
         .map_err(|e| format!("failed to get asset data with proof: {}", e))
 }
 
-pub async fn _get_asset_data_with_proof(feed_id: String) -> Result<RateDataLight, AssetsError> {
-    metrics!(inc GET_ASSET_DATA_WITH_PROOF_CALLS, feed_id);
-    let rate = FeedStorage::rate(&feed_id, true).await?;
+pub async fn _get_asset_data_with_proof(id: String) -> Result<AssetDataResult, AssetsError> {
+    metrics!(inc GET_ASSET_DATA_WITH_PROOF_CALLS, id);
+    let rate = FeedStorage::rate(&id, true).await?;
 
-    metrics!(inc SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS, feed_id);
+    metrics!(inc SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS, id);
     Ok(rate)
 }
 
 #[update]
-pub async fn get_asset_data(feed_id: String) -> Result<RateDataLight, String> {
-    _get_asset_data(feed_id)
+pub async fn get_asset_data(id: String) -> Result<AssetDataResult, String> {
+    _get_asset_data(id)
         .await
         .map_err(|e| format!("failed to get asset data: {}", e))
 }
 
-async fn _get_asset_data(feed_id: String) -> Result<RateDataLight, AssetsError> {
-    metrics!(inc GET_ASSET_DATA_CALLS, feed_id);
-    let mut rate = FeedStorage::rate(&feed_id, false).await?;
+async fn _get_asset_data(id: String) -> Result<AssetDataResult, AssetsError> {
+    metrics!(inc GET_ASSET_DATA_CALLS, id);
+    let mut rate = FeedStorage::rate(&id, false).await?;
 
     rate.signature = None;
 
-    metrics!(inc SUCCESSFUL_GET_ASSET_DATA_CALLS, feed_id);
+    metrics!(inc SUCCESSFUL_GET_ASSET_DATA_CALLS, id);
     Ok(rate)
 }
 
