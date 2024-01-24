@@ -36,7 +36,7 @@ impl From<OldRateCache> for RateCache {
 #[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
 struct OldRateCacheEntry {
     expired_at: u64,
-    data: AssetDataResult,
+    data: Option<AssetDataResult>,
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
