@@ -21,7 +21,7 @@ use crate::{
     jobs::cache_cleaner,
     log,
     methods::{custom_feeds::CreateCustomFeedRequest, default_feeds::CreateDefaultFeedRequest},
-    metrics,
+    metrics, retry_until_success,
     types::exchange_rate::Service,
     utils::{
         canister, nat,
@@ -101,7 +101,8 @@ impl Source {
 
         defer!(cache_cleaner::execute());
 
-        let (response, cached_at) = HttpCache::request_with_access(&req, expr_freq).await?;
+        let (response, cached_at) =
+            retry_until_success!(HttpCache::request_with_access(&req, expr_freq))?;
         let bytes = response.body.len();
 
         let ptr = Pointer::try_from(self.resolver.clone())
