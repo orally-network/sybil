@@ -33,6 +33,7 @@ use crate::{
     CACHE, STATE,
 };
 
+const ORALLY_WRAPPER_CAHCHE_TTL: u64 = 30000; // 30 seconds
 const MIN_EXPECTED_BYTES: u64 = 1;
 const MAX_EXPECTED_BYTES: u64 = 1024 * 1024 * 2;
 const RATE_FETCH_DEFAULT_XRC_MAX_RETRIES: u64 = 5;
@@ -85,7 +86,12 @@ impl Source {
     pub async fn rate(&self, expr_freq: Seconds) -> Result<RateResult, HttpCacheError> {
         let rpc_wrapper = clone_with_state!(rpc_wrapper);
         let req = CanisterHttpRequestArgument {
-            url: format!("{}{}", rpc_wrapper, urlencoding::encode(&self.uri.clone())),
+            url: format!(
+                "{}{}&cacheTTL={}",
+                rpc_wrapper,
+                urlencoding::encode(&self.uri.clone()),
+                ORALLY_WRAPPER_CAHCHE_TTL
+            ),
             max_response_bytes: self.expected_bytes,
             headers: Self::get_default_headers(),
             ..Default::default()
