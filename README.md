@@ -55,11 +55,11 @@ dfx canister call sybil add_to_whitelist "(\"${CALLER}\")"
 dfx canister call sybil eth_address
 dfx canister call sybil deposit "(\"${TX_HASH}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil get_balance "(\"${CALLER}\")"
-dfx canister call sybil create_custom_feed "(record {feed_id=\"BTC/USDT\"; feed_type=variant {Custom}; update_freq=3600:nat; decimals=opt 6; sources=vec {record {uri=\"https://api.pro.coinbase.com/products/BTC-USDT/candles?granularity=60\"; resolver=\"/0/1\"}};msg=\"${SIWE_MSG}\"; sig=\"${SIWE_SIG}\"})"
+dfx canister call sybil create_custom_feed "(record {id=\"BTC/USDT\"; feed_type=variant {Custom}; update_freq=3600:nat; decimals=opt 6; sources=vec {record {uri=\"https://api.pro.coinbase.com/products/BTC-USDT/candles?granularity=60\"; resolver=\"/0/1\"}};msg=\"${SIWE_MSG}\"; sig=\"${SIWE_SIG}\"})"
 dfx canister call sybil remove_custom_feed "(\"custom_BTC/USDT\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil get_asset_data "(\"custom_BTC/USDT\")"
 dfx canister call sybil get_asset_data_with_proof "(\"QUI/USD\")"
-dfx canister call sybil create_default_feed "(record {feed_id=\"ETH/USD\"; update_freq=360:nat; decimals=6:nat})"
+dfx canister call sybil create_default_feed "(record {id=\"ETH/USD\"; update_freq=360:nat; decimals=6:nat})"
 dfx canister call sybil get_asset_data "(\"ETH/USD\")"
 dfx canister call sybil get_asset_data_with_proof "(\"ETH/USD\")"
 dfx canister call sybil get_feeds

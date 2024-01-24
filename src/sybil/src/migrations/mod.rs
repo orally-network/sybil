@@ -57,7 +57,13 @@ impl From<OldFeedStorage> for FeedStorage {
 impl From<OldFeed> for Feed {
     fn from(old: OldFeed) -> Self {
         Self {
-            id: old.id,
+            id: if let Some(id) = old.id {
+                id
+            } else if let Some(feed_id) = old.feed_id {
+                feed_id
+            } else {
+                unreachable!("No feed id found")
+            },
             feed_type: old.pair_type.clone().into(),
             update_freq: old.update_freq,
             sources: if let OldFeedType::Custom { sources } = old.pair_type {
@@ -75,7 +81,8 @@ impl From<OldFeed> for Feed {
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub struct OldFeed {
-    pub id: String,
+    pub id: Option<String>,
+    pub feed_id: Option<String>,
     pub pair_type: OldFeedType,
     pub update_freq: Seconds,
     pub decimals: Option<u64>,

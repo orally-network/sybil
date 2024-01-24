@@ -231,7 +231,7 @@ pub struct FeedStorage(pub(crate) HashMap<String, Feed>);
 impl From<CreateCustomFeedRequest> for Feed {
     fn from(req: CreateCustomFeedRequest) -> Self {
         Self {
-            id: req.feed_id,
+            id: req.id,
             feed_type: req.feed_type,
             sources: Some(req.sources),
             update_freq: nat::to_u64(&req.update_freq),
@@ -244,7 +244,7 @@ impl From<CreateCustomFeedRequest> for Feed {
 impl From<CreateDefaultFeedRequest> for Feed {
     fn from(req: CreateDefaultFeedRequest) -> Self {
         Self {
-            id: req.feed_id,
+            id: req.id,
             feed_type: FeedType::Default,
             update_freq: nat::to_u64(&req.update_freq),
             decimals: Some(nat::to_u64(&req.decimals)),
@@ -260,23 +260,23 @@ impl FeedStorage {
         })
     }
 
-    pub fn remove(feed_id: &str) {
+    pub fn remove(id: &str) {
         STATE.with(|state| {
-            state.borrow_mut().feeds.0.remove(feed_id);
+            state.borrow_mut().feeds.0.remove(id);
         })
     }
 
-    pub async fn rate(feed_id: &str, with_signature: bool) -> Result<AssetDataResult, FeedError> {
-        let mut rate = match Self::get(feed_id) {
+    pub async fn rate(id: &str, with_signature: bool) -> Result<AssetDataResult, FeedError> {
+        let mut rate = match Self::get(id) {
             Some(feed) => match feed.feed_type.clone() {
                 FeedType::Default => {
-                    log!("[FEEDS] default feed requested: feed ID: {}", feed_id);
+                    log!("[FEEDS] default feed requested: feed ID: {}", id);
                     Self::get_default_rate(&feed).await
                 }
                 FeedType::Custom | FeedType::CustomNumber | FeedType::CustomString => {
                     log!(
                         "[FEEDS] cusom feed requested: feed ID: {}, sources: {:#?}",
-                        feed_id,
+                        id,
                         feed.sources.clone().unwrap()
                     );
                     Self::get_custom_rate(&feed, &feed.sources.clone().unwrap()).await
@@ -291,11 +291,7 @@ impl FeedStorage {
 
         STATE.with(|state| {
             let mut state = state.borrow_mut();
-            let feed = state
-                .feeds
-                .0
-                .get_mut(feed_id)
-                .ok_or(FeedError::FeedNotFound)?;
+            let feed = state.feeds.0.get_mut(id).ok_or(FeedError::FeedNotFound)?;
 
             feed.data = Some(rate.clone());
 
@@ -556,12 +552,12 @@ impl FeedStorage {
         }
     }
 
-    pub fn get(feed_id: &str) -> Option<Feed> {
-        STATE.with(|state| state.borrow().feeds.0.get(feed_id).cloned())
+    pub fn get(id: &str) -> Option<Feed> {
+        STATE.with(|state| state.borrow().feeds.0.get(id).cloned())
     }
 
-    pub fn get_assets(feed_id: &str) -> Option<(Asset, Asset)> {
-        let assets: Vec<&str> = feed_id.split_terminator('/').collect();
+    pub fn get_assets(id: &str) -> Option<(Asset, Asset)> {
+        let assets: Vec<&str> = id.split_terminator('/').collect();
 
         if let (Some(base_asset), Some(quote_asset)) = (assets.first(), assets.last()) {
             return Some((
@@ -579,8 +575,8 @@ impl FeedStorage {
         None
     }
 
-    pub fn contains(feed_id: &str) -> bool {
-        STATE.with(|state| state.borrow().feeds.0.contains_key(feed_id))
+    pub fn contains(id: &str) -> bool {
+        STATE.with(|state| state.borrow().feeds.0.contains_key(id))
     }
 
     pub fn get_all(filter: Option<GetFeedsFilter>) -> Vec<Feed> {

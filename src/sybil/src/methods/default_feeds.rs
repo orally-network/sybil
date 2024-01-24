@@ -30,7 +30,7 @@ pub enum DefaultFeedError {
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]
 pub struct CreateDefaultFeedRequest {
     #[validate(regex = "validation::FEED_ID_REGEX")]
-    pub feed_id: String,
+    pub id: String,
     pub decimals: Nat,
     #[validate(custom = "validation::validate_update_freq")]
     pub update_freq: Nat,
@@ -45,7 +45,7 @@ pub async fn create_default_feed(req: CreateDefaultFeedRequest) -> Result<(), St
 
 async fn _create_default_feed(req: CreateDefaultFeedRequest) -> Result<(), DefaultFeedError> {
     validate_caller()?;
-    if FeedStorage::contains(&req.feed_id) {
+    if FeedStorage::contains(&req.id) {
         return Err(DefaultFeedError::FeedAlreadyExists);
     }
 
@@ -54,13 +54,13 @@ async fn _create_default_feed(req: CreateDefaultFeedRequest) -> Result<(), Defau
     FeedStorage::get_default_rate(&feed).await?;
     FeedStorage::add(feed);
 
-    log!("[FEEDS] default feed added. Feed ID: {}", req.feed_id);
+    log!("[FEEDS] default feed added. Feed ID: {}", req.id);
     Ok(())
 }
 
 #[update]
-pub async fn remove_default_feed(feed_id: String) -> Result<(), String> {
-    _remove_default_feed(feed_id)
+pub async fn remove_default_feed(id: String) -> Result<(), String> {
+    _remove_default_feed(id)
         .await
         .map_err(|err| format!("failed to remove a feed: {err}"))
 }

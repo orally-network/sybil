@@ -25,7 +25,7 @@ type Feed = record {
 };
 
 type CreateCustomFeedRequest = record {
-    feed_id : text;
+    id : text;
     update_freq : nat;
     feed_type : FeedType;
     decimals : opt nat64;
@@ -35,7 +35,7 @@ type CreateCustomFeedRequest = record {
 };
 
 type CreateDefaultFeedRequest = record {
-    feed_id : text;
+    id : text;
     update_freq : nat;
     decimals : nat;
 };
@@ -139,9 +139,9 @@ service : {
     remove_default_feed : (id : text) -> (Error);
 
     // assets 
-    get_asset_data_with_proof : (feed_id : text) -> (GetAssetDataWithProofResponse);
-    get_asset_data : (feed_id : text) -> (GetAssetDataResponse);
-    is_feed_exists : (feed_id : text) -> (bool);
+    get_asset_data_with_proof : (id : text) -> (GetAssetDataWithProofResponse);
+    get_asset_data : (id : text) -> (GetAssetDataResponse);
+    is_feed_exists : (id : text) -> (bool);
     get_feeds : (filter: opt GetFeedsFilter, pagination: opt Pagination) -> (GetFeedsResultWithPagination);
     
     // controllers

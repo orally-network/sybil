@@ -39,7 +39,7 @@ pub enum CustomFeedError {
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]
 pub struct CreateCustomFeedRequest {
-    pub feed_id: String,
+    pub id: String,
     #[validate(custom = "validation::validate_update_freq")]
     pub update_freq: Nat,
     pub feed_type: FeedType,
@@ -60,14 +60,14 @@ pub async fn create_custom_feed(req: CreateCustomFeedRequest) -> Result<(), Stri
 }
 
 pub async fn _create_custom_feed(mut req: CreateCustomFeedRequest) -> Result<(), CustomFeedError> {
-    req.feed_id = format!("custom_{}", req.feed_id);
+    req.id = format!("custom_{}", req.id);
 
     let addr = siwe::recover(&req.msg, &req.sig).await?;
     if !Whitelist::contains(&addr) {
         return Err(WhitelistError::AddressNotWhitelisted.into());
     }
 
-    if FeedStorage::contains(&req.feed_id) {
+    if FeedStorage::contains(&req.id) {
         return Err(CustomFeedError::FeedAlreadyExists)?;
     }
 
@@ -83,7 +83,7 @@ pub async fn _create_custom_feed(mut req: CreateCustomFeedRequest) -> Result<(),
 
     log!(
         "[FEEDS] custom feed created. id: {}, owner: {}",
-        req.feed_id,
+        req.id,
         addr
     );
     Ok(())
