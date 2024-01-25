@@ -218,14 +218,6 @@ impl Feed {
     pub fn set_owner(&mut self, owner: Address) {
         self.owner = owner;
     }
-
-    pub fn shrink_sources(&mut self) {
-        if let Some(sources) = &mut self.sources {
-            sources.retain(|source| {
-                source.expected_bytes.is_some() && source.expected_bytes.unwrap() > 0
-            });
-        }
-    }
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
