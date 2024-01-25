@@ -42,7 +42,6 @@ fn get_feeds(
     pagination: Option<Pagination>,
 ) -> PaginationResult<Feed> {
     let mut feeds = FeedStorage::get_all(filter);
-    feeds.iter_mut().for_each(|feed| feed.shrink_sources());
 
     match pagination {
         Some(pagination) => {
