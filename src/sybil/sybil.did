@@ -143,6 +143,7 @@ service : {
     get_asset_data : (id : text) -> (GetAssetDataResponse);
     is_feed_exists : (id : text) -> (bool);
     get_feeds : (filter: opt GetFeedsFilter, pagination: opt Pagination) -> (GetFeedsResultWithPagination);
+    get_feed : (id: text) -> (opt Feed);
     
     // controllers
     sign_message : (msg : text) -> (TextResponse);

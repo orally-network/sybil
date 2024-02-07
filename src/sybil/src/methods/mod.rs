@@ -37,6 +37,11 @@ fn is_feed_exists(id: String) -> bool {
 }
 
 #[query]
+fn get_feed(id: String) -> Option<Feed> {
+    FeedStorage::get(&id)
+}
+
+#[query]
 fn get_feeds(
     filter: Option<GetFeedsFilter>,
     pagination: Option<Pagination>,
