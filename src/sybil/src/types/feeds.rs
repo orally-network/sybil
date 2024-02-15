@@ -69,9 +69,22 @@ pub enum FeedError {
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]
+pub struct ApiKey {
+    pub title: String,
+    pub key: String,
+}
+
+impl ApiKey {
+    pub fn censor(&mut self) {
+        self.key = "***".to_string();
+    }
+}
+
+#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]
 pub struct Source {
     #[validate(url)]
     pub uri: String,
+    pub api_keys: Option<Vec<ApiKey>>,
     #[validate(regex = "validation::RATE_RESOLVER")]
     pub resolver: String,
     #[validate(range(min = "MIN_EXPECTED_BYTES", max = "MAX_EXPECTED_BYTES"))]
@@ -91,7 +104,7 @@ impl Source {
             url: format!(
                 "{}{}&cacheTTL={}",
                 rpc_wrapper,
-                urlencoding::encode(&self.uri.clone()),
+                urlencoding::encode(&self.get_url_with_keys()),
                 ORALLY_WRAPPER_CAHCHE_TTL
             ),
             max_response_bytes: self.expected_bytes,
@@ -135,9 +148,21 @@ impl Source {
         ]
     }
 
+    pub fn get_url_with_keys(&self) -> String {
+        let mut url = self.uri.clone();
+
+        if let Some(api_keys) = &self.api_keys {
+            for api_key in api_keys {
+                url = url.replace(&api_key.title, &api_key.key);
+            }
+        }
+
+        url
+    }
+
     pub async fn data(&self, expr_freq: Seconds) -> Result<(String, Seconds), HttpCacheError> {
         let req = CanisterHttpRequestArgument {
-            url: self.uri.clone(),
+            url: self.get_url_with_keys(),
             max_response_bytes: self.expected_bytes,
             ..Default::default()
         };
@@ -217,6 +242,26 @@ pub struct Feed {
 impl Feed {
     pub fn set_owner(&mut self, owner: Address) {
         self.owner = owner;
+    }
+
+    // Censors the sources if needed
+    pub fn censor_if_needed(&mut self, caller: &Option<Address>) {
+        // If caller is not the owner of the feed,
+        // then censor the sources
+
+        let is_needed_to_be_censored =
+            caller.is_none() || caller.as_ref().is_some_and(|caller| &self.owner != caller);
+
+        if is_needed_to_be_censored {
+            self.sources.as_mut().map(|sources| {
+                sources.iter_mut().for_each(|source| {
+                    source
+                        .api_keys
+                        .as_mut()
+                        .map(|api_keys| api_keys.iter_mut().for_each(|api_key| api_key.censor()));
+                })
+            });
+        }
     }
 }
 
@@ -613,7 +658,7 @@ impl FeedStorage {
                             let sources = match &feed.sources {
                                 Some(sources) => sources
                                     .iter()
-                                    .map(|source| source.uri.trim().to_lowercase())
+                                    .map(|source| source.get_url_with_keys().trim().to_lowercase())
                                     .collect::<Vec<_>>(),
                                 _ => vec![],
                             };
