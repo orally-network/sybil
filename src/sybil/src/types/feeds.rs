@@ -153,7 +153,7 @@ impl Source {
 
         if let Some(api_keys) = &self.api_keys {
             for api_key in api_keys {
-                url = url.replace(&api_key.title, &api_key.key);
+                url = url.replace(&format!("{{{}}}", &api_key.title), &api_key.key);
             }
         }
 
