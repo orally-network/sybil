@@ -22,13 +22,15 @@ use crate::{
         pagination::{Pagination, PaginationResult},
         rate_data::AssetDataResult,
     },
-    utils::canister,
+    utils::{canister, siwe},
 };
 
 #[derive(Error, Debug)]
 pub enum AssetsError {
     #[error("Feed error: {0}")]
     FeedError(#[from] FeedError),
+    #[error("Siwe error: {0}")]
+    SiweError(#[from] siwe::SiweError),
 }
 
 #[query]
@@ -37,18 +39,71 @@ fn is_feed_exists(id: String) -> bool {
 }
 
 #[query]
-fn get_feeds(
+async fn get_feed(
+    id: String,
+    msg: Option<String>,
+    sig: Option<String>,
+) -> Result<Option<Feed>, String> {
+    _get_feed(id, msg, sig)
+        .await
+        .map_err(|e| format!("failed to get feed: {}", e))
+}
+
+async fn _get_feed(
+    id: String,
+    msg: Option<String>,
+    sig: Option<String>,
+) -> Result<Option<Feed>, AssetsError> {
+    let caller = if let (Some(msg), Some(sig)) = (msg, sig) {
+        Some(siwe::recover(&msg, &sig).await?)
+    } else {
+        None
+    };
+
+    if let Some(mut feed) = FeedStorage::get(&id) {
+        feed.censor_if_needed(&caller);
+        Ok(Some(feed))
+    } else {
+        Ok(None)
+    }
+}
+
+#[query]
+async fn get_feeds(
     filter: Option<GetFeedsFilter>,
     pagination: Option<Pagination>,
-) -> PaginationResult<Feed> {
+    msg: Option<String>,
+    sig: Option<String>,
+) -> Result<PaginationResult<Feed>, String> {
+    _get_feeds(filter, pagination, msg, sig)
+        .await
+        .map_err(|e| format!("failed to get feeds: {}", e))
+}
+
+async fn _get_feeds(
+    filter: Option<GetFeedsFilter>,
+    pagination: Option<Pagination>,
+    msg: Option<String>,
+    sig: Option<String>,
+) -> Result<PaginationResult<Feed>, AssetsError> {
+    let caller = if let (Some(msg), Some(sig)) = (msg, sig) {
+        Some(siwe::recover(&msg, &sig).await?)
+    } else {
+        None
+    };
+
     let mut feeds = FeedStorage::get_all(filter);
+
+    feeds
+        .iter_mut()
+        .for_each(|feed| feed.censor_if_needed(&caller));
 
     match pagination {
         Some(pagination) => {
             feeds.sort_by(|l, r| l.id.cmp(&r.id));
-            pagination.paginate(feeds)
+            Ok(pagination.paginate(feeds))
         }
-        None => feeds.into(),
+        None => Ok(feeds.into()),
     }
 }
 
