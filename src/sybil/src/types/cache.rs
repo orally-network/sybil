@@ -12,6 +12,7 @@ use hex::FromHexError;
 use ic_web3_rs::signing::keccak256;
 use serde_json::Error as SerdeError;
 use thiserror::Error;
+use validator::ValidationErrors;
 
 use crate::utils::signature::{get_eth_v, sign};
 use crate::{
@@ -123,6 +124,16 @@ pub enum HttpCacheError {
 
 impl HttpCache {
     pub async fn request_with_access(
+        request: &CanisterHttpRequestArgument,
+        expr_freq: Seconds,
+    ) -> Result<(HttpResponse, Seconds), HttpCacheError> {
+        let mut cache = HTTP_CACHE.with(|c| c.borrow().clone());
+        let response = cache.request(request, expr_freq).await;
+        HTTP_CACHE.with(|c| c.replace(cache));
+        response
+    }
+
+    pub async fn request_with_access_w3(
         request: &CanisterHttpRequestArgument,
         expr_freq: Seconds,
     ) -> Result<(HttpResponse, Seconds), HttpCacheError> {

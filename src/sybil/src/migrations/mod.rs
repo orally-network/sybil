@@ -11,8 +11,9 @@ use crate::{
     types::{
         balances::{Balances, BalancesCfg},
         cache::{HttpCache, RateCache, SignaturesCache},
-        feeds::{Feed, FeedStatus, FeedStorage, FeedType, Source},
+        feeds::{Feed, FeedStatus, FeedStorage, FeedType},
         rate_data::AssetDataResult,
+        source::{ApiKey, HttpSource, Source},
         state::State,
         whitelist::Whitelist,
         Address, Seconds, Timestamp,
@@ -23,6 +24,14 @@ use crate::{
     },
     CACHE, HTTP_CACHE, SIGNATURES_CACHE, STATE,
 };
+
+#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
+pub struct OldSource {
+    pub uri: String,
+    pub api_keys: Option<Vec<ApiKey>>,
+    pub resolver: String,
+    pub expected_bytes: Option<u64>,
+}
 
 #[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
 pub struct OldRateCache(HashMap<String, OldRateCacheEntry>);
@@ -67,7 +76,19 @@ impl From<OldFeed> for Feed {
             feed_type: old.pair_type.clone().into(),
             update_freq: old.update_freq,
             sources: if let OldFeedType::Custom { sources } = old.pair_type {
-                Some(sources)
+                Some(
+                    sources
+                        .into_iter()
+                        .map(|s| {
+                            Source::HttpSource(HttpSource {
+                                uri: s.uri,
+                                api_keys: s.api_keys,
+                                resolver: s.resolver,
+                                expected_bytes: s.expected_bytes,
+                            })
+                        })
+                        .collect(),
+                )
             } else {
                 None
             },
@@ -94,7 +115,8 @@ pub struct OldFeed {
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub enum OldFeedType {
     Custom {
-        sources: Vec<Source>,
+        // TODO: change to regular Source after migration
+        sources: Vec<OldSource>,
     },
     #[default]
     Default,

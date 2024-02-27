@@ -3,10 +3,12 @@ use std::str::FromStr;
 use candid::Nat;
 use ic_web3_rs::{
     contract::{tokens::Tokenizable, Contract, Options},
-    ethabi::{Address, Error as EthabiError, Token},
+    ethabi::{Address, Error as EthabiError, Token, TopicFilter},
     ic::KeyInfo,
     transports::ICHttp,
-    types::{Transaction, TransactionId, TransactionReceipt, H256},
+    types::{
+        BlockNumber, FilterBuilder, Log, Transaction, TransactionId, TransactionReceipt, H160, H256,
+    },
     Error as Web3ClientError, Web3,
 };
 
@@ -30,6 +32,8 @@ pub enum Web3Error {
     Canister(#[from] canister::CanisterError),
     #[error("Contract error: {0}")]
     Contract(String),
+    #[error("Unable to get logs: {0}")]
+    UnableToGetLogs(String),
     #[error("ethabi error: {0}")]
     Ethabi(#[from] EthabiError),
 }
@@ -48,6 +52,48 @@ pub async fn tx_receipt(
         .eth()
         .transaction_receipt(*tx_hash, processors::transform_ctx_tx_with_logs())
         .await?)
+}
+
+pub async fn get_logs(
+    w3: &Web3<ICHttp>,
+    from: Option<u64>,
+    to: Option<u64>,
+    topic: Option<H256>,
+    address: Option<H160>,
+    block_hash: Option<H256>,
+) -> Result<Vec<Log>, Web3Error> {
+    let mut filter_builder = FilterBuilder::default();
+
+    if let Some(from) = from {
+        filter_builder = filter_builder.from_block(BlockNumber::Number(from.into()));
+    }
+
+    if let Some(to) = to {
+        filter_builder = filter_builder.from_block(BlockNumber::Number(to.into()));
+    }
+
+    if let Some(topic) = topic {
+        filter_builder = filter_builder.topic_filter(TopicFilter {
+            topic0: ic_web3_rs::ethabi::Topic::This(topic),
+            ..Default::default()
+        });
+    }
+
+    if let Some(address) = address {
+        filter_builder = filter_builder.address(vec![address]);
+    }
+
+    if let Some(block_hash) = block_hash {
+        filter_builder = filter_builder.block_hash(block_hash);
+    }
+
+    let logs = w3
+        .eth()
+        .logs(filter_builder.build(), processors::transform_ctx())
+        .await
+        .map_err(|err| Web3Error::UnableToGetLogs(err.to_string()))?;
+
+    Ok(logs)
 }
 
 pub async fn tx_by_hash(

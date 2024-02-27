@@ -3,11 +3,30 @@ type ApiKey = record {
     key : text;
 };
 
-type Source = record {
+type Source = variant {
+    HttpSource : HttpSource;
+    EvmEventLogsSource : EvmEventLogsSource;
+};
+
+
+type HttpSource = record {
     uri : text;
     api_keys : opt vec ApiKey;
     resolver : text;
     expected_bytes : opt nat64;
+};
+
+type EvmEventLogsSource = record {
+    rpc : text;
+    from_block : opt nat64;
+    to_block : opt nat64;
+    address : opt text;
+    topic : opt text;
+    block_hash : opt text;
+    log_index : nat32;
+    event_log_field_name : text;
+    event_name : text;
+    event_abi : text;
 };
 
 type FeedType = variant { Custom : null; CustomNumber : null; CustomString : null; Default : null };
