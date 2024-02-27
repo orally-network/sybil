@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::{log, utils::validation};
+use crate::utils::validation;
 use candid::CandidType;
 use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpHeader};
 use ic_web3_rs::{

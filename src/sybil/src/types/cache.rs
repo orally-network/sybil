@@ -12,7 +12,6 @@ use hex::FromHexError;
 use ic_web3_rs::signing::keccak256;
 use serde_json::Error as SerdeError;
 use thiserror::Error;
-use validator::ValidationErrors;
 
 use crate::utils::signature::{get_eth_v, sign};
 use crate::{

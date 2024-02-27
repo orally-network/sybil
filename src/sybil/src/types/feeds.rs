@@ -2,7 +2,7 @@ use std::{collections::HashMap, time::Duration};
 
 use candid::CandidType;
 use ic_web3_rs::futures::future::join_all;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
