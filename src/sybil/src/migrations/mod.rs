@@ -66,16 +66,10 @@ impl From<OldFeedStorage> for FeedStorage {
 impl From<OldFeed> for Feed {
     fn from(old: OldFeed) -> Self {
         Self {
-            id: if let Some(id) = old.id {
-                id
-            } else if let Some(feed_id) = old.feed_id {
-                feed_id
-            } else {
-                unreachable!("No feed id found")
-            },
-            feed_type: old.pair_type.clone().into(),
+            id: old.id,
+            feed_type: old.feed_type,
             update_freq: old.update_freq,
-            sources: if let OldFeedType::Custom { sources } = old.pair_type {
+            sources: if let Some(sources) = old.sources {
                 Some(
                     sources
                         .into_iter()
@@ -102,12 +96,12 @@ impl From<OldFeed> for Feed {
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub struct OldFeed {
-    pub id: Option<String>,
-    pub feed_id: Option<String>,
-    pub pair_type: OldFeedType,
+    pub id: String,
+    pub feed_type: FeedType,
     pub update_freq: Seconds,
+    pub sources: Option<Vec<HttpSource>>,
     pub decimals: Option<u64>,
-    pub status: OldFeedStatus,
+    pub status: FeedStatus,
     pub owner: Address,
     pub data: Option<AssetDataResult>,
 }
@@ -169,8 +163,7 @@ pub struct OldState {
     pub rpc_wrapper: Option<String>,
     pub key_name: String,
     pub mock: bool,
-    pub pairs: Option<OldFeedStorage>,
-    pub feeds: Option<FeedStorage>,
+    pub feeds: OldFeedStorage,
     pub balances: Balances,
     pub balances_cfg: BalancesCfg,
     pub eth_address: Option<Address>,
@@ -189,13 +182,7 @@ impl From<OldState> for State {
             rpc_wrapper: state.rpc_wrapper.unwrap_or_default(),
             key_name: state.key_name,
             mock: state.mock,
-            feeds: if let Some(pairs) = state.pairs {
-                pairs.into()
-            } else if let Some(feeds) = state.feeds {
-                feeds
-            } else {
-                unreachable!("No feeds found")
-            },
+            feeds: state.feeds.into(),
             balances: state.balances,
             balances_cfg: state.balances_cfg,
             eth_address: state.eth_address,
