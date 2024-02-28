@@ -119,15 +119,10 @@ impl Source {
     ) -> Result<RateResult, SourceError> {
         evm_event_logs_source.validate()?;
 
-        let rpc_wrapper = clone_with_state!(rpc_wrapper);
-        let url = format!(
-            "{}{}&cacheTTL={}",
-            rpc_wrapper,
-            urlencoding::encode(&evm_event_logs_source.rpc),
-            ORALLY_WRAPPER_CAHCHE_TTL
+        let w3 = web3::instance(
+            evm_event_logs_source.rpc.clone(),
+            clone_with_state!(evm_rpc_canister),
         );
-
-        let w3 = web3::instance(url, clone_with_state!(evm_rpc_canister));
 
         let topic = if let Some(topic) = &evm_event_logs_source.topic {
             Some(
