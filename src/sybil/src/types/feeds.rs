@@ -18,13 +18,7 @@ use crate::{
     methods::{custom_feeds::CreateCustomFeedRequest, default_feeds::CreateDefaultFeedRequest},
     metrics,
     types::exchange_rate::Service,
-    utils::{
-        canister, nat,
-        parsed_number::ParsedNumber,
-        siwe::SiweError,
-        sleep, time,
-        vec::{self, find_average},
-    },
+    utils::{canister, nat, parsed_number::ParsedNumber, siwe::SiweError, sleep, time, vec},
     CACHE, STATE,
 };
 
@@ -403,17 +397,40 @@ impl FeedStorage {
 
         match feed.feed_type {
             FeedType::CustomNumber => {
-                let rate = results
-                    .iter()
-                    .map(|value| {
-                        value
-                            .as_f64()
-                            .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType)
-                            .map(|rate| rate)
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
+                let parsed_results = match results.first().expect("rate is empty") {
+                    Value::String(_) => results
+                        .iter()
+                        .map(|value| {
+                            let s = value
+                                .as_str()
+                                .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType);
 
-                let value = find_average(&rate);
+                            s.map(|s| {
+                                s.parse::<f64>()
+                                    .map_err(|err| FeedError::UnableToConvertRate(err.to_string()))
+                            })
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                    Value::Number(_) => results
+                        .iter()
+                        .map(|value| {
+                            Ok::<Result<_, _>, FeedError>(
+                                value
+                                    .as_f64()
+                                    .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType),
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                    _ => Err(FeedError::ValueTypeIsNotCompatibleWithFeedType)?,
+                };
+
+                let mut rate = Vec::with_capacity(parsed_results.len());
+
+                for parsed_result in parsed_results {
+                    rate.push(parsed_result?);
+                }
+
+                let value = vec::find_average(&rate);
 
                 let parsed_number = ParsedNumber::parse(&value.to_string(), feed.decimals)
                     .map_err(|err| FeedError::UnableToConvertRate(err.to_string()))?;

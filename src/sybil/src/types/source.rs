@@ -199,7 +199,7 @@ impl Source {
             .value;
 
         let data = match token {
-            Token::Int(val) | Token::Uint(val) => serde_json::to_value(val)?,
+            Token::Int(val) | Token::Uint(val) => serde_json::to_value(val.to_string())?,
             Token::FixedArray(val) | Token::Array(val) | Token::Tuple(val) => {
                 serde_json::to_value(val)?
             }
