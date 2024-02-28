@@ -76,6 +76,7 @@ type BalancesCfg = record {
 type Cfg = record {
     exchange_rate_canister : principal;
     fallback_xrc : principal;
+    evm_rpc_canister : principal;
     rpc_wrapper : text;
     mock : bool;
     key_name : text;
@@ -85,6 +86,7 @@ type Cfg = record {
 type UpdateCfg = record {
     exchange_rate_canister : opt principal;
     fallback_xrc : opt principal;
+    evm_rpc_canister : opt principal;
     rpc_wrapper : opt text; 
     mock : opt bool;
     key_name : opt text;

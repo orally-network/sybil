@@ -34,14 +34,10 @@ pub enum BalanceError {
 
 #[derive(Error, Debug)]
 pub enum DepositError {
-    #[error("invalid tx hash")]
-    InvalidTxHash,
     #[error("balance error: {0}")]
     BalanceError(#[from] BalanceError),
     #[error("web3 error: {0}")]
     Web3Error(#[from] Web3Error),
-    #[error("tx does not exist")]
-    TxDoesNotExist,
     #[error("SIWE Error: {0}")]
     SIWEError(#[from] SiweError),
     #[error("tx is not finalized")]

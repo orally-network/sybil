@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::utils::validation;
+use crate::utils::{validation, web3};
 use candid::CandidType;
 use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpHeader};
 use ic_web3_rs::{
@@ -15,7 +15,6 @@ use validator::{Validate, ValidationErrors};
 
 use crate::{
     clone_with_state, defer, jobs::cache_cleaner, retry_until_success, types::cache::HttpCache,
-    utils::web3,
 };
 
 use super::{cache::HttpCacheError, feeds::RateResult, Seconds};
@@ -54,6 +53,8 @@ pub enum SourceError {
     HttpCacheError(#[from] HttpCacheError),
     #[error("Serde error: {0}")]
     SerdeError(#[from] serde_json::Error),
+    #[error("Web3 error: {0}")]
+    Web3Error(#[from] web3::Web3Error),
 }
 
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
@@ -126,7 +127,7 @@ impl Source {
             ORALLY_WRAPPER_CAHCHE_TTL
         );
 
-        let w3 = web3::client(&url);
+        let w3 = web3::instance(url, clone_with_state!(evm_rpc_canister));
 
         let topic = if let Some(topic) = &evm_event_logs_source.topic {
             Some(
@@ -155,16 +156,16 @@ impl Source {
             None
         };
 
-        let mut logs = web3::get_logs(
-            &w3,
-            evm_event_logs_source.from_block,
-            evm_event_logs_source.to_block,
-            topic,
-            address,
-            block_hash,
-        )
-        .await
-        .map_err(|err| SourceError::FailedToGetLogs(err.to_string()))?;
+        let mut logs = w3
+            .get_logs(
+                evm_event_logs_source.from_block,
+                evm_event_logs_source.to_block,
+                topic,
+                address,
+                block_hash,
+            )
+            .await
+            .map_err(|err| SourceError::FailedToGetLogs(err.to_string()))?;
 
         let contract = Contract::load(evm_event_logs_source.event_abi.as_bytes())
             .map_err(|err| SourceError::FailedToParseABI(err.to_string()))?;

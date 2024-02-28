@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use candid::CandidType;
+use serde::Deserialize;
 use sha3::{Digest, Keccak256};
 use thiserror::Error;
 
@@ -9,7 +11,7 @@ use ic_web3_rs::types::H160;
 const PREFIX: &str = "0x";
 const ADDRESS_LENGTH: usize = 40;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, CandidType, Deserialize)]
 pub enum AddressError {
     #[error("invalid hex")]
     InvalidHex,

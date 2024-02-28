@@ -66,10 +66,14 @@ dfx canister call sybil create_custom_feed "(record {id=\"get_logs_example\"; fe
 dfx canister call sybil get_asset_data "(\"custom_get_logs_example\")"
 dfx canister call sybil remove_custom_feed "(\"custom_get_logs_example\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 
-dfx canister call sybil get_asset_data_with_proof "(\"QUI/USD\")"
+# create default feed (feeds come from xrc)
 dfx canister call sybil create_default_feed "(record {id=\"ETH/USD\"; update_freq=360:nat; decimals=6:nat})"
 dfx canister call sybil get_asset_data "(\"ETH/USD\")"
 dfx canister call sybil get_asset_data_with_proof "(\"ETH/USD\")"
+dfx canister call sybil remove_default_feed "(\"ETH/USD\")"
+
+dfx canister call sybil update_cfg "(record {evm_rpc_canister = opt \"aovwi-4maaa-aaaaa-qaagq-cai\"})"
+
 dfx canister call sybil get_feeds "(null, null, opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 dfx canister call sybil withdraw "(1:nat, \"${CALLER}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil withdraw_fees "(\"${CALLER}\")"

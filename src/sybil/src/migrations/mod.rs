@@ -160,6 +160,7 @@ pub struct DataFetcher {
 pub struct OldState {
     pub exchange_rate_canister: Principal,
     pub fallback_xrc: Option<Principal>,
+    pub evm_rpc_canister: Option<Principal>,
     pub rpc_wrapper: Option<String>,
     pub key_name: String,
     pub mock: bool,
@@ -178,6 +179,9 @@ impl From<OldState> for State {
             exchange_rate_canister: state.exchange_rate_canister,
             fallback_xrc: state.fallback_xrc.unwrap_or_else(|| {
                 Principal::from_text("a3uxy-eiaaa-aaaao-a2qaa-cai").expect("Invalid principal")
+            }),
+            evm_rpc_canister: state.evm_rpc_canister.unwrap_or_else(|| {
+                Principal::from_text("aovwi-4maaa-aaaaa-qaagq-cai").expect("Invalid principal")
             }),
             rpc_wrapper: state.rpc_wrapper.unwrap_or_default(),
             key_name: state.key_name,
