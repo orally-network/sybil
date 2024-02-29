@@ -1,6 +1,9 @@
 use std::str::FromStr;
 
-use crate::utils::{validation, web3};
+use crate::{
+    log,
+    utils::{validation, web3},
+};
 use candid::CandidType;
 use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpHeader};
 use ic_web3_rs::{
@@ -169,16 +172,19 @@ impl Source {
             .event(&evm_event_logs_source.event_name)
             .map_err(|err| SourceError::FailedToParseABI(err.to_string()))?;
 
+        if logs.len() <= evm_event_logs_source.log_index as usize {
+            return Err(SourceError::InvalidRequest(
+                "Log index is out of range".to_string(),
+            ));
+        }
+
+        // Caution: log_index is used to move out the log from the logs vector
+        // logs vector will be changed after the next line
+        let log_at_index = logs.swap_remove(evm_event_logs_source.log_index as usize);
+
         let raw_log = RawLog {
-            // Caution: log_index is used to remove the log from the logs vector
-            // logs vector will be changed after next two lines
-            topics: logs
-                .swap_remove(evm_event_logs_source.log_index as usize)
-                .topics,
-            data: logs
-                .swap_remove(evm_event_logs_source.log_index as usize)
-                .data
-                .0,
+            topics: log_at_index.topics,
+            data: log_at_index.data.0,
         };
 
         let log = event

@@ -43,23 +43,13 @@ impl EVMCanisterTransport {
     }
 }
 
-#[derive(CandidType, Debug, Deserialize)]
-pub enum EthRpcError {
-    NoPermission,
-    TooFewCycles { expected: u128, received: u128 },
-    ServiceUrlParseError,
-    ServiceHostNotAllowed(String),
-    ProviderNotFound,
-    HttpRequestError { code: u32, message: String },
-}
-
 async fn execute_canister_call(
     ic_eth_rpc: Principal,
     service: RpcService,
     json_rpc_payload: String,
     max_response_bytes: u64,
 ) -> Result<Value, ic_web3_rs::Error> {
-    let (result,): (Result<String, EthRpcError>,) = call_with_payment128(
+    let (result,): (Result<String, cketh_common::eth_rpc::RpcError>,) = call_with_payment128(
         ic_eth_rpc,
         "request",
         (service, json_rpc_payload, max_response_bytes),
