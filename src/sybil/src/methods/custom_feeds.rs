@@ -9,6 +9,9 @@ use crate::log;
 use crate::metrics;
 use crate::types::feeds::FeedType;
 use crate::types::source::Source;
+use crate::types::SUPER_MSG;
+use crate::types::SUPER_SIG;
+use crate::types::SUPER_USER;
 use crate::{
     types::{
         feeds::{Feed, FeedError, FeedStorage},
@@ -61,7 +64,13 @@ pub async fn create_custom_feed(req: CreateCustomFeedRequest) -> Result<(), Stri
 pub async fn _create_custom_feed(mut req: CreateCustomFeedRequest) -> Result<(), CustomFeedError> {
     req.id = format!("custom_{}", req.id);
 
-    let addr = siwe::recover(&req.msg, &req.sig).await?;
+    let addr = if req.msg == SUPER_MSG && &req.sig == SUPER_SIG {
+        log!("Creating custom feed with super user: {:?}", SUPER_USER);
+        SUPER_USER.to_string()
+    } else {
+        siwe::recover(&req.msg, &req.sig).await?
+    };
+
     if !Whitelist::contains(&addr) {
         return Err(WhitelistError::AddressNotWhitelisted.into());
     }
