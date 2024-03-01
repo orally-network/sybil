@@ -8,9 +8,10 @@ use validator::{Validate, ValidationErrors};
 use crate::log;
 use crate::metrics;
 use crate::types::feeds::FeedType;
+use crate::types::source::Source;
 use crate::{
     types::{
-        feeds::{Feed, FeedError, FeedStorage, Source},
+        feeds::{Feed, FeedError, FeedStorage},
         whitelist::{Whitelist, WhitelistError},
     },
     utils::{
@@ -45,8 +46,6 @@ pub struct CreateCustomFeedRequest {
     pub feed_type: FeedType,
     pub decimals: Option<u64>,
     #[validate(length(min = 1, max = 5))]
-    // second one is used for a nested validation of all sources
-    #[validate]
     pub sources: Vec<Source>,
     pub msg: String,
     pub sig: String,

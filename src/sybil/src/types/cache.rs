@@ -132,6 +132,16 @@ impl HttpCache {
         response
     }
 
+    pub async fn request_with_access_w3(
+        request: &CanisterHttpRequestArgument,
+        expr_freq: Seconds,
+    ) -> Result<(HttpResponse, Seconds), HttpCacheError> {
+        let mut cache = HTTP_CACHE.with(|c| c.borrow().clone());
+        let response = cache.request(request, expr_freq).await;
+        HTTP_CACHE.with(|c| c.replace(cache));
+        response
+    }
+
     pub async fn request(
         &mut self,
         request: &CanisterHttpRequestArgument,

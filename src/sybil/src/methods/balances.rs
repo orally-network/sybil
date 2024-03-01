@@ -3,14 +3,17 @@ use std::str::FromStr;
 use candid::Nat;
 use ic_cdk::{query, update};
 use ic_web3_rs::{
-    ethabi::{Event, EventParam, ParamType},
+    contract::Contract,
+    ethabi::{Address, Event, EventParam, ParamType},
     types::{Log as TxLog, TransactionReceipt, H160, H256, U256},
 };
 use lazy_static::lazy_static;
 use thiserror::Error;
 
+pub const TOKEN_ABI: &[u8] = include_bytes!("../assets/ERC20ABI.json");
+
 use crate::{
-    log,
+    clone_with_state, log,
     types::{
         balances::{BalanceError, Balances, DepositError},
         state,
@@ -20,7 +23,9 @@ use crate::{
         address::{self, AddressError},
         canister, nat,
         siwe::{self, SiweError},
-        validate_caller, web3, CallerError,
+        validate_caller,
+        web3::{self, Web3Error, SUCCESSFUL_TX_STATUS},
+        CallerError,
     },
 };
 
@@ -53,6 +58,8 @@ lazy_static! {
 pub enum BalancesError {
     #[error("Address error: {0}")]
     AddressError(#[from] AddressError),
+    #[error("Failed to get contract from json: {0}")]
+    Contract(String),
     #[error("Balance error: {0}")]
     BalanceError(#[from] BalanceError),
     #[error("SIWE error: {0}")]
@@ -60,7 +67,7 @@ pub enum BalancesError {
     #[error("Whitelist error: {0}")]
     Whitelist(#[from] WhitelistError),
     #[error("Web3 error: {0}")]
-    Web3(#[from] web3::Web3Error),
+    Web3(#[from] Web3Error),
     #[error("Caller error: {0}")]
     Caller(#[from] CallerError),
     #[error("Canister error: {0})")]
@@ -81,23 +88,19 @@ async fn _deposit(tx_hash: String, msg: String, sig: String) -> Result<(), Depos
         return Err(WhitelistError::AddressNotWhitelisted.into());
     }
     let caller_eth = address::to_h160(&caller)?;
-    let tx_hash = H256::from_str(&tx_hash).map_err(|_| DepositError::InvalidTxHash)?;
 
     let balances_cfg = state::get_cfg().balances_cfg;
-    let w3 = &web3::client(&balances_cfg.rpc);
+    let w3 = web3::instance(balances_cfg.rpc, clone_with_state!(evm_rpc_canister));
 
-    let tx_receipt = web3::tx_receipt(w3, &tx_hash)
-        .await?
-        .ok_or(DepositError::TxDoesNotExist)?;
+    let tx_receipt = w3.get_tx_receipt(&tx_hash).await?;
+
     validate_deposit_tx_receipt(
         &tx_receipt,
         &caller_eth,
         &address::to_h160(&balances_cfg.erc20_contract)?,
     )?;
 
-    let tx = web3::tx_by_hash(w3, &tx_hash)
-        .await?
-        .ok_or(DepositError::TxDoesNotExist)?;
+    let tx = w3.get_tx(&tx_hash).await?;
 
     let (event_from, event_to, value) = get_transfer_log(&tx_receipt.logs)?;
     validate_transfer_log(
@@ -150,7 +153,7 @@ fn validate_deposit_tx_receipt(
         .status
         .ok_or(DepositError::TxNotFinalized)?
         .as_u64();
-    if tx_status != web3::SUCCESSFUL_TX_STATUS {
+    if tx_status != SUCCESSFUL_TX_STATUS {
         return Err(DepositError::TxFailed);
     }
 
@@ -222,7 +225,25 @@ async fn _withdraw(
         return Err(BalanceError::InsufficientBalance.into());
     }
 
-    let tx_hash = web3::send_erc20(&amount, &receiver).await?;
+    let cfg = state::get_cfg().balances_cfg;
+
+    let w3 = web3::instance(cfg.rpc, clone_with_state!(evm_rpc_canister));
+    let contract_addr =
+        Address::from_str(&cfg.erc20_contract).map_err(|_| AddressError::InvalidAddress)?;
+
+    let contract = Contract::from_json(w3.eth(), contract_addr, TOKEN_ABI)
+        .map_err(|err| BalancesError::Contract(err.to_string()))?;
+
+    let tx_hash = w3
+        .send_erc20(
+            &contract,
+            &amount,
+            &receiver,
+            canister::eth_address().await?.to_string(),
+            clone_with_state!(key_name),
+            nat::to_u64(&cfg.chain_id),
+        )
+        .await?;
 
     Balances::reduce_amount(&caller, &amount)?;
 
@@ -249,7 +270,25 @@ async fn _withdraw_fees(to: String) -> Result<String, BalancesError> {
         return Err(BalanceError::InsufficientBalance)?;
     }
 
-    let tx_hash = web3::send_erc20(&fees, &receiver).await?;
+    let cfg = state::get_cfg().balances_cfg;
+
+    let w3 = web3::instance(cfg.rpc, clone_with_state!(evm_rpc_canister));
+    let contract_addr =
+        Address::from_str(&cfg.erc20_contract).map_err(|_| AddressError::InvalidAddress)?;
+
+    let contract = Contract::from_json(w3.eth(), contract_addr, TOKEN_ABI)
+        .map_err(|err| BalancesError::Contract(err.to_string()))?;
+
+    let tx_hash = w3
+        .send_erc20(
+            &contract,
+            &fees,
+            &receiver,
+            canister::eth_address().await?.to_string(),
+            clone_with_state!(key_name),
+            nat::to_u64(&cfg.chain_id),
+        )
+        .await?;
 
     Balances::reduce_amount(&canister_addr, &fees)?;
 
