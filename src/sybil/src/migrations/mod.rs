@@ -1,8 +1,10 @@
+#![allow(deprecated)]
+
 use std::collections::HashMap;
 
 use candid::{CandidType, Nat, Principal};
 use ic_cdk::{post_upgrade, pre_upgrade, storage};
-use ic_utils::monitor;
+use ic_utils::{logger, monitor};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -11,8 +13,9 @@ use crate::{
     types::{
         balances::{Balances, BalancesCfg},
         cache::{HttpCache, RateCache, SignaturesCache},
-        feeds::{Feed, FeedStatus, FeedStorage, FeedType, Source},
+        feeds::{Feed, FeedStatus, FeedStorage, FeedType},
         rate_data::AssetDataResult,
+        source::{HttpSource, Source},
         state::State,
         whitelist::Whitelist,
         Address, Seconds, Timestamp,
@@ -57,19 +60,26 @@ impl From<OldFeedStorage> for FeedStorage {
 impl From<OldFeed> for Feed {
     fn from(old: OldFeed) -> Self {
         Self {
-            id: if let Some(id) = old.id {
-                id
-            } else if let Some(feed_id) = old.feed_id {
-                feed_id
-            } else {
-                unreachable!("No feed id found")
-            },
-            feed_type: old.pair_type.clone().into(),
+            id: old.id,
+            feed_type: old.feed_type,
             update_freq: old.update_freq,
-            sources: if let OldFeedType::Custom { sources } = old.pair_type {
-                Some(sources)
+            sources: old.sources.clone(),
+            new_sources: if let Some(sources) = old.sources {
+                Some(
+                    sources
+                        .into_iter()
+                        .map(|s| {
+                            Source::HttpSource(HttpSource {
+                                uri: s.uri,
+                                api_keys: s.api_keys,
+                                resolver: s.resolver,
+                                expected_bytes: s.expected_bytes,
+                            })
+                        })
+                        .collect(),
+                )
             } else {
-                None
+                old.new_sources
             },
             decimals: old.decimals,
             status: old.status.into(),
@@ -81,32 +91,15 @@ impl From<OldFeed> for Feed {
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub struct OldFeed {
-    pub id: Option<String>,
-    pub feed_id: Option<String>,
-    pub pair_type: OldFeedType,
+    pub id: String,
+    pub feed_type: FeedType,
     pub update_freq: Seconds,
+    pub sources: Option<Vec<HttpSource>>,
+    pub new_sources: Option<Vec<Source>>,
     pub decimals: Option<u64>,
-    pub status: OldFeedStatus,
+    pub status: FeedStatus,
     pub owner: Address,
     pub data: Option<AssetDataResult>,
-}
-
-#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
-pub enum OldFeedType {
-    Custom {
-        sources: Vec<Source>,
-    },
-    #[default]
-    Default,
-}
-
-impl From<OldFeedType> for FeedType {
-    fn from(old: OldFeedType) -> Self {
-        match old {
-            OldFeedType::Custom { .. } => FeedType::Custom,
-            OldFeedType::Default => FeedType::Default,
-        }
-    }
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
@@ -144,11 +137,11 @@ pub struct DataFetcher {
 pub struct OldState {
     pub exchange_rate_canister: Principal,
     pub fallback_xrc: Option<Principal>,
+    pub evm_rpc_canister: Option<Principal>,
     pub rpc_wrapper: Option<String>,
     pub key_name: String,
     pub mock: bool,
-    pub pairs: Option<OldFeedStorage>,
-    pub feeds: Option<FeedStorage>,
+    pub feeds: OldFeedStorage,
     pub balances: Balances,
     pub balances_cfg: BalancesCfg,
     pub eth_address: Option<Address>,
@@ -164,16 +157,13 @@ impl From<OldState> for State {
             fallback_xrc: state.fallback_xrc.unwrap_or_else(|| {
                 Principal::from_text("a3uxy-eiaaa-aaaao-a2qaa-cai").expect("Invalid principal")
             }),
+            evm_rpc_canister: state.evm_rpc_canister.unwrap_or_else(|| {
+                Principal::from_text("aovwi-4maaa-aaaaa-qaagq-cai").expect("Invalid principal")
+            }),
             rpc_wrapper: state.rpc_wrapper.unwrap_or_default(),
             key_name: state.key_name,
             mock: state.mock,
-            feeds: if let Some(pairs) = state.pairs {
-                pairs.into()
-            } else if let Some(feeds) = state.feeds {
-                feeds
-            } else {
-                unreachable!("No feeds found")
-            },
+            feeds: state.feeds.into(),
             balances: state.balances,
             balances_cfg: state.balances_cfg,
             eth_address: state.eth_address,
@@ -230,6 +220,7 @@ fn pre_upgrade() {
     let signatures_cache =
         SIGNATURES_CACHE.with(|signatures_cache| signatures_cache.borrow().clone());
 
+    let log_data = logger::pre_upgrade_stable_data();
     let monitor_data = monitor::pre_upgrade_stable_data();
 
     let metrics = METRICS.with(|metrics| metrics.take());
@@ -237,6 +228,7 @@ fn pre_upgrade() {
     storage::stable_save((
         state,
         cache,
+        log_data,
         monitor_data,
         http_cache,
         signatures_cache,
@@ -247,15 +239,17 @@ fn pre_upgrade() {
 
 #[post_upgrade]
 fn post_upgrade() {
-    let (state, cache, monitor_data, http_cache, signatures_cache, metrics): (
+    let (state, cache, log_data, monitor_data, http_cache, signatures_cache, metrics): (
         OldState,
         OldRateCache,
+        logger::PostUpgradeStableData,
         monitor::PostUpgradeStableData,
         HttpCache,
         SignaturesCache,
         Option<OldMetrics>,
     ) = storage::stable_restore().expect("should be able to restore");
 
+    logger::post_upgrade_stable_data(log_data);
     monitor::post_upgrade_stable_data(monitor_data);
 
     let state = State::from(state);

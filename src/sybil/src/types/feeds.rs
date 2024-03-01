@@ -1,41 +1,27 @@
 use std::{collections::HashMap, time::Duration};
 
 use candid::CandidType;
-use ic_cdk::api::management_canister::http_request::{CanisterHttpRequestArgument, HttpHeader};
 use ic_web3_rs::futures::future::join_all;
-use jsonptr::{Pointer, Resolve};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
-use validator::Validate;
 
 use super::{
     balances::{BalanceError, Balances},
-    cache::{HttpCache, HttpCacheError},
     exchange_rate::{Asset, AssetClass, ExchangeRate, ExchangeRateError, GetExchangeRateRequest},
     rate_data::{AssetData, AssetDataResult, RateDataError},
+    source::{HttpSource, Source, SourceError},
     state, Address, Seconds, Timestamp,
 };
 use crate::{
-    clone_with_state, defer,
-    jobs::cache_cleaner,
-    log,
+    clone_with_state, log,
     methods::{custom_feeds::CreateCustomFeedRequest, default_feeds::CreateDefaultFeedRequest},
-    metrics, retry_until_success,
+    metrics,
     types::exchange_rate::Service,
-    utils::{
-        canister, nat,
-        parsed_number::ParsedNumber,
-        siwe::SiweError,
-        sleep, time, validation,
-        vec::{self, find_average},
-    },
+    utils::{canister, nat, parsed_number::ParsedNumber, siwe::SiweError, sleep, time, vec},
     CACHE, STATE,
 };
 
-const ORALLY_WRAPPER_CAHCHE_TTL: u64 = 30000; // 30 seconds
-const MIN_EXPECTED_BYTES: u64 = 1;
-const MAX_EXPECTED_BYTES: u64 = 1024 * 1024 * 2;
 const RATE_FETCH_DEFAULT_XRC_MAX_RETRIES: u64 = 5;
 const RATE_FETCH_FALLBACK_XRC_MAX_RETRIES: u64 = 5;
 const WAITING_BEFORE_RETRY_MS: Duration = Duration::from_millis(500);
@@ -65,122 +51,13 @@ pub enum FeedError {
     #[error("Canister error: {0}")]
     Canister(#[from] canister::CanisterError),
     #[error("Error in sources: {0:?}")]
-    SourceError(Vec<HttpCacheError>),
-}
-
-#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]
-pub struct ApiKey {
-    pub title: String,
-    pub key: String,
-}
-
-impl ApiKey {
-    pub fn censor(&mut self) {
-        self.key = "***".to_string();
-    }
-}
-
-#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]
-pub struct Source {
-    #[validate(url)]
-    pub uri: String,
-    pub api_keys: Option<Vec<ApiKey>>,
-    #[validate(regex = "validation::RATE_RESOLVER")]
-    pub resolver: String,
-    #[validate(range(min = "MIN_EXPECTED_BYTES", max = "MAX_EXPECTED_BYTES"))]
-    pub expected_bytes: Option<u64>,
+    SourceError(Vec<SourceError>),
 }
 
 pub struct RateResult {
     pub rate: Value,
     pub cached_at: Seconds,
     pub bytes: usize,
-}
-
-impl Source {
-    pub async fn rate(&self, expr_freq: Seconds) -> Result<RateResult, HttpCacheError> {
-        let rpc_wrapper = clone_with_state!(rpc_wrapper);
-        let req = CanisterHttpRequestArgument {
-            url: format!(
-                "{}{}&cacheTTL={}",
-                rpc_wrapper,
-                urlencoding::encode(&self.get_url_with_keys()),
-                ORALLY_WRAPPER_CAHCHE_TTL
-            ),
-            max_response_bytes: self.expected_bytes,
-            headers: Self::get_default_headers(),
-            ..Default::default()
-        };
-
-        defer!(cache_cleaner::execute());
-
-        let (response, cached_at) =
-            retry_until_success!(HttpCache::request_with_access(&req, expr_freq))?;
-        let bytes = response.body.len();
-
-        let ptr = Pointer::try_from(self.resolver.clone())
-            .map_err(|err| HttpCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?;
-
-        let data = serde_json::from_slice::<Value>(&response.body)?;
-
-        let rate = data
-            .resolve(&ptr)
-            .map_err(|err| HttpCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?
-            .clone();
-
-        Ok(RateResult {
-            rate,
-            cached_at,
-            bytes,
-        })
-    }
-
-    pub fn get_default_headers() -> Vec<HttpHeader> {
-        vec![
-            HttpHeader {
-                name: "Content-Type".to_string(),
-                value: "application/json".to_string(),
-            },
-            HttpHeader {
-                name: "User-Agent".to_string(),
-                value: "sybil".to_string(),
-            },
-        ]
-    }
-
-    pub fn get_url_with_keys(&self) -> String {
-        let mut url = self.uri.clone();
-
-        if let Some(api_keys) = &self.api_keys {
-            for api_key in api_keys {
-                url = url.replace(&format!("{{{}}}", &api_key.title), &api_key.key);
-            }
-        }
-
-        url
-    }
-
-    pub async fn data(&self, expr_freq: Seconds) -> Result<(String, Seconds), HttpCacheError> {
-        let req = CanisterHttpRequestArgument {
-            url: self.get_url_with_keys(),
-            max_response_bytes: self.expected_bytes,
-            ..Default::default()
-        };
-
-        defer!(cache_cleaner::execute());
-        let (response, cached_at) = HttpCache::request_with_access(&req, expr_freq).await?;
-
-        let ptr = Pointer::try_from(self.resolver.clone())
-            .map_err(|err| HttpCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?;
-
-        let json = serde_json::from_slice::<Value>(&response.body)?;
-
-        let data = json
-            .resolve(&ptr)
-            .map_err(|err| HttpCacheError::InvalidResponseBodyResolver(format!("{err:?}")))?;
-
-        Ok((format!("{data}"), cached_at))
-    }
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, CandidType)]
@@ -232,7 +109,9 @@ pub struct Feed {
     pub id: String,
     pub feed_type: FeedType,
     pub update_freq: Seconds,
-    pub sources: Option<Vec<Source>>,
+    #[deprecated(note = "Use new_sources instead")]
+    pub sources: Option<Vec<HttpSource>>,
+    pub new_sources: Option<Vec<Source>>,
     pub decimals: Option<u64>,
     pub status: FeedStatus,
     pub owner: Address,
@@ -253,12 +132,14 @@ impl Feed {
             caller.is_none() || caller.as_ref().is_some_and(|caller| &self.owner != caller);
 
         if is_needed_to_be_censored {
-            self.sources.as_mut().map(|sources| {
-                sources.iter_mut().for_each(|source| {
-                    source
-                        .api_keys
-                        .as_mut()
-                        .map(|api_keys| api_keys.iter_mut().for_each(|api_key| api_key.censor()));
+            self.new_sources.as_mut().map(|sources| {
+                sources.iter_mut().for_each(|source| match source {
+                    Source::HttpSource(http_source) => {
+                        http_source.api_keys.as_mut().map(|api_keys| {
+                            api_keys.iter_mut().for_each(|api_key| api_key.censor())
+                        });
+                    }
+                    _ => (),
                 })
             });
         }
@@ -273,7 +154,7 @@ impl From<CreateCustomFeedRequest> for Feed {
         Self {
             id: req.id,
             feed_type: req.feed_type,
-            sources: Some(req.sources),
+            new_sources: Some(req.sources),
             update_freq: nat::to_u64(&req.update_freq),
             decimals: req.decimals,
             ..Default::default()
@@ -317,9 +198,9 @@ impl FeedStorage {
                     log!(
                         "[FEEDS] cusom feed requested: feed ID: {}, sources: {:#?}",
                         id,
-                        feed.sources.clone().unwrap()
+                        feed.new_sources.clone().unwrap()
                     );
-                    Self::get_custom_rate(&feed, &feed.sources.clone().unwrap()).await
+                    Self::get_custom_rate(&feed, &feed.new_sources.clone().unwrap()).await
                 }
             },
             None => Err(FeedError::FeedNotFound),
@@ -518,17 +399,40 @@ impl FeedStorage {
 
         match feed.feed_type {
             FeedType::CustomNumber => {
-                let rate = results
-                    .iter()
-                    .map(|value| {
-                        value
-                            .as_f64()
-                            .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType)
-                            .map(|rate| rate)
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
+                let parsed_results = match results.first().expect("rate is empty") {
+                    Value::String(_) => results
+                        .iter()
+                        .map(|value| {
+                            let s = value
+                                .as_str()
+                                .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType);
 
-                let value = find_average(&rate);
+                            s.map(|s| {
+                                s.parse::<f64>()
+                                    .map_err(|err| FeedError::UnableToConvertRate(err.to_string()))
+                            })
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                    Value::Number(_) => results
+                        .iter()
+                        .map(|value| {
+                            Ok::<Result<_, _>, FeedError>(
+                                value
+                                    .as_f64()
+                                    .ok_or(FeedError::ValueTypeIsNotCompatibleWithFeedType),
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                    _ => Err(FeedError::ValueTypeIsNotCompatibleWithFeedType)?,
+                };
+
+                let mut rate = Vec::with_capacity(parsed_results.len());
+
+                for parsed_result in parsed_results {
+                    rate.push(parsed_result?);
+                }
+
+                let value = vec::find_average(&rate);
 
                 let parsed_number = ParsedNumber::parse(&value.to_string(), feed.decimals)
                     .map_err(|err| FeedError::UnableToConvertRate(err.to_string()))?;
@@ -655,18 +559,14 @@ impl FeedStorage {
 
                             let id = feed.id.trim().to_lowercase();
                             let owner = feed.owner.trim().to_lowercase();
-                            let sources = match &feed.sources {
-                                Some(sources) => sources
-                                    .iter()
-                                    .map(|source| source.get_url_with_keys().trim().to_lowercase())
-                                    .collect::<Vec<_>>(),
-                                _ => vec![],
+                            let is_found_in_source = if let Some(sources) = &feed.new_sources {
+                                sources.iter().any(|source| source.search(&search))
+                            } else {
+                                false
                             };
 
                             id.contains(&search)
-                                || sources
-                                    .iter()
-                                    .any(|source| strsim::jaro(&source, &search) >= 0.65)
+                                || is_found_in_source
                                 || strsim::jaro_winkler(&owner, &search) >= 0.8
                         })
                         .collect();
