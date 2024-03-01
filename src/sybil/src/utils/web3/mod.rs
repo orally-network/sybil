@@ -5,6 +5,7 @@ use ic_web3_rs::{
     contract::{tokens::Tokenizable, Contract, Options},
     ethabi::{Token, TopicFilter},
     ic::KeyInfo,
+    transports::ic_http::ICHttp,
     types::{
         BlockNumber, FilterBuilder, Log, Transaction, TransactionId, TransactionReceipt, H160,
         H256, U256,
@@ -16,8 +17,6 @@ use std::str::FromStr;
 use thiserror::Error;
 
 use crate::retry_until_success;
-
-use self::evm_canister_transport::EVMCanisterTransport;
 
 use super::{
     address::{self, AddressError},
@@ -80,17 +79,15 @@ pub struct Web3Instance<T: Transport> {
     w3: Web3<T>,
 }
 
-pub fn instance(rpc_url: String, evm_rpc_canister: Principal) -> Web3Instance<impl Transport> {
+pub fn instance(rpc_url: String, _evm_rpc_canister: Principal) -> Web3Instance<impl Transport> {
     // Switch between EVMCanisterTransport(calls go through emv_rpc canister) and ICHttp (calls go straight to the rpc)
 
-    Web3Instance::new(Web3::new(EVMCanisterTransport::new(
-        rpc_url,
-        evm_rpc_canister,
-    )))
-
-    // Ok(Web3Instance::new(Web3::new(
-    //     ICHttp::new(&rpc_url, None).unwrap(),
+    // Web3Instance::new(Web3::new(EVMCanisterTransport::new(
+    //     rpc_url,
+    //     evm_rpc_canister,
     // )))
+
+    Web3Instance::new(Web3::new(ICHttp::new(&rpc_url, None).unwrap()))
 }
 
 impl<T: Transport> Web3Instance<T> {

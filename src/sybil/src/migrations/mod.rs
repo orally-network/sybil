@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use std::collections::HashMap;
 
 use candid::{CandidType, Nat, Principal};
@@ -13,7 +15,7 @@ use crate::{
         cache::{HttpCache, RateCache, SignaturesCache},
         feeds::{Feed, FeedStatus, FeedStorage, FeedType},
         rate_data::AssetDataResult,
-        source::{ApiKey, HttpSource, Source},
+        source::{HttpSource, Source},
         state::State,
         whitelist::Whitelist,
         Address, Seconds, Timestamp,
@@ -24,14 +26,6 @@ use crate::{
     },
     CACHE, HTTP_CACHE, SIGNATURES_CACHE, STATE,
 };
-
-#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
-pub struct OldSource {
-    pub uri: String,
-    pub api_keys: Option<Vec<ApiKey>>,
-    pub resolver: String,
-    pub expected_bytes: Option<u64>,
-}
 
 #[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
 pub struct OldRateCache(HashMap<String, OldRateCacheEntry>);
@@ -69,7 +63,8 @@ impl From<OldFeed> for Feed {
             id: old.id,
             feed_type: old.feed_type,
             update_freq: old.update_freq,
-            sources: if let Some(sources) = old.sources {
+            sources: old.sources.clone(),
+            new_sources: if let Some(sources) = old.sources {
                 Some(
                     sources
                         .into_iter()
@@ -84,7 +79,7 @@ impl From<OldFeed> for Feed {
                         .collect(),
                 )
             } else {
-                None
+                old.new_sources
             },
             decimals: old.decimals,
             status: old.status.into(),
@@ -100,29 +95,11 @@ pub struct OldFeed {
     pub feed_type: FeedType,
     pub update_freq: Seconds,
     pub sources: Option<Vec<HttpSource>>,
+    pub new_sources: Option<Vec<Source>>,
     pub decimals: Option<u64>,
     pub status: FeedStatus,
     pub owner: Address,
     pub data: Option<AssetDataResult>,
-}
-
-#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
-pub enum OldFeedType {
-    Custom {
-        // TODO: change to regular Source after migration
-        sources: Vec<OldSource>,
-    },
-    #[default]
-    Default,
-}
-
-impl From<OldFeedType> for FeedType {
-    fn from(old: OldFeedType) -> Self {
-        match old {
-            OldFeedType::Custom { .. } => FeedType::Custom,
-            OldFeedType::Default => FeedType::Default,
-        }
-    }
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
@@ -246,6 +223,8 @@ fn pre_upgrade() {
     let monitor_data = monitor::pre_upgrade_stable_data();
 
     let metrics = METRICS.with(|metrics| metrics.take());
+
+    log!("Pre upgrade state: {:?}", state);
 
     storage::stable_save((
         state,

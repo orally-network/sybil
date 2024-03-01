@@ -10,7 +10,7 @@ use super::{
     balances::{BalanceError, Balances},
     exchange_rate::{Asset, AssetClass, ExchangeRate, ExchangeRateError, GetExchangeRateRequest},
     rate_data::{AssetData, AssetDataResult, RateDataError},
-    source::{Source, SourceError},
+    source::{HttpSource, Source, SourceError},
     state, Address, Seconds, Timestamp,
 };
 use crate::{
@@ -109,7 +109,9 @@ pub struct Feed {
     pub id: String,
     pub feed_type: FeedType,
     pub update_freq: Seconds,
-    pub sources: Option<Vec<Source>>,
+    #[deprecated(note = "Use new_sources instead")]
+    pub sources: Option<Vec<HttpSource>>,
+    pub new_sources: Option<Vec<Source>>,
     pub decimals: Option<u64>,
     pub status: FeedStatus,
     pub owner: Address,
@@ -130,7 +132,7 @@ impl Feed {
             caller.is_none() || caller.as_ref().is_some_and(|caller| &self.owner != caller);
 
         if is_needed_to_be_censored {
-            self.sources.as_mut().map(|sources| {
+            self.new_sources.as_mut().map(|sources| {
                 sources.iter_mut().for_each(|source| match source {
                     Source::HttpSource(http_source) => {
                         http_source.api_keys.as_mut().map(|api_keys| {
@@ -152,7 +154,7 @@ impl From<CreateCustomFeedRequest> for Feed {
         Self {
             id: req.id,
             feed_type: req.feed_type,
-            sources: Some(req.sources),
+            new_sources: Some(req.sources),
             update_freq: nat::to_u64(&req.update_freq),
             decimals: req.decimals,
             ..Default::default()
@@ -196,9 +198,9 @@ impl FeedStorage {
                     log!(
                         "[FEEDS] cusom feed requested: feed ID: {}, sources: {:#?}",
                         id,
-                        feed.sources.clone().unwrap()
+                        feed.new_sources.clone().unwrap()
                     );
-                    Self::get_custom_rate(&feed, &feed.sources.clone().unwrap()).await
+                    Self::get_custom_rate(&feed, &feed.new_sources.clone().unwrap()).await
                 }
             },
             None => Err(FeedError::FeedNotFound),
@@ -557,7 +559,7 @@ impl FeedStorage {
 
                             let id = feed.id.trim().to_lowercase();
                             let owner = feed.owner.trim().to_lowercase();
-                            let is_found_in_source = if let Some(sources) = &feed.sources {
+                            let is_found_in_source = if let Some(sources) = &feed.new_sources {
                                 sources.iter().any(|source| source.search(&search))
                             } else {
                                 false

@@ -42,7 +42,8 @@ type Feed = record {
     id : text;
     feed_type : FeedType;
     update_freq : nat64;
-    sources : opt vec Source;
+    sources : opt vec HttpSource;
+    new_sources : opt vec Source;
     decimals : opt nat64;
     status : FeedStatus;
     owner : text;

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use anyhow::Result;
 use candid::{CandidType, Principal};
 use cketh_common::{
