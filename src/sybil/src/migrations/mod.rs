@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use candid::{CandidType, Nat, Principal};
 use ic_cdk::{post_upgrade, pre_upgrade, storage};
-use ic_utils::monitor;
+use ic_utils::{logger, monitor};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -220,15 +220,15 @@ fn pre_upgrade() {
     let signatures_cache =
         SIGNATURES_CACHE.with(|signatures_cache| signatures_cache.borrow().clone());
 
+    let log_data = logger::pre_upgrade_stable_data();
     let monitor_data = monitor::pre_upgrade_stable_data();
 
     let metrics = METRICS.with(|metrics| metrics.take());
 
-    log!("Pre upgrade state: {:?}", state);
-
     storage::stable_save((
         state,
         cache,
+        log_data,
         monitor_data,
         http_cache,
         signatures_cache,
@@ -239,15 +239,17 @@ fn pre_upgrade() {
 
 #[post_upgrade]
 fn post_upgrade() {
-    let (state, cache, monitor_data, http_cache, signatures_cache, metrics): (
+    let (state, cache, log_data, monitor_data, http_cache, signatures_cache, metrics): (
         OldState,
         OldRateCache,
+        logger::PostUpgradeStableData,
         monitor::PostUpgradeStableData,
         HttpCache,
         SignaturesCache,
         Option<OldMetrics>,
     ) = storage::stable_restore().expect("should be able to restore");
 
+    logger::post_upgrade_stable_data(log_data);
     monitor::post_upgrade_stable_data(monitor_data);
 
     let state = State::from(state);
