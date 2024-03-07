@@ -149,6 +149,7 @@ type AssetData = variant {
 
 type GetAssetDataWithProofResponse = variant { Ok : AssetDataResult; Err : text };
 type GetAssetDataResponse = variant { Ok : AssetDataResult; Err: text };
+type GetMultipleAssetsDataResponse = variant { Ok : vec AssetDataResult; Err: text };
 type GetFeedsResponse = variant { Ok : GetFeedsResultWithPagination; Err: text };
 type GetFeedResponse = variant { Ok : opt Feed; Err: text };
 type TextResponse = variant { Ok : text; Err: text };
@@ -171,6 +172,8 @@ service : {
     // assets 
     get_asset_data_with_proof : (id : text) -> (GetAssetDataWithProofResponse);
     get_asset_data : (id : text) -> (GetAssetDataResponse);
+    get_multiple_assets_data_with_proof : (ids : vec text) -> (GetMultipleAssetsDataResponse);
+    get_multiple_assets_data : (ids : vec text) -> (GetMultipleAssetsDataResponse);
     is_feed_exists : (id : text) -> (bool);
     get_feeds : (filter: opt GetFeedsFilter, pagination: opt Pagination, msg: opt text, sig: opt text) -> (GetFeedsResponse);
     get_feed : (id: text, msg: opt text, sig: opt text) -> (GetFeedResponse);

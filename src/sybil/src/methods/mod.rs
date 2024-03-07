@@ -6,6 +6,7 @@ pub mod signatures;
 pub mod transforms;
 pub mod whitelist;
 
+use futures::future::join_all;
 use ic_cdk::{query, update};
 
 use thiserror::Error;
@@ -137,6 +138,51 @@ async fn _get_asset_data(id: String) -> Result<AssetDataResult, AssetsError> {
 
     metrics!(inc SUCCESSFUL_GET_ASSET_DATA_CALLS, id);
     Ok(rate)
+}
+
+#[update]
+pub async fn get_multiple_assets_data_with_proof(
+    ids: Vec<String>,
+) -> Result<Vec<AssetDataResult>, String> {
+    _get_multiple_assets_data_with_proof(ids)
+        .await
+        .map_err(|e| format!("failed to get assets data: {}", e))
+}
+
+async fn _get_multiple_assets_data_with_proof(
+    ids: Vec<String>,
+) -> Result<Vec<AssetDataResult>, AssetsError> {
+    let mut multiple_asset_data = Vec::with_capacity(ids.len());
+
+    let futures = ids
+        .into_iter()
+        .map(_get_asset_data_with_proof)
+        .collect::<Vec<_>>();
+
+    for result in join_all(futures).await {
+        multiple_asset_data.push(result?);
+    }
+
+    Ok(multiple_asset_data)
+}
+
+#[update]
+pub async fn get_multiple_assets_data(ids: Vec<String>) -> Result<Vec<AssetDataResult>, String> {
+    _get_multiple_assets_data(ids)
+        .await
+        .map_err(|e| format!("failed to get assets data: {}", e))
+}
+
+async fn _get_multiple_assets_data(ids: Vec<String>) -> Result<Vec<AssetDataResult>, AssetsError> {
+    let mut multiple_asset_data = Vec::with_capacity(ids.len());
+
+    let futures = ids.into_iter().map(_get_asset_data).collect::<Vec<_>>();
+
+    for result in join_all(futures).await {
+        multiple_asset_data.push(result?);
+    }
+
+    Ok(multiple_asset_data)
 }
 
 #[query(name = "getCanistergeekInformation")]
