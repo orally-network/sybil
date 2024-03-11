@@ -66,6 +66,7 @@ impl HttpService {
 
     pub fn init_update_router() -> HttpRouter {
         let mut router = Router::<Handler>::new();
+
         router
             .insert(
                 "/get_asset_data:query",
@@ -82,6 +83,24 @@ impl HttpService {
 
         router
             .insert(
+                "/get_multiple_assets_data:query",
+                Box::new(|request| Box::pin(handlers::get_multiple_assets_data_request(request))),
+            )
+            .expect("Failed to insert handler");
+
+        router
+            .insert(
+                "/get_multiple_assets_data_with_proof:query",
+                Box::new(|request| {
+                    Box::pin(handlers::get_multiple_assets_data_with_proof_request(
+                        request,
+                    ))
+                }),
+            )
+            .expect("Failed to insert handler");
+
+        router
+            .insert(
                 "/get_feed_data:query",
                 Box::new(|request| Box::pin(handlers::get_asset_data_request(request))),
             )
@@ -91,6 +110,24 @@ impl HttpService {
             .insert(
                 "/get_feed_data_with_proof:query",
                 Box::new(|request| Box::pin(handlers::get_asset_data_with_proof_request(request))),
+            )
+            .expect("Failed to insert handler");
+
+        router
+            .insert(
+                "/get_multiple_feed_data:query",
+                Box::new(|request| Box::pin(handlers::get_multiple_assets_data_request(request))),
+            )
+            .expect("Failed to insert handler");
+
+        router
+            .insert(
+                "/get_multiple_feed_data_with_proof:query",
+                Box::new(|request| {
+                    Box::pin(handlers::get_multiple_assets_data_with_proof_request(
+                        request,
+                    ))
+                }),
             )
             .expect("Failed to insert handler");
 
