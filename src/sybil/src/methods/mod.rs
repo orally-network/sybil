@@ -21,7 +21,7 @@ use crate::{
     types::{
         feeds::{Feed, FeedError, FeedStorage, GetFeedsFilter},
         pagination::{Pagination, PaginationResult},
-        rate_data::AssetDataResult,
+        rate_data::{AssetDataResult, MultipleAssetsDataResult},
     },
     utils::{canister, siwe},
 };
@@ -143,46 +143,43 @@ async fn _get_asset_data(id: String) -> Result<AssetDataResult, AssetsError> {
 #[update]
 pub async fn get_multiple_assets_data_with_proof(
     ids: Vec<String>,
-) -> Result<Vec<AssetDataResult>, String> {
-    _get_multiple_assets_data_with_proof(ids)
+) -> Result<MultipleAssetsDataResult, String> {
+    let mut multiple_assetds_data = _get_multiple_assets_data(ids)
         .await
-        .map_err(|e| format!("failed to get assets data: {}", e))
-}
+        .map_err(|e| format!("failed to get assets data: {}", e))?;
 
-async fn _get_multiple_assets_data_with_proof(
-    ids: Vec<String>,
-) -> Result<Vec<AssetDataResult>, AssetsError> {
-    let mut multiple_asset_data = Vec::with_capacity(ids.len());
+    multiple_assetds_data
+        .sign()
+        .await
+        .map_err(|e| format!("failed to sign: {}", e))?;
 
-    let futures = ids
-        .into_iter()
-        .map(_get_asset_data_with_proof)
-        .collect::<Vec<_>>();
-
-    for result in join_all(futures).await {
-        multiple_asset_data.push(result?);
-    }
-
-    Ok(multiple_asset_data)
+    Ok(multiple_assetds_data)
 }
 
 #[update]
-pub async fn get_multiple_assets_data(ids: Vec<String>) -> Result<Vec<AssetDataResult>, String> {
+pub async fn get_multiple_assets_data(
+    ids: Vec<String>,
+) -> Result<MultipleAssetsDataResult, String> {
     _get_multiple_assets_data(ids)
         .await
         .map_err(|e| format!("failed to get assets data: {}", e))
 }
 
-async fn _get_multiple_assets_data(ids: Vec<String>) -> Result<Vec<AssetDataResult>, AssetsError> {
-    let mut multiple_asset_data = Vec::with_capacity(ids.len());
+async fn _get_multiple_assets_data(
+    ids: Vec<String>,
+) -> Result<MultipleAssetsDataResult, AssetsError> {
+    let mut data = Vec::with_capacity(ids.len());
 
     let futures = ids.into_iter().map(_get_asset_data).collect::<Vec<_>>();
 
     for result in join_all(futures).await {
-        multiple_asset_data.push(result?);
+        data.push(result?.data);
     }
 
-    Ok(multiple_asset_data)
+    Ok(MultipleAssetsDataResult {
+        data,
+        signature: None,
+    })
 }
 
 #[query(name = "getCanistergeekInformation")]

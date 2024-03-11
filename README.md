@@ -72,6 +72,9 @@ dfx canister call sybil get_asset_data "(\"ETH/USD\")"
 dfx canister call sybil get_asset_data_with_proof "(\"ETH/USD\")"
 dfx canister call sybil remove_default_feed "(\"ETH/USD\")"
 
+dfx canister call sybil get_multiple_assets_data "(vec { \"ETH/USD\"; \"custom_get_logs_example\" })"
+dfx canister call sybil get_multiple_assets_data_with_proof "(vec { \"ETH/USD\"; \"custom_get_logs_example\" })"
+
 dfx canister call sybil update_cfg "(record {evm_rpc_canister = opt \"aovwi-4maaa-aaaaa-qaagq-cai\"})"
 
 dfx canister call sybil get_feeds "(null, null, opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"

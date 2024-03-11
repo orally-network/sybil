@@ -1,9 +1,9 @@
 use candid::CandidType;
-use ic_web3_rs::ethabi::Token;
+use ic_web3_rs::{ethabi::Token, signing::keccak256};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::utils::encoding::encode_packed;
+use crate::{log, utils::encoding::encode_packed};
 
 use super::cache::{SignaturesCache, SignaturesCacheError};
 
@@ -38,6 +38,47 @@ pub enum AssetData {
     },
 }
 
+impl AssetData {
+    fn prepare_for_packed_encoding(self) -> Vec<Token> {
+        match self {
+            AssetData::DefaultPriceFeed {
+                symbol,
+                rate,
+                decimals,
+                timestamp,
+            } => vec![
+                Token::String(symbol),
+                Token::Uint(rate.into()),
+                Token::Uint(decimals.into()),
+                Token::Uint(timestamp.into()),
+            ],
+            AssetData::CustomPriceFeed {
+                symbol,
+                rate,
+                decimals,
+                timestamp,
+            } => vec![
+                Token::String(symbol),
+                Token::Uint(rate.into()),
+                Token::Uint(decimals.into()),
+                Token::Uint(timestamp.into()),
+            ],
+            AssetData::CustomNumber {
+                id,
+                value,
+                decimals,
+            } => vec![
+                Token::String(id),
+                Token::Uint(value.into()),
+                Token::Uint(decimals.into()),
+            ],
+            AssetData::CustomString { id, value } => {
+                vec![Token::String(id), Token::String(value)]
+            }
+        }
+    }
+}
+
 impl Default for AssetData {
     fn default() -> Self {
         AssetData::DefaultPriceFeed {
@@ -56,53 +97,54 @@ pub struct AssetDataResult {
 }
 
 impl AssetDataResult {
-    fn encode_packed(&self) -> Vec<u8> {
-        let raw_data = match self.data.clone() {
-            AssetData::DefaultPriceFeed {
-                symbol,
-                rate,
-                decimals,
-                timestamp,
-            } => vec![
-                Token::String(symbol.clone()),
-                Token::Uint(rate.into()),
-                Token::Uint(decimals.into()),
-                Token::Uint(timestamp.into()),
-            ],
-            AssetData::CustomPriceFeed {
-                symbol,
-                rate,
-                decimals,
-                timestamp,
-            } => {
-                vec![
-                    Token::String(symbol.clone()),
-                    Token::Uint(rate.into()),
-                    Token::Uint(decimals.into()),
-                    Token::Uint(timestamp.into()),
-                ]
-            }
-            AssetData::CustomNumber {
-                id,
-                value,
-                decimals,
-            } => {
-                vec![
-                    Token::String(id.clone()),
-                    Token::Uint(value.into()),
-                    Token::Uint(decimals.into()),
-                ]
-            }
-            AssetData::CustomString { id, value } => {
-                vec![Token::String(id.clone()), Token::String(value.clone())]
-            }
-        };
+    fn encode(&self) -> Vec<u8> {
+        let encoded_packed = encode_packed(&self.data.clone().prepare_for_packed_encoding())
+            .expect("tokens should be valid");
 
-        encode_packed(&raw_data).expect("tokens should be valid")
+        encoded_packed
     }
 
     pub async fn sign(&mut self) -> Result<(), RateDataError> {
-        let sign_data = self.encode_packed();
+        let sign_data = self.encode();
+
+        log!(
+            "asset data signed: 0x{}",
+            hex::encode(keccak256(&sign_data))
+        );
+
+        self.signature = Some(hex::encode(
+            SignaturesCache::eth_sign_with_access(&sign_data).await?,
+        ));
+
+        Ok(())
+    }
+}
+
+#[derive(Clone, Default, Debug, CandidType, Serialize, Deserialize)]
+pub struct MultipleAssetsDataResult {
+    pub data: Vec<AssetData>,
+    pub signature: Option<String>,
+}
+
+impl MultipleAssetsDataResult {
+    fn encode(&self) -> Vec<u8> {
+        let tokens = self
+            .data
+            .iter()
+            .map(|d| d.clone().prepare_for_packed_encoding())
+            .flatten()
+            .collect::<Vec<Token>>();
+
+        encode_packed(&tokens).expect("tokens should be valid")
+    }
+
+    pub async fn sign(&mut self) -> Result<(), RateDataError> {
+        let sign_data = self.encode();
+
+        log!(
+            "multiple assets data signed: 0x{}",
+            hex::encode(keccak256(&sign_data))
+        );
 
         self.signature = Some(hex::encode(
             SignaturesCache::eth_sign_with_access(&sign_data).await?,

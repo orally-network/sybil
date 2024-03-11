@@ -123,6 +123,11 @@ type AssetDataResult = record {
     signature: opt text;
 };
 
+type MultipleAssetsDataResult = record {
+    data: vec AssetData;
+    signature: opt text;
+};
+
 type AssetData = variant {
     DefaultPriceFeed: record {
         symbol: text;
@@ -149,7 +154,7 @@ type AssetData = variant {
 
 type GetAssetDataWithProofResponse = variant { Ok : AssetDataResult; Err : text };
 type GetAssetDataResponse = variant { Ok : AssetDataResult; Err: text };
-type GetMultipleAssetsDataResponse = variant { Ok : vec AssetDataResult; Err: text };
+type GetMultipleAssetsDataResponse = variant { Ok : MultipleAssetsDataResult; Err: text };
 type GetFeedsResponse = variant { Ok : GetFeedsResultWithPagination; Err: text };
 type GetFeedResponse = variant { Ok : opt Feed; Err: text };
 type TextResponse = variant { Ok : text; Err: text };
