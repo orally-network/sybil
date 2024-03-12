@@ -115,7 +115,7 @@ impl Service {
 
         let result = call_with_payment(self.0, "get_exchange_rate", (arg0,), CYCLES_TO_SEND).await;
 
-        log!("got response from xrc: {:#?}", result);
+        log!("got response from xrc: {:?}", result);
 
         result
     }

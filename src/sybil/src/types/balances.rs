@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -8,6 +8,7 @@ use ic_web3_rs::ethabi::Error as EthabiError;
 
 use super::{whitelist::WhitelistError, Address};
 use crate::{
+    clone_with_state,
     utils::{address::AddressError, canister::CanisterError, siwe::SiweError, web3::Web3Error},
     STATE,
 };
@@ -18,6 +19,9 @@ pub struct BalancesCfg {
     pub chain_id: Nat,
     pub erc20_contract: Address,
     pub fee_per_byte: Nat,
+    // Vec of addresses that won't be charged for anything
+    #[serde(default)]
+    pub whitelist: HashSet<String>,
 }
 
 #[derive(Error, Debug)]
@@ -161,6 +165,13 @@ impl Balances {
     }
 
     pub fn is_sufficient(address: &Address, amount: &Nat) -> Result<bool, BalanceError> {
+        if clone_with_state!(balances_cfg)
+            .whitelist
+            .contains(&address.to_string())
+        {
+            return Ok(true);
+        }
+
         STATE.with(|state| {
             let state = state.borrow();
             let balance = state
@@ -174,6 +185,13 @@ impl Balances {
     }
 
     pub fn reduce_amount(address: &Address, amount: &Nat) -> Result<(), BalanceError> {
+        if clone_with_state!(balances_cfg)
+            .whitelist
+            .contains(&address.to_string())
+        {
+            return Ok(());
+        }
+
         STATE.with(|state| {
             let mut state = state.borrow_mut();
 

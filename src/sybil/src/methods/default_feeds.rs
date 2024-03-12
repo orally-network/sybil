@@ -51,7 +51,7 @@ async fn _create_default_feed(req: CreateDefaultFeedRequest) -> Result<(), Defau
 
     let feed = Feed::from(req.clone());
 
-    FeedStorage::get_default_rate(&feed).await?;
+    FeedStorage::get_default_rate(&feed, None).await?;
     FeedStorage::add(feed);
 
     log!("[FEEDS] default feed added. Feed ID: {}", req.id);

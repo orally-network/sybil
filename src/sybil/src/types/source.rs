@@ -167,6 +167,10 @@ impl Source {
             .await
             .map_err(|err| SourceError::FailedToGetLogs(err.to_string()))?;
 
+        let bytes = serde_cbor::to_vec(&logs)
+            .expect("should be able to convert")
+            .len();
+
         let contract = Contract::load(evm_event_logs_source.event_abi.as_bytes())
             .map_err(|err| SourceError::FailedToParseABI(err.to_string()))?;
 
@@ -216,7 +220,7 @@ impl Source {
         Ok(RateResult {
             rate: serde_json::to_value(&data)?,
             cached_at: 0,
-            bytes: 0,
+            bytes,
         })
     }
 

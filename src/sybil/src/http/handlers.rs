@@ -8,6 +8,8 @@ use crate::types::{feeds::FeedStorage, rate_data::MultipleAssetsDataResult};
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
 struct GetAssetDataQueryParams {
     id: String,
+    msg: Option<String>,
+    sig: Option<String>,
 }
 
 impl TryFrom<String> for GetAssetDataQueryParams {
@@ -21,6 +23,8 @@ impl TryFrom<String> for GetAssetDataQueryParams {
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
 struct GetMultipleAssetsDataQueryParams {
     ids: Vec<String>,
+    msg: Option<String>,
+    sig: Option<String>,
 }
 
 impl TryFrom<String> for GetMultipleAssetsDataQueryParams {
@@ -94,7 +98,13 @@ async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Resu
     let params = GetAssetDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let rate = FeedStorage::rate(&params.id, with_signature).await?;
+    let payer = if let (Some(msg), Some(sig)) = (params.msg, params.sig) {
+        crate::utils::siwe::recover(&msg, &sig).await?
+    } else {
+        ic_cdk::caller().to_string()
+    };
+
+    let rate = FeedStorage::rate(&params.id, with_signature, payer).await?;
 
     Ok(serde_json::to_vec(&rate)?)
 }
@@ -117,9 +127,14 @@ async fn _get_multiple_assets_data_request(
     params.validate()?;
 
     let mut rate = Vec::with_capacity(params.ids.len());
+    let payer = if let (Some(msg), Some(sig)) = (params.msg, params.sig) {
+        crate::utils::siwe::recover(&msg, &sig).await?
+    } else {
+        ic_cdk::caller().to_string()
+    };
 
     for id in params.ids {
-        rate.push(FeedStorage::rate(&id, false).await?.data);
+        rate.push(FeedStorage::rate(&id, false, payer.clone()).await?.data);
     }
 
     let mut multiple_assets_data_result = MultipleAssetsDataResult {

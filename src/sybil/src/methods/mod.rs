@@ -109,30 +109,58 @@ async fn _get_feeds(
 }
 
 #[update]
-pub async fn get_asset_data_with_proof(id: String) -> Result<AssetDataResult, String> {
-    _get_asset_data_with_proof(id)
+pub async fn get_asset_data_with_proof(
+    id: String,
+    msg: Option<String>,
+    sig: Option<String>,
+) -> Result<AssetDataResult, String> {
+    _get_asset_data_with_proof(id, msg, sig)
         .await
         .map_err(|e| format!("failed to get asset data with proof: {}", e))
 }
 
-pub async fn _get_asset_data_with_proof(id: String) -> Result<AssetDataResult, AssetsError> {
+pub async fn _get_asset_data_with_proof(
+    id: String,
+    msg: Option<String>,
+    sig: Option<String>,
+) -> Result<AssetDataResult, AssetsError> {
+    let payer = if let (Some(msg), Some(sig)) = (msg, sig) {
+        siwe::recover(&msg, &sig).await?
+    } else {
+        ic_cdk::caller().to_string()
+    };
+
     metrics!(inc GET_ASSET_DATA_WITH_PROOF_CALLS, id);
-    let rate = FeedStorage::rate(&id, true).await?;
+    let rate = FeedStorage::rate(&id, true, payer).await?;
 
     metrics!(inc SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS, id);
     Ok(rate)
 }
 
 #[update]
-pub async fn get_asset_data(id: String) -> Result<AssetDataResult, String> {
-    _get_asset_data(id)
+pub async fn get_asset_data(
+    id: String,
+    msg: Option<String>,
+    sig: Option<String>,
+) -> Result<AssetDataResult, String> {
+    _get_asset_data(id, msg, sig)
         .await
         .map_err(|e| format!("failed to get asset data: {}", e))
 }
 
-async fn _get_asset_data(id: String) -> Result<AssetDataResult, AssetsError> {
+async fn _get_asset_data(
+    id: String,
+    msg: Option<String>,
+    sig: Option<String>,
+) -> Result<AssetDataResult, AssetsError> {
+    let payer = if let (Some(msg), Some(sig)) = (msg, sig) {
+        siwe::recover(&msg, &sig).await?
+    } else {
+        ic_cdk::caller().to_string()
+    };
+
     metrics!(inc GET_ASSET_DATA_CALLS, id);
-    let mut rate = FeedStorage::rate(&id, false).await?;
+    let mut rate = FeedStorage::rate(&id, false, payer).await?;
 
     rate.signature = None;
 
@@ -143,8 +171,10 @@ async fn _get_asset_data(id: String) -> Result<AssetDataResult, AssetsError> {
 #[update]
 pub async fn get_multiple_assets_data_with_proof(
     ids: Vec<String>,
+    msg: Option<String>,
+    sig: Option<String>,
 ) -> Result<MultipleAssetsDataResult, String> {
-    let mut multiple_assetds_data = _get_multiple_assets_data(ids)
+    let mut multiple_assetds_data = _get_multiple_assets_data(ids, msg, sig)
         .await
         .map_err(|e| format!("failed to get assets data: {}", e))?;
 
@@ -159,18 +189,25 @@ pub async fn get_multiple_assets_data_with_proof(
 #[update]
 pub async fn get_multiple_assets_data(
     ids: Vec<String>,
+    msg: Option<String>,
+    sig: Option<String>,
 ) -> Result<MultipleAssetsDataResult, String> {
-    _get_multiple_assets_data(ids)
+    _get_multiple_assets_data(ids, msg, sig)
         .await
         .map_err(|e| format!("failed to get assets data: {}", e))
 }
 
 async fn _get_multiple_assets_data(
     ids: Vec<String>,
+    msg: Option<String>,
+    sig: Option<String>,
 ) -> Result<MultipleAssetsDataResult, AssetsError> {
     let mut data = Vec::with_capacity(ids.len());
 
-    let futures = ids.into_iter().map(_get_asset_data).collect::<Vec<_>>();
+    let futures = ids
+        .into_iter()
+        .map(|id| _get_asset_data(id, msg.clone(), sig.clone()))
+        .collect::<Vec<_>>();
 
     for result in join_all(futures).await {
         data.push(result?.data);

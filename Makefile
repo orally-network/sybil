@@ -17,7 +17,9 @@ local_deploy_sybil: local_deploy_xrc
 	gzip -f -1 ./.dfx/local/canisters/sybil/sybil.wasm
 	dfx canister install --wasm ./.dfx/local/canisters/sybil/sybil.wasm.gz --argument \
 		"(record {exchange_rate_canister=principal\"${XRC_ID}\"; fallback_xrc=principal\"${XRC_ID}\"; evm_rpc_canister=principal\"${EVM_RPC_CANISTER}\"; rpc_wrapper=\"https://rpc.orally.network/?rpc=\"; mock=true; key_name=\"dfx_test_key\"; \
-			balances_cfg=record {rpc=\"${RPC_URL}\"; fee_per_byte=0:nat; chain_id=5:nat; erc20_contract=\"0xfad6367E97217cC51b4cd838Cc086831f81d38C2\"}})" sybil
+			balances_cfg=record {rpc=\"${RPC_URL}\"; fee_per_byte=0:nat; chain_id=5:nat; erc20_contract=\"0xfad6367E97217cC51b4cd838Cc086831f81d38C2\"; \
+			whitelist = vec {};
+			}})" sybil
 
 local_upgrade: local_upgrade_xrc local_upgrade_sybil
 

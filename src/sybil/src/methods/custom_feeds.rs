@@ -75,7 +75,7 @@ pub async fn _create_custom_feed(mut req: CreateCustomFeedRequest) -> Result<(),
     let mut feed = Feed::from(req.clone());
     feed.set_owner(addr.clone());
 
-    FeedStorage::get_custom_rate(&feed, &req.sources).await?;
+    FeedStorage::get_custom_rate(&feed, &req.sources, addr.clone()).await?;
     FeedStorage::add(feed);
 
     metrics!(inc CUSTOM_FEEDS);

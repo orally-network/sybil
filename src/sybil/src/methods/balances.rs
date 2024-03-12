@@ -27,6 +27,7 @@ use crate::{
         web3::{self, Web3Error, SUCCESSFUL_TX_STATUS},
         CallerError,
     },
+    STATE,
 };
 
 lazy_static! {
@@ -72,6 +73,17 @@ pub enum BalancesError {
     Caller(#[from] CallerError),
     #[error("Canister error: {0})")]
     Canister(#[from] canister::CanisterError),
+}
+
+#[update]
+pub async fn add_to_balances_whitelist(addresses: Vec<String>) -> Result<(), String> {
+    validate_caller().map_err(|_| format!("caller is not a controller"))?;
+    STATE.with(|state| {
+        let mut state = state.borrow_mut();
+        state.balances_cfg.whitelist.extend(addresses);
+    });
+
+    Ok(())
 }
 
 #[update]

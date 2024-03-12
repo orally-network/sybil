@@ -1,6 +1,6 @@
 use std::{collections::HashMap, time::Duration};
 
-use candid::CandidType;
+use candid::{CandidType, Nat};
 use ic_web3_rs::futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -24,6 +24,7 @@ use crate::{
 
 const RATE_FETCH_DEFAULT_XRC_MAX_RETRIES: u64 = 5;
 const RATE_FETCH_FALLBACK_XRC_MAX_RETRIES: u64 = 5;
+const MIN_BYTES_FOR_GET_ASSET_DATA: u64 = 1000;
 const WAITING_BEFORE_RETRY_MS: Duration = Duration::from_millis(500);
 
 #[derive(Error, Debug)]
@@ -187,12 +188,16 @@ impl FeedStorage {
         })
     }
 
-    pub async fn rate(id: &str, with_signature: bool) -> Result<AssetDataResult, FeedError> {
+    pub async fn rate(
+        id: &str,
+        with_signature: bool,
+        payer: String,
+    ) -> Result<AssetDataResult, FeedError> {
         let mut rate = match Self::get(id) {
             Some(feed) => match feed.feed_type.clone() {
                 FeedType::Default => {
                     log!("[FEEDS] default feed requested: feed ID: {}", id);
-                    Self::get_default_rate(&feed).await
+                    Self::get_default_rate(&feed, Some(payer)).await
                 }
                 FeedType::Custom | FeedType::CustomNumber | FeedType::CustomString => {
                     log!(
@@ -200,7 +205,7 @@ impl FeedStorage {
                         id,
                         feed.new_sources.clone().unwrap()
                     );
-                    Self::get_custom_rate(&feed, &feed.new_sources.clone().unwrap()).await
+                    Self::get_custom_rate(&feed, &feed.new_sources.clone().unwrap(), payer).await
                 }
             },
             None => Err(FeedError::FeedNotFound),
@@ -224,7 +229,21 @@ impl FeedStorage {
         Ok(rate)
     }
 
-    pub async fn get_default_rate(feed: &Feed) -> Result<AssetDataResult, FeedError> {
+    pub async fn get_default_rate(
+        feed: &Feed,
+        payer: Option<String>,
+    ) -> Result<AssetDataResult, FeedError> {
+        let fee_per_byte = state::get_cfg().balances_cfg.fee_per_byte;
+
+        if let Some(ref payer) = payer {
+            if !Balances::is_sufficient(
+                payer,
+                &(fee_per_byte.clone() * MIN_BYTES_FOR_GET_ASSET_DATA),
+            )? {
+                return Err(BalanceError::InsufficientBalance)?;
+            };
+        }
+
         if let Some(cache) = CACHE.with(|cache| cache.borrow_mut().get_entry(&feed.id)) {
             log!("[FEEDS] get_default_rate found feed in cache");
             return Ok(cache);
@@ -241,7 +260,7 @@ impl FeedStorage {
         let xrc = Service(clone_with_state!(exchange_rate_canister));
         metrics!(inc XRC_CALLS);
 
-        let exchange_rate = match Self::call_xrc_with_attempts(
+        let (exchange_rate, bytes) = match Self::call_xrc_with_attempts(
             xrc,
             req.clone(),
             RATE_FETCH_DEFAULT_XRC_MAX_RETRIES,
@@ -272,6 +291,18 @@ impl FeedStorage {
             }
         };
 
+        let canister_addr = canister::eth_address().await?;
+        let fee = fee_per_byte * bytes;
+
+        if let Some(payer) = payer {
+            if !Balances::is_sufficient(&payer, &fee)? {
+                return Err(BalanceError::InsufficientBalance)?;
+            };
+
+            Balances::reduce_amount(&payer, &fee)?;
+            Balances::add_amount(&canister_addr, &fee)?;
+        }
+
         let rate_data = AssetDataResult {
             data: AssetData::DefaultPriceFeed {
                 symbol: feed.id.clone(),
@@ -295,7 +326,8 @@ impl FeedStorage {
         exchange_rate_canister: Service,
         mut req: GetExchangeRateRequest,
         max_attempts: u64,
-    ) -> Result<ExchangeRate, FeedError> {
+    ) -> Result<(ExchangeRate, usize), FeedError> {
+        let mut bytes = 0;
         let mut exchange_rate = ExchangeRate::default();
         for attempt in 0..(max_attempts) {
             req.timestamp = Some(time::in_seconds() - 5);
@@ -313,6 +345,10 @@ impl FeedStorage {
                     .map_err(|(_, msg)| FeedError::UnableToGetRate(msg))?
                     .0,
             );
+
+            bytes += candid::encode_args((&exchange_rate_result,))
+                .expect("should be able to encode exchange rate result")
+                .len();
 
             match exchange_rate_result {
                 Ok(_exchange_rate) => {
@@ -346,13 +382,23 @@ impl FeedStorage {
             };
         }
 
-        return Ok(exchange_rate);
+        return Ok((exchange_rate, bytes));
     }
 
     pub async fn get_custom_rate(
         feed: &Feed,
         sources: &[Source],
+        payer: String,
     ) -> Result<AssetDataResult, FeedError> {
+        let fee_per_byte = state::get_cfg().balances_cfg.fee_per_byte;
+
+        if !Balances::is_sufficient(
+            &payer,
+            &(fee_per_byte.clone() * MIN_BYTES_FOR_GET_ASSET_DATA),
+        )? {
+            return Err(BalanceError::InsufficientBalance)?;
+        };
+
         let canister_addr = canister::eth_address().await?;
 
         let futures = sources
@@ -382,10 +428,13 @@ impl FeedStorage {
         }
 
         let bytes = results.iter().map(|res| res.bytes).sum::<usize>();
-        let fee_per_byte = state::get_cfg().balances_cfg.fee_per_byte;
         let fee = fee_per_byte * bytes;
 
         if !Balances::is_sufficient(&feed.owner, &fee)? {
+            return Err(BalanceError::InsufficientBalance)?;
+        };
+
+        if !Balances::is_sufficient(&payer, &fee)? {
             return Err(BalanceError::InsufficientBalance)?;
         };
 
@@ -395,9 +444,10 @@ impl FeedStorage {
             .unzip();
 
         Balances::reduce_amount(&feed.owner, &fee)?;
-        Balances::add_amount(&canister_addr, &fee)?;
+        Balances::reduce_amount(&payer, &fee)?;
+        Balances::add_amount(&canister_addr, &(fee * Nat::from(2)))?;
 
-        match feed.feed_type {
+        let asset_data_result = match feed.feed_type {
             FeedType::CustomNumber => {
                 let parsed_results = match results.first().expect("rate is empty") {
                     Value::String(_) => results
@@ -437,14 +487,14 @@ impl FeedStorage {
                 let parsed_number = ParsedNumber::parse(&value.to_string(), feed.decimals)
                     .map_err(|err| FeedError::UnableToConvertRate(err.to_string()))?;
 
-                return Ok(AssetDataResult {
+                AssetDataResult {
                     data: AssetData::CustomNumber {
                         id: feed.id.clone(),
                         value: parsed_number.number,
                         decimals: parsed_number.decimals,
                     },
                     ..Default::default()
-                });
+                }
             }
             FeedType::CustomString => {
                 let string = results
@@ -461,13 +511,13 @@ impl FeedStorage {
                     .ok_or(FeedError::NoRateValueGotFromSources)?
                     .clone();
 
-                return Ok(AssetDataResult {
+                AssetDataResult {
                     data: AssetData::CustomString {
                         id: feed.id.clone(),
                         value,
                     },
                     ..Default::default()
-                });
+                }
             }
             FeedType::Custom => {
                 let rate = results
@@ -483,7 +533,7 @@ impl FeedStorage {
                 let parsed_number = ParsedNumber::parse(&value.to_string(), feed.decimals)
                     .map_err(|err| FeedError::UnableToConvertRate(err.to_string()))?;
 
-                return Ok(AssetDataResult {
+                AssetDataResult {
                     data: AssetData::CustomPriceFeed {
                         symbol: feed.id.clone(),
                         rate: parsed_number.number,
@@ -495,12 +545,14 @@ impl FeedStorage {
                             .clone(),
                     },
                     ..Default::default()
-                });
+                }
             }
             _ => {
                 return Err(FeedError::NoRateValueGotFromSources);
             }
-        }
+        };
+
+        Ok(asset_data_result)
     }
 
     pub fn get(id: &str) -> Option<Feed> {

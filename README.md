@@ -55,25 +55,26 @@ dfx canister call sybil add_to_whitelist "(\"${CALLER}\")"
 dfx canister call sybil eth_address
 dfx canister call sybil deposit "(\"${TX_HASH}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil get_balance "(\"${CALLER}\")"
+dfx canister call sybil add_to_balances_whitelist "(vec {})"
 # create custom http feed
 dfx canister call sybil create_custom_feed "(record {id=\"BTC/USDT\"; feed_type=variant {Custom}; update_freq=3600:nat; decimals=opt 6; sources=vec {variant { HttpSource = record {uri=\"https://api.pro.coinbase.com/products/{key1}/candles?granularity=60\"; api_keys = opt vec {record { title = \"key1\"; key = \"BTC-USDT\"}}; resolver=\"/0/1\"}}};msg=\"${SIWE_MSG}\"; sig=\"${SIWE_SIG}\"})"
-dfx canister call sybil get_asset_data "(\"custom_BTC/USDT\")"
+dfx canister call sybil get_asset_data "(\"custom_BTC/USDT\", opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 dfx canister call sybil remove_custom_feed "(\"custom_BTC/USDT\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 
 # create custom getlogs feed 
 # example of https://sepolia.etherscan.io/tx/0xb7c9735ec4c7b0996cb43a302d2209784cbe706fe0c9f50feda2c626fc6668ec#eventlog
 dfx canister call sybil create_custom_feed "(record {id=\"get_logs_example\"; feed_type=variant {CustomString}; update_freq=3600:nat; decimals=null; sources=vec {variant { EvmEventLogsSource = record {rpc=\"https://endpoints.omniatech.io/v1/eth/sepolia/public\"; block_hash = opt \"0x31c066528f2b7800cb4d797b4ccb7c2f141f787b285ced26a3fdd1bafd66eb67\"; topic = opt \"0xdc9a6ce9bdf5d7327deb64beb9074cf0bc6e6c9ca2b318dae8b8ad4d38dd9344\"; address = opt \"0x67de6b66516E098EF945EAddE48C54fABfD3Dcf9\"; log_index = 0; event_log_field_name = \"dataFeedId\"; event_name = \"PriceFeedRequested\"; event_abi = \"[{\\\"type\\\":\\\"event\\\",\\\"name\\\":\\\"PriceFeedRequested\\\",\\\"inputs\\\":[{\\\"name\\\":\\\"dataFeedId\\\",\\\"type\\\":\\\"string\\\",\\\"indexed\\\":false,\\\"internalType\\\":\\\"string\\\"},{\\\"name\\\":\\\"callbackGasLimit\\\",\\\"type\\\":\\\"uint256\\\",\\\"indexed\\\":false,\\\"internalType\\\":\\\"uint256\\\"},{\\\"name\\\":\\\"requester\\\",\\\"type\\\":\\\"address\\\",\\\"indexed\\\":true,\\\"internalType\\\":\\\"address\\\"}],\\\"anonymous\\\":false}]\"}}};msg=\"${SIWE_MSG}\"; sig=\"${SIWE_SIG}\"})"
-dfx canister call sybil get_asset_data "(\"custom_get_logs_example\")"
+dfx canister call sybil get_asset_data "(\"custom_get_logs_example\", opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 dfx canister call sybil remove_custom_feed "(\"custom_get_logs_example\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 
 # create default feed (feeds come from xrc)
 dfx canister call sybil create_default_feed "(record {id=\"ETH/USD\"; update_freq=360:nat; decimals=6:nat})"
-dfx canister call sybil get_asset_data "(\"ETH/USD\")"
-dfx canister call sybil get_asset_data_with_proof "(\"ETH/USD\")"
+dfx canister call sybil get_asset_data "(\"ETH/USD\", opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
+dfx canister call sybil get_asset_data_with_proof "(\"ETH/USD\", opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 dfx canister call sybil remove_default_feed "(\"ETH/USD\")"
 
-dfx canister call sybil get_multiple_assets_data "(vec { \"ETH/USD\"; \"custom_get_logs_example\" })"
-dfx canister call sybil get_multiple_assets_data_with_proof "(vec { \"ETH/USD\"; \"custom_get_logs_example\" })"
+dfx canister call sybil get_multiple_assets_data "(vec { \"ETH/USD\"; \"custom_get_logs_example\" }, opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
+dfx canister call sybil get_multiple_assets_data_with_proof "(vec { \"ETH/USD\"; \"custom_get_logs_example\" }, opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 
 dfx canister call sybil update_cfg "(record {evm_rpc_canister = opt \"aovwi-4maaa-aaaaa-qaagq-cai\"})"
 

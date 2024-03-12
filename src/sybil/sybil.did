@@ -72,6 +72,7 @@ type BalancesCfg = record {
     chain_id : nat;
     erc20_contract : text;
     fee_per_byte : nat;
+    whitelist : vec text;
 };
 
 type Cfg = record {
@@ -175,10 +176,10 @@ service : {
     remove_default_feed : (id : text) -> (Error);
 
     // assets 
-    get_asset_data_with_proof : (id : text) -> (GetAssetDataWithProofResponse);
-    get_asset_data : (id : text) -> (GetAssetDataResponse);
-    get_multiple_assets_data_with_proof : (ids : vec text) -> (GetMultipleAssetsDataResponse);
-    get_multiple_assets_data : (ids : vec text) -> (GetMultipleAssetsDataResponse);
+    get_asset_data_with_proof : (id : text, msg : opt text, sig : opt text) -> (GetAssetDataWithProofResponse);
+    get_asset_data : (id : text, msg : opt text, sig : opt text) -> (GetAssetDataResponse);
+    get_multiple_assets_data_with_proof : (ids : vec text, msg : opt text, sig : opt text) -> (GetMultipleAssetsDataResponse);
+    get_multiple_assets_data : (ids : vec text, msg : opt text, sig : opt text) -> (GetMultipleAssetsDataResponse);
     is_feed_exists : (id : text) -> (bool);
     get_feeds : (filter: opt GetFeedsFilter, pagination: opt Pagination, msg: opt text, sig: opt text) -> (GetFeedsResponse);
     get_feed : (id: text, msg: opt text, sig: opt text) -> (GetFeedResponse);
@@ -193,6 +194,7 @@ service : {
     eth_address : () -> (TextResponse);
 
     // balances
+    add_to_balances_whitelist : (addresses : vec text) -> (Error);
     deposit : (tx_hash : text, msg : text, sig : text) -> (Error);
     get_balance : (address : text) -> (NatResponse);
     withdraw : (amount : nat, to : text, msg : text, sig : text) -> (TextResponse);

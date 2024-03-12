@@ -40,6 +40,6 @@ paginate = "1.1.11"
 strsim = "0.10.0"
 float-ord = "0.3.2"
 urlencoding = "2.1.3"
-
 cketh-common = { git = "https://github.com/dfinity/ic", rev = "8511846fb6352a0a4f9abae1a8fc8569aeba5f10", package = "ic-cketh-minter" }
 jsonrpc-core = "18.0.0"
+serde_cbor = "0.11.2"

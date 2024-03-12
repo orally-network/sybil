@@ -1,6 +1,6 @@
 #![allow(deprecated)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use candid::{CandidType, Nat, Principal};
 use ic_cdk::{post_upgrade, pre_upgrade, storage};
@@ -133,6 +133,28 @@ pub struct DataFetcher {
     pub sources: Vec<Source>,
 }
 
+#[derive(CandidType, Deserialize, Serialize, Default, Clone, Debug)]
+pub struct OldBalancesCfg {
+    pub rpc: String,
+    pub chain_id: Nat,
+    pub erc20_contract: Address,
+    pub fee_per_byte: Nat,
+    // Vec of addresses that won't be charged for anything
+    pub whitelist: Option<HashSet<String>>,
+}
+
+impl From<OldBalancesCfg> for BalancesCfg {
+    fn from(old: OldBalancesCfg) -> Self {
+        Self {
+            rpc: old.rpc,
+            chain_id: old.chain_id,
+            erc20_contract: old.erc20_contract,
+            fee_per_byte: old.fee_per_byte,
+            whitelist: old.whitelist.unwrap_or_default(),
+        }
+    }
+}
+
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug)]
 pub struct OldState {
     pub exchange_rate_canister: Principal,
@@ -143,7 +165,7 @@ pub struct OldState {
     pub mock: bool,
     pub feeds: OldFeedStorage,
     pub balances: Balances,
-    pub balances_cfg: BalancesCfg,
+    pub balances_cfg: OldBalancesCfg,
     pub eth_address: Option<Address>,
     pub whitelist: Whitelist,
     pub data_fetchers: Option<DataFetchersStorage>,
@@ -165,7 +187,7 @@ impl From<OldState> for State {
             mock: state.mock,
             feeds: state.feeds.into(),
             balances: state.balances,
-            balances_cfg: state.balances_cfg,
+            balances_cfg: state.balances_cfg.into(),
             eth_address: state.eth_address,
             whitelist: state.whitelist,
         }
