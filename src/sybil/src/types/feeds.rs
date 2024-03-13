@@ -197,7 +197,7 @@ impl FeedStorage {
             Some(feed) => match feed.feed_type.clone() {
                 FeedType::Default => {
                     log!("[FEEDS] default feed requested: feed ID: {}", id);
-                    Self::get_default_rate(&feed, Some(payer)).await
+                    Self::get_default_rate(&feed, None).await
                 }
                 FeedType::Custom | FeedType::CustomNumber | FeedType::CustomString => {
                     log!(
@@ -205,8 +205,7 @@ impl FeedStorage {
                         id,
                         feed.new_sources.clone().unwrap()
                     );
-                    Self::get_custom_rate(&feed, &feed.new_sources.clone().unwrap(), Some(payer))
-                        .await
+                    Self::get_custom_rate(&feed, &feed.new_sources.clone().unwrap(), None).await
                 }
             },
             None => Err(FeedError::FeedNotFound),
