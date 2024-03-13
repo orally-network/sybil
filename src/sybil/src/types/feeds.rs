@@ -205,7 +205,8 @@ impl FeedStorage {
                         id,
                         feed.new_sources.clone().unwrap()
                     );
-                    Self::get_custom_rate(&feed, &feed.new_sources.clone().unwrap(), payer).await
+                    Self::get_custom_rate(&feed, &feed.new_sources.clone().unwrap(), Some(payer))
+                        .await
                 }
             },
             None => Err(FeedError::FeedNotFound),
@@ -388,16 +389,18 @@ impl FeedStorage {
     pub async fn get_custom_rate(
         feed: &Feed,
         sources: &[Source],
-        payer: String,
+        payer: Option<String>,
     ) -> Result<AssetDataResult, FeedError> {
         let fee_per_byte = state::get_cfg().balances_cfg.fee_per_byte;
 
-        if !Balances::is_sufficient(
-            &payer,
-            &(fee_per_byte.clone() * MIN_BYTES_FOR_GET_ASSET_DATA),
-        )? {
-            return Err(BalanceError::InsufficientBalance)?;
-        };
+        if let Some(ref payer) = payer {
+            if !Balances::is_sufficient(
+                &payer,
+                &(fee_per_byte.clone() * MIN_BYTES_FOR_GET_ASSET_DATA),
+            )? {
+                return Err(BalanceError::InsufficientBalance)?;
+            };
+        }
 
         let canister_addr = canister::eth_address().await?;
 
@@ -434,9 +437,11 @@ impl FeedStorage {
             return Err(BalanceError::InsufficientBalance)?;
         };
 
-        if !Balances::is_sufficient(&payer, &fee)? {
-            return Err(BalanceError::InsufficientBalance)?;
-        };
+        if let Some(ref payer) = payer {
+            if !Balances::is_sufficient(&payer, &fee)? {
+                return Err(BalanceError::InsufficientBalance)?;
+            };
+        }
 
         let (results, cached_at_timestamps): (Vec<_>, Vec<_>) = results
             .into_iter()
@@ -444,7 +449,9 @@ impl FeedStorage {
             .unzip();
 
         Balances::reduce_amount(&feed.owner, &fee)?;
-        Balances::reduce_amount(&payer, &fee)?;
+        if let Some(ref payer) = payer {
+            Balances::reduce_amount(&payer, &fee)?;
+        }
         Balances::add_amount(&canister_addr, &(fee * Nat::from(2)))?;
 
         let asset_data_result = match feed.feed_type {
