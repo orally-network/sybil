@@ -22,7 +22,7 @@ impl TryFrom<String> for GetAssetDataQueryParams {
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
 struct GetMultipleAssetsDataQueryParams {
-    ids: Vec<String>,
+    ids: String,
     msg: Option<String>,
     sig: Option<String>,
 }
@@ -133,7 +133,7 @@ async fn _get_multiple_assets_data_request(
         ic_cdk::caller().to_string()
     };
 
-    for id in params.ids {
+    for id in params.ids.split(",") {
         rate.push(FeedStorage::rate(&id, false, payer.clone()).await?.data);
     }
 
