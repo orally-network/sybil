@@ -6,6 +6,7 @@ pub mod signatures;
 pub mod transforms;
 pub mod whitelist;
 
+use candid::Nat;
 use futures::future::join_all;
 use ic_cdk::{query, update};
 
@@ -19,11 +20,11 @@ use ic_utils::{
 use crate::{
     metrics,
     types::{
-        feeds::{Feed, FeedError, FeedStorage, GetFeedsFilter},
+        feeds::{Feed, FeedError, FeedStorage, GetFeedsFilter, DEFAULT_UPDATE_FREQ},
         pagination::{Pagination, PaginationResult},
         rate_data::{AssetDataResult, MultipleAssetsDataResult},
     },
-    utils::{canister, siwe},
+    utils::{canister, nat, siwe},
 };
 
 #[derive(Error, Debug)]
@@ -134,6 +135,42 @@ pub async fn _get_asset_data_with_proof(
     let rate = FeedStorage::rate(&id, true, payer).await?;
 
     metrics!(inc SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS, id);
+    Ok(rate)
+}
+
+#[update]
+pub async fn get_xrc_data(
+    id: String,
+    decimals: Nat,
+    msg: Option<String>,
+    sig: Option<String>,
+) -> Result<AssetDataResult, String> {
+    _get_xrc_data(id, decimals, msg, sig)
+        .await
+        .map_err(|e| format!("failed to get asset data: {}", e))
+}
+
+pub async fn _get_xrc_data(
+    id: String,
+    decimals: Nat,
+    msg: Option<String>,
+    sig: Option<String>,
+) -> Result<AssetDataResult, AssetsError> {
+    let payer = if let (Some(msg), Some(sig)) = (msg, sig) {
+        siwe::recover(&msg, &sig).await?
+    } else {
+        ic_cdk::caller().to_string()
+    };
+
+    let rate = Feed {
+        id: id.clone(),
+        decimals: Some(nat::to_u64(&decimals)),
+        update_freq: DEFAULT_UPDATE_FREQ,
+        ..Default::default()
+    };
+
+    let rate = FeedStorage::get_default_rate(&rate, None).await?;
+
     Ok(rate)
 }
 

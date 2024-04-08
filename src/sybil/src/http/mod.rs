@@ -11,7 +11,10 @@ use ic_cdk::{query, update};
 
 use router::Router;
 
-use crate::types::http::{HttpRequest, HttpResponse};
+use crate::{
+    log,
+    types::http::{HttpRequest, HttpResponse},
+};
 
 pub static HTTP_SERVICE: OnceLock<HttpService> = OnceLock::new();
 
@@ -128,6 +131,13 @@ impl HttpService {
                         request,
                     ))
                 }),
+            )
+            .expect("Failed to insert handler");
+
+        router
+            .insert(
+                "/get_xrc_data:query",
+                Box::new(|request| Box::pin(handlers::get_xrc_data(request))),
             )
             .expect("Failed to insert handler");
 

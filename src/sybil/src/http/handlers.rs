@@ -35,6 +35,22 @@ impl TryFrom<String> for GetMultipleAssetsDataQueryParams {
     }
 }
 
+#[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
+struct GetXRCDataQueryParams {
+    id: String,
+    decimals: u64,
+    msg: Option<String>,
+    sig: Option<String>,
+}
+
+impl TryFrom<String> for GetXRCDataQueryParams {
+    type Error = serde_qs::Error;
+
+    fn try_from(query: String) -> Result<Self, serde_qs::Error> {
+        serde_qs::from_str(&query)
+    }
+}
+
 pub async fn get_asset_data_request(req: HttpRequest) -> HttpResponse {
     let resp = _get_asset_data_request(req, false)
         .await
@@ -66,6 +82,36 @@ pub async fn get_multiple_assets_data_with_proof_request(req: HttpRequest) -> Ht
         Ok(data) => response::ok(data),
         Err(err) => response::bad_request(err),
     }
+}
+
+pub async fn get_xrc_data(req: HttpRequest) -> HttpResponse {
+    let resp = _get_xrc_data(req).await.map_err(|e| e.to_string());
+
+    match resp {
+        Ok(data) => response::ok(data),
+        Err(err) => response::bad_request(err),
+    }
+}
+
+#[inline(always)]
+async fn _get_xrc_data(req: HttpRequest) -> Result<Vec<u8>> {
+    let service = HTTP_SERVICE.get().expect("State not initialized");
+
+    let query = service
+        .update_router
+        .inner
+        .at(&req.url)
+        .context("No route found")?
+        .params;
+
+    let params = GetXRCDataQueryParams::try_from(query.to_string())?;
+    params.validate()?;
+
+    let rate =
+        crate::methods::_get_xrc_data(params.id, params.decimals.into(), params.msg, params.sig)
+            .await?;
+
+    Ok(serde_json::to_vec(&rate)?)
 }
 
 pub async fn get_asset_data_with_proof_request(req: HttpRequest) -> HttpResponse {
