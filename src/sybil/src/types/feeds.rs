@@ -570,16 +570,20 @@ impl FeedStorage {
         let assets: Vec<&str> = id.split_terminator('/').collect();
 
         if let (Some(base_asset), Some(quote_asset)) = (assets.first(), assets.last()) {
-            return Some((
-                Asset {
-                    class: AssetClass::Cryptocurrency,
-                    symbol: base_asset.to_string(),
+            let base_asset = Asset {
+                class: AssetClass::Cryptocurrency,
+                symbol: base_asset.to_string(),
+            };
+
+            let quote_asset = Asset {
+                class: match *quote_asset {
+                    "USD" | "EUR" => AssetClass::FiatCurrency,
+                    _ => AssetClass::Cryptocurrency,
                 },
-                Asset {
-                    class: AssetClass::FiatCurrency,
-                    symbol: quote_asset.to_string(),
-                },
-            ));
+                symbol: quote_asset.to_string(),
+            };
+
+            return Some((base_asset, quote_asset));
         }
 
         None
