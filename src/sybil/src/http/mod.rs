@@ -141,6 +141,13 @@ impl HttpService {
             )
             .expect("Failed to insert handler");
 
+        router
+            .insert(
+                "/get_xrc_data_with_proof:query",
+                Box::new(|request| Box::pin(handlers::get_xrc_data_with_proof(request))),
+            )
+            .expect("Failed to insert handler");
+
         let pre_middlewares: Vec<PreMiddleware> =
             vec![Box::new(|request| Box::pin(middlewares::logger(request)))];
 
@@ -175,6 +182,8 @@ impl HttpRouter {
 
 #[query]
 pub async fn http_request(req: HttpRequest) -> HttpResponse {
+    log!("Received request url: {:?}", req.url);
+    log!("Received request headers: {:#?}", req.headers);
     let service = HTTP_SERVICE.get().expect("HTTP service not initialized");
 
     let req = service.query_router.run_pre_middlewares(req).await;
@@ -190,6 +199,8 @@ pub async fn http_request(req: HttpRequest) -> HttpResponse {
 
 #[update]
 pub async fn http_request_update(req: HttpRequest) -> HttpResponse {
+    log!("Received request url: {:?}", req.url);
+    log!("Received request headers: {:#?}", req.headers);
     let service = HTTP_SERVICE.get().expect("HTTP service not initialized");
 
     let req = service.update_router.run_pre_middlewares(req).await;

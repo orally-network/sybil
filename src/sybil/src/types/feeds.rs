@@ -308,7 +308,7 @@ impl FeedStorage {
             data: AssetData::DefaultPriceFeed {
                 symbol: feed.id.clone(),
                 rate: exchange_rate.rate,
-                decimals: feed.decimals.unwrap(),
+                decimals: exchange_rate.metadata.decimals as u64,
                 timestamp: exchange_rate.timestamp,
             },
             ..Default::default()

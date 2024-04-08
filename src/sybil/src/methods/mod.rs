@@ -141,18 +141,28 @@ pub async fn _get_asset_data_with_proof(
 #[update]
 pub async fn get_xrc_data(
     id: String,
-    decimals: Nat,
     msg: Option<String>,
     sig: Option<String>,
 ) -> Result<AssetDataResult, String> {
-    _get_xrc_data(id, decimals, msg, sig)
+    _get_xrc_data(id, false, msg, sig)
+        .await
+        .map_err(|e| format!("failed to get asset data: {}", e))
+}
+
+#[update]
+pub async fn get_xrc_data_with_proof(
+    id: String,
+    msg: Option<String>,
+    sig: Option<String>,
+) -> Result<AssetDataResult, String> {
+    _get_xrc_data(id, true, msg, sig)
         .await
         .map_err(|e| format!("failed to get asset data: {}", e))
 }
 
 pub async fn _get_xrc_data(
     id: String,
-    decimals: Nat,
+    with_signature: bool,
     msg: Option<String>,
     sig: Option<String>,
 ) -> Result<AssetDataResult, AssetsError> {
@@ -164,12 +174,15 @@ pub async fn _get_xrc_data(
 
     let rate = Feed {
         id: id.clone(),
-        decimals: Some(nat::to_u64(&decimals)),
         update_freq: DEFAULT_UPDATE_FREQ,
         ..Default::default()
     };
 
-    let rate = FeedStorage::get_default_rate(&rate, None).await?;
+    let mut rate = FeedStorage::get_default_rate(&rate, None).await?;
+
+    if with_signature {
+        rate.sign().await.map_err(FeedError::RateDataError)?;
+    }
 
     Ok(rate)
 }

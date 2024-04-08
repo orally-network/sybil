@@ -38,7 +38,6 @@ impl TryFrom<String> for GetMultipleAssetsDataQueryParams {
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
 struct GetXRCDataQueryParams {
     id: String,
-    decimals: u64,
     msg: Option<String>,
     sig: Option<String>,
 }
@@ -85,7 +84,16 @@ pub async fn get_multiple_assets_data_with_proof_request(req: HttpRequest) -> Ht
 }
 
 pub async fn get_xrc_data(req: HttpRequest) -> HttpResponse {
-    let resp = _get_xrc_data(req).await.map_err(|e| e.to_string());
+    let resp = _get_xrc_data(req, false).await.map_err(|e| e.to_string());
+
+    match resp {
+        Ok(data) => response::ok(data),
+        Err(err) => response::bad_request(err),
+    }
+}
+
+pub async fn get_xrc_data_with_proof(req: HttpRequest) -> HttpResponse {
+    let resp = _get_xrc_data(req, true).await.map_err(|e| e.to_string());
 
     match resp {
         Ok(data) => response::ok(data),
@@ -94,7 +102,7 @@ pub async fn get_xrc_data(req: HttpRequest) -> HttpResponse {
 }
 
 #[inline(always)]
-async fn _get_xrc_data(req: HttpRequest) -> Result<Vec<u8>> {
+async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
     let service = HTTP_SERVICE.get().expect("State not initialized");
 
     let query = service
@@ -108,8 +116,7 @@ async fn _get_xrc_data(req: HttpRequest) -> Result<Vec<u8>> {
     params.validate()?;
 
     let rate =
-        crate::methods::_get_xrc_data(params.id, params.decimals.into(), params.msg, params.sig)
-            .await?;
+        crate::methods::_get_xrc_data(params.id, with_signature, params.msg, params.sig).await?;
 
     Ok(serde_json::to_vec(&rate)?)
 }
