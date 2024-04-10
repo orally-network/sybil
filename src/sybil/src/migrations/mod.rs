@@ -11,6 +11,7 @@ use crate::{
     http::HttpService,
     log, metrics,
     types::{
+        allowances::Allowances,
         balances::{Balances, BalancesCfg},
         cache::{HttpCache, RateCache, SignaturesCache},
         feeds::{Feed, FeedStatus, FeedStorage, FeedType},
@@ -139,6 +140,7 @@ pub struct OldBalancesCfg {
     pub chain_id: Nat,
     pub erc20_contract: Address,
     pub fee_per_byte: Nat,
+    pub base_fee: Option<Nat>,
     // Vec of addresses that won't be charged for anything
     pub whitelist: Option<HashSet<String>>,
 }
@@ -150,6 +152,7 @@ impl From<OldBalancesCfg> for BalancesCfg {
             chain_id: old.chain_id,
             erc20_contract: old.erc20_contract,
             fee_per_byte: old.fee_per_byte,
+            base_fee: old.base_fee.unwrap_or_default(),
             whitelist: old.whitelist.unwrap_or_default(),
         }
     }
@@ -165,6 +168,7 @@ pub struct OldState {
     pub mock: bool,
     pub feeds: OldFeedStorage,
     pub balances: Balances,
+    pub allowances: Option<Allowances>,
     pub balances_cfg: OldBalancesCfg,
     pub eth_address: Option<Address>,
     pub whitelist: Whitelist,
@@ -187,6 +191,7 @@ impl From<OldState> for State {
             mock: state.mock,
             feeds: state.feeds.into(),
             balances: state.balances,
+            allowances: state.allowances.unwrap_or_default(),
             balances_cfg: state.balances_cfg.into(),
             eth_address: state.eth_address,
             whitelist: state.whitelist,

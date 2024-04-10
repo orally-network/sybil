@@ -234,13 +234,10 @@ impl FeedStorage {
         feed: &Feed,
         payer: Option<String>,
     ) -> Result<AssetDataResult, FeedError> {
-        let fee_per_byte = state::get_cfg().balances_cfg.fee_per_byte;
+        let base_fee = state::get_cfg().balances_cfg.base_fee;
 
         if let Some(ref payer) = payer {
-            if !Balances::is_sufficient(
-                payer,
-                &(fee_per_byte.clone() * MIN_BYTES_FOR_GET_ASSET_DATA),
-            )? {
+            if !Balances::is_sufficient(payer, &base_fee)? {
                 return Err(BalanceError::InsufficientBalance)?;
             };
         }
@@ -261,7 +258,7 @@ impl FeedStorage {
         let xrc = Service(clone_with_state!(exchange_rate_canister));
         metrics!(inc XRC_CALLS);
 
-        let (exchange_rate, bytes) = match Self::call_xrc_with_attempts(
+        let exchange_rate = match Self::call_xrc_with_attempts(
             xrc,
             req.clone(),
             RATE_FETCH_DEFAULT_XRC_MAX_RETRIES,
@@ -293,15 +290,10 @@ impl FeedStorage {
         };
 
         let canister_addr = canister::eth_address().await?;
-        let fee = fee_per_byte * bytes;
 
         if let Some(payer) = payer {
-            if !Balances::is_sufficient(&payer, &fee)? {
-                return Err(BalanceError::InsufficientBalance)?;
-            };
-
-            Balances::reduce_amount(&payer, &fee)?;
-            Balances::add_amount(&canister_addr, &fee)?;
+            Balances::reduce_amount(&payer, &base_fee)?;
+            Balances::add_amount(&canister_addr, &base_fee)?;
         }
 
         let rate_data = AssetDataResult {
@@ -327,8 +319,7 @@ impl FeedStorage {
         exchange_rate_canister: Service,
         mut req: GetExchangeRateRequest,
         max_attempts: u64,
-    ) -> Result<(ExchangeRate, usize), FeedError> {
-        let mut bytes = 0;
+    ) -> Result<ExchangeRate, FeedError> {
         let mut exchange_rate = ExchangeRate::default();
         for attempt in 0..(max_attempts) {
             req.timestamp = Some(time::in_seconds() - 5);
@@ -346,10 +337,6 @@ impl FeedStorage {
                     .map_err(|(_, msg)| FeedError::UnableToGetRate(msg))?
                     .0,
             );
-
-            bytes += candid::encode_args((&exchange_rate_result,))
-                .expect("should be able to encode exchange rate result")
-                .len();
 
             match exchange_rate_result {
                 Ok(_exchange_rate) => {
@@ -383,7 +370,7 @@ impl FeedStorage {
             };
         }
 
-        return Ok((exchange_rate, bytes));
+        return Ok(exchange_rate);
     }
 
     pub async fn get_custom_rate(
@@ -391,7 +378,9 @@ impl FeedStorage {
         sources: &[Source],
         payer: Option<String>,
     ) -> Result<AssetDataResult, FeedError> {
-        let fee_per_byte = state::get_cfg().balances_cfg.fee_per_byte;
+        let balances_cfg = state::get_cfg().balances_cfg;
+        let fee_per_byte = balances_cfg.fee_per_byte;
+        let base_fee = balances_cfg.base_fee;
 
         if let Some(ref payer) = payer {
             if !Balances::is_sufficient(
@@ -431,7 +420,7 @@ impl FeedStorage {
         }
 
         let bytes = results.iter().map(|res| res.bytes).sum::<usize>();
-        let fee = fee_per_byte * bytes;
+        let fee = fee_per_byte * bytes + base_fee;
 
         if !Balances::is_sufficient(&feed.owner, &fee)? {
             return Err(BalanceError::InsufficientBalance)?;

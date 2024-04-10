@@ -1,3 +1,4 @@
+pub mod allowances;
 pub mod balances;
 pub mod cache;
 pub mod config;

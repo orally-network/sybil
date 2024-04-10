@@ -4,6 +4,7 @@ use candid::CandidType;
 use candid::Principal;
 use serde::{Deserialize, Serialize};
 
+use super::allowances::Allowances;
 use super::{
     config::{Cfg, UpdateCfg},
     feeds::FeedStorage,
@@ -25,6 +26,7 @@ pub struct State {
     pub mock: bool,
     pub feeds: FeedStorage,
     pub balances: Balances,
+    pub allowances: Allowances,
     pub balances_cfg: BalancesCfg,
     pub eth_address: Option<Address>,
     pub whitelist: Whitelist,
@@ -41,6 +43,7 @@ impl Default for State {
             mock: false,
             feeds: FeedStorage::default(),
             balances: Balances::default(),
+            allowances: Allowances::default(),
             balances_cfg: BalancesCfg::default(),
             eth_address: None,
             whitelist: Whitelist::default(),

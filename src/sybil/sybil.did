@@ -72,6 +72,7 @@ type BalancesCfg = record {
     chain_id : nat;
     erc20_contract : text;
     fee_per_byte : nat;
+    base_fee : nat;
     whitelist : vec text;
 };
 
@@ -185,6 +186,10 @@ service : {
     is_feed_exists : (id : text) -> (bool);
     get_feeds : (filter: opt GetFeedsFilter, pagination: opt Pagination, msg: opt text, sig: opt text) -> (GetFeedsResponse);
     get_feed : (id: text, msg: opt text, sig: opt text) -> (GetFeedResponse);
+
+    // allowances
+    grant : (grantee : text, msg : text, sig : text) -> (Error);
+    restrict : (grantee : text, msg : text, sig : text) -> (Error);
     
     // controllers
     sign_message : (msg : text) -> (TextResponse);
@@ -197,7 +202,7 @@ service : {
 
     // balances
     add_to_balances_whitelist : (addresses : vec text) -> (Error);
-    deposit : (tx_hash : text, msg : text, sig : text) -> (Error);
+    deposit : (tx_hash : text, grantee : text, msg : text, sig : text) -> (Error);
     get_balance : (address : text) -> (NatResponse);
     withdraw : (amount : nat, to : text, msg : text, sig : text) -> (TextResponse);
     withdraw_fees : (to : text) -> (TextResponse);

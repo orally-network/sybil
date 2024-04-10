@@ -15,6 +15,7 @@ pub const TOKEN_ABI: &[u8] = include_bytes!("../assets/ERC20ABI.json");
 use crate::{
     clone_with_state, log,
     types::{
+        allowances::Allowances,
         balances::{BalanceError, Balances, DepositError},
         state,
         whitelist::{Whitelist, WhitelistError},
@@ -87,14 +88,24 @@ pub async fn add_to_balances_whitelist(addresses: Vec<String>) -> Result<(), Str
 }
 
 #[update]
-pub async fn deposit(tx_hash: String, msg: String, sig: String) -> Result<(), String> {
-    _deposit(tx_hash, msg, sig)
+pub async fn deposit(
+    tx_hash: String,
+    grantee: Option<String>, // Grant permissions to use this user's balance to this domain
+    msg: String,
+    sig: String,
+) -> Result<(), String> {
+    _deposit(tx_hash, grantee, msg, sig)
         .await
         .map_err(|e| format!("deposit failed: {}", e))
 }
 
 #[inline(always)]
-async fn _deposit(tx_hash: String, msg: String, sig: String) -> Result<(), DepositError> {
+async fn _deposit(
+    tx_hash: String,
+    grantee: Option<String>,
+    msg: String,
+    sig: String,
+) -> Result<(), DepositError> {
     let caller = siwe::recover(&msg, &sig).await?;
     if !Whitelist::contains(&caller) {
         return Err(WhitelistError::AddressNotWhitelisted.into());
@@ -128,6 +139,10 @@ async fn _deposit(tx_hash: String, msg: String, sig: String) -> Result<(), Depos
 
     Balances::add_nonce(&caller, &nat::from_u256(&tx.nonce))?;
     Balances::add_amount(&caller, &nat::from_u256(&value))?;
+
+    if let Some(grantee) = grantee {
+        Allowances::grant(grantee, caller.clone())?;
+    }
 
     log!("[BALANCES] address {}, deposited {} tokens", caller, value);
     Ok(())

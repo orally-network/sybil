@@ -19,6 +19,7 @@ pub struct BalancesCfg {
     pub chain_id: Nat,
     pub erc20_contract: Address,
     pub fee_per_byte: Nat,
+    pub base_fee: Nat,
     // Vec of addresses that won't be charged for anything
     #[serde(default)]
     pub whitelist: HashSet<String>,
@@ -38,6 +39,8 @@ pub enum BalanceError {
 
 #[derive(Error, Debug)]
 pub enum DepositError {
+    #[error("Failed to parse domain: {0}")]
+    FailedToParseDomain(#[from] url::ParseError),
     #[error("balance error: {0}")]
     BalanceError(#[from] BalanceError),
     #[error("web3 error: {0}")]
