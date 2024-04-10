@@ -1,5 +1,8 @@
 use candid::CandidType;
-use ic_web3_rs::{ethabi::Token, signing::keccak256};
+use ic_web3_rs::{
+    ethabi::{encode, Token},
+    signing::keccak256,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -39,7 +42,7 @@ pub enum AssetData {
 }
 
 impl AssetData {
-    fn prepare_for_packed_encoding(self) -> Vec<Token> {
+    fn get_tokens(self) -> Vec<Token> {
         match self {
             AssetData::DefaultPriceFeed {
                 symbol,
@@ -97,15 +100,27 @@ pub struct AssetDataResult {
 }
 
 impl AssetDataResult {
-    fn encode(&self) -> Vec<u8> {
-        let encoded_packed = encode_packed(&self.data.clone().prepare_for_packed_encoding())
-            .expect("tokens should be valid");
+    fn encode_packed(&self) -> Vec<u8> {
+        let encoded_packed =
+            encode_packed(&self.data.clone().get_tokens()).expect("tokens should be valid");
 
         encoded_packed
     }
 
+    pub fn encode(&self) -> Vec<u8> {
+        let mut tokens = self.data.clone().get_tokens();
+
+        tokens.push(if let Some(signature) = &self.signature {
+            Token::String(signature.clone())
+        } else {
+            Token::String("".to_string())
+        });
+
+        encode(&tokens)
+    }
+
     pub async fn sign(&mut self) -> Result<(), RateDataError> {
-        let sign_data = self.encode();
+        let sign_data = self.encode_packed();
 
         log!(
             "asset data signed: 0x{}",
@@ -127,19 +142,36 @@ pub struct MultipleAssetsDataResult {
 }
 
 impl MultipleAssetsDataResult {
-    fn encode(&self) -> Vec<u8> {
+    fn encode_packed(&self) -> Vec<u8> {
         let tokens = self
             .data
             .iter()
-            .map(|d| d.clone().prepare_for_packed_encoding())
+            .map(|d| d.clone().get_tokens())
             .flatten()
             .collect::<Vec<Token>>();
 
         encode_packed(&tokens).expect("tokens should be valid")
     }
 
+    pub fn encode(&self) -> Vec<u8> {
+        let mut tokens = self
+            .data
+            .iter()
+            .map(|d| d.clone().get_tokens())
+            .flatten()
+            .collect::<Vec<Token>>();
+
+        tokens.push(if let Some(signature) = &self.signature {
+            Token::String(signature.clone())
+        } else {
+            Token::String("".to_string())
+        });
+
+        encode(&tokens)
+    }
+
     pub async fn sign(&mut self) -> Result<(), RateDataError> {
-        let sign_data = self.encode();
+        let sign_data = self.encode_packed();
 
         log!(
             "multiple assets data signed: 0x{}",

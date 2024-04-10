@@ -15,6 +15,7 @@ struct GetAssetDataQueryParams {
     id: String,
     msg: Option<String>,
     sig: Option<String>,
+    bytes: Option<bool>,
 }
 
 impl TryFrom<String> for GetAssetDataQueryParams {
@@ -30,6 +31,7 @@ struct GetMultipleAssetsDataQueryParams {
     ids: String,
     msg: Option<String>,
     sig: Option<String>,
+    bytes: Option<bool>,
 }
 
 impl TryFrom<String> for GetMultipleAssetsDataQueryParams {
@@ -45,6 +47,7 @@ struct GetXRCDataQueryParams {
     id: String,
     msg: Option<String>,
     sig: Option<String>,
+    bytes: Option<bool>,
 }
 
 impl TryFrom<String> for GetXRCDataQueryParams {
@@ -119,7 +122,12 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
 
     let rate = crate::methods::_get_xrc_data(params.id, with_signature, payer).await?;
 
-    Ok(serde_json::to_vec(&rate)?)
+    if let Some(_bytes @ true) = params.bytes {
+        let data = hex::encode(&rate.encode());
+        Ok(serde_json::to_vec(&data)?)
+    } else {
+        Ok(serde_json::to_vec(&rate)?)
+    }
 }
 
 pub async fn get_asset_data_with_proof_request(req: HttpRequest) -> HttpResponse {
@@ -156,7 +164,12 @@ async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Resu
 
     let rate = _get_asset_data(params.id, with_signature, payer).await?;
 
-    Ok(serde_json::to_vec(&rate)?)
+    if let Some(_bytes @ true) = params.bytes {
+        let data = hex::encode(&rate.encode());
+        Ok(serde_json::to_vec(&data)?)
+    } else {
+        Ok(serde_json::to_vec(&rate)?)
+    }
 }
 
 pub async fn get_multiple_assets_data_with_proof_request(req: HttpRequest) -> HttpResponse {
@@ -199,7 +212,12 @@ async fn _get_multiple_assets_data_request(
 
     let rate = _get_multiple_assets_data(ids, with_signature, payer).await?;
 
-    Ok(serde_json::to_vec(&rate)?)
+    if let Some(_bytes @ true) = params.bytes {
+        let data = hex::encode(&rate.encode());
+        Ok(serde_json::to_vec(&data)?)
+    } else {
+        Ok(serde_json::to_vec(&rate)?)
+    }
 }
 
 pub async fn gather_metrics() -> HttpResponse {
