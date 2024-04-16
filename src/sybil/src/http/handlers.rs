@@ -123,7 +123,7 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     let rate = crate::methods::_get_xrc_data(params.id, with_signature, payer).await?;
 
     if let Some(_bytes @ true) = params.bytes {
-        let data = hex::encode(&rate.encode());
+        let data = format!("0x{}", hex::encode(&rate.encode()));
         Ok(serde_json::to_vec(&data)?)
     } else {
         Ok(serde_json::to_vec(&rate)?)
@@ -165,7 +165,7 @@ async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Resu
     let rate = _get_asset_data(params.id, with_signature, payer).await?;
 
     if let Some(_bytes @ true) = params.bytes {
-        let data = hex::encode(&rate.encode());
+        let data = format!("0x{}", hex::encode(&rate.encode()));
         Ok(serde_json::to_vec(&data)?)
     } else {
         Ok(serde_json::to_vec(&rate)?)
@@ -213,7 +213,7 @@ async fn _get_multiple_assets_data_request(
     let rate = _get_multiple_assets_data(ids, with_signature, payer).await?;
 
     if let Some(_bytes @ true) = params.bytes {
-        let data = hex::encode(&rate.encode());
+        let data = format!("0x{}", hex::encode(&rate.encode()));
         Ok(serde_json::to_vec(&data)?)
     } else {
         Ok(serde_json::to_vec(&rate)?)

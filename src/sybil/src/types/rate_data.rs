@@ -111,9 +111,9 @@ impl AssetDataResult {
         let mut tokens = self.data.clone().get_tokens();
 
         tokens.push(if let Some(signature) = &self.signature {
-            Token::String(signature.clone())
+            Token::Bytes(hex::decode(signature.clone()).unwrap())
         } else {
-            Token::String("".to_string())
+            Token::Bytes(vec![])
         });
 
         encode(&tokens)
