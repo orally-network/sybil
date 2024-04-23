@@ -31,8 +31,7 @@ use crate::{
         read_contract::{ReadContractMetadata, ReadContractResult, SolidityToken},
         state,
     },
-    utils::{address, canister, encoding::parse_tokens, siwe, web3},
-    STATE,
+    utils::{address, canister, encoding::parse_tokens, siwe, time::in_seconds, web3},
 };
 
 use self::custom_feeds::CustomFeedError;
@@ -262,7 +261,7 @@ pub async fn _read_contract(
             contract_address: contract_addr,
             method,
             params,
-            timestamp: time(),
+            timestamp: in_seconds(),
         },
         signature: None,
     };

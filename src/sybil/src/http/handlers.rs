@@ -4,6 +4,7 @@ use validator::Validate;
 
 use super::{response, HttpRequest, HttpResponse, HTTP_SERVICE};
 use crate::{
+    log,
     methods::{_get_asset_data, _get_multiple_assets_data},
     types::allowances::Allowances,
 };
@@ -299,7 +300,7 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
 
     let payer = check_for_potential_grantee(&req.headers)?.unwrap_or(caller);
 
-    let rate = crate::methods::_read_contract(
+    let result = crate::methods::_read_contract(
         params.chain_id,
         params.function_signature,
         params.contract_addr,
@@ -311,9 +312,9 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
     .await?;
 
     if let Some(_bytes @ true) = params.bytes {
-        let data = format!("0x{}", hex::encode(&rate.encode()));
+        let data = format!("0x{}", hex::encode(&result.encode()));
         Ok(serde_json::to_vec(&data)?)
     } else {
-        Ok(serde_json::to_vec(&rate)?)
+        Ok(serde_json::to_vec(&result)?)
     }
 }

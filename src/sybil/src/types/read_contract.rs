@@ -1,19 +1,16 @@
-use candid::{CandidType, Nat};
+use candid::CandidType;
 use ic_web3_rs::{
     ethabi::{encode, Token},
     signing::keccak256,
+    types::U256,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    log,
-    types::cache::SignaturesCache,
-    utils::{encoding::encode_packed, nat},
-};
+use crate::{log, types::cache::SignaturesCache, utils::encoding::encode_packed};
 
 use super::cache::SignaturesCacheError;
 
-#[derive(CandidType, Serialize, Deserialize)]
+#[derive(CandidType, Serialize, Deserialize, Debug)]
 pub struct ReadContractMetadata {
     pub chain_id: u64,
     pub contract_address: String,
@@ -35,13 +32,13 @@ impl ReadContractMetadata {
 }
 
 /// SolidityToken is a representation of a web3_rs Token, but with CandidType support
-#[derive(CandidType, Serialize, Deserialize, Clone)]
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub enum SolidityToken {
     Address(String),
     FixedBytes(ic_web3_rs::ethabi::FixedBytes),
     Bytes(ic_web3_rs::ethabi::Bytes),
-    Int(Nat),
-    Uint(Nat),
+    Int(String),
+    Uint(String),
     Bool(bool),
     String(String),
     FixedArray(Vec<SolidityToken>),
@@ -55,8 +52,8 @@ impl From<Token> for SolidityToken {
             Token::Address(address) => SolidityToken::Address(address.to_string()),
             Token::FixedBytes(bytes) => SolidityToken::FixedBytes(bytes),
             Token::Bytes(bytes) => SolidityToken::Bytes(bytes),
-            Token::Int(int) => SolidityToken::Int(nat::from_u256(&int)),
-            Token::Uint(uint) => SolidityToken::Uint(nat::from_u256(&uint)),
+            Token::Int(int) => SolidityToken::Int(format!("{}", int)),
+            Token::Uint(uint) => SolidityToken::Uint(format!("{}", uint)),
             Token::Bool(boolean) => SolidityToken::Bool(boolean),
             Token::String(string) => SolidityToken::String(string),
             Token::FixedArray(tokens) => {
@@ -78,8 +75,8 @@ impl From<SolidityToken> for Token {
             SolidityToken::Address(address) => Token::Address(address.parse().unwrap()),
             SolidityToken::FixedBytes(bytes) => Token::FixedBytes(bytes),
             SolidityToken::Bytes(bytes) => Token::Bytes(bytes),
-            SolidityToken::Int(int) => Token::Int(nat::to_u256(&int)),
-            SolidityToken::Uint(uint) => Token::Uint(nat::to_u256(&uint)),
+            SolidityToken::Int(int) => Token::Int(U256::from_str_radix(&int, 10).unwrap()),
+            SolidityToken::Uint(uint) => Token::Uint(U256::from_str_radix(&uint, 10).unwrap()),
             SolidityToken::Bool(boolean) => Token::Bool(boolean),
             SolidityToken::String(string) => Token::String(string),
             SolidityToken::FixedArray(tokens) => {
@@ -95,7 +92,7 @@ impl From<SolidityToken> for Token {
     }
 }
 
-#[derive(CandidType, Serialize, Deserialize)]
+#[derive(CandidType, Serialize, Deserialize, Debug)]
 pub struct ReadContractResult {
     pub data: Vec<SolidityToken>,
     pub meta: ReadContractMetadata,
@@ -126,7 +123,7 @@ impl ReadContractResult {
             .map(Token::from)
             .collect::<Vec<Token>>();
 
-        tokens.append(&mut self.meta.get_tokens());
+        tokens.push(Token::Tuple(self.meta.get_tokens()));
 
         tokens.push(if let Some(signature) = &self.signature {
             Token::Bytes(hex::decode(signature.clone()).unwrap())
