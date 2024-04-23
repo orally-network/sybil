@@ -58,6 +58,26 @@ impl TryFrom<String> for GetXRCDataQueryParams {
     }
 }
 
+#[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
+struct ReadContractQueryParams {
+    chain_id: u64,
+    function_signature: String,
+    contract_addr: String,
+    method: String,
+    params: String,
+    msg: Option<String>,
+    sig: Option<String>,
+    bytes: Option<bool>,
+}
+
+impl TryFrom<String> for ReadContractQueryParams {
+    type Error = serde_qs::Error;
+
+    fn try_from(query: String) -> Result<Self, serde_qs::Error> {
+        serde_qs::from_str(&query)
+    }
+}
+
 pub async fn get_asset_data_request(req: HttpRequest) -> HttpResponse {
     let resp = _get_asset_data_request(req, false)
         .await
@@ -236,5 +256,64 @@ fn check_for_potential_grantee(headers: &[(String, String)]) -> Result<Option<St
         Ok(Allowances::get_allowed_user(grantee)?)
     } else {
         Ok(None)
+    }
+}
+
+pub async fn read_contract(req: HttpRequest) -> HttpResponse {
+    let resp = _read_contract(req, false).await.map_err(|e| e.to_string());
+
+    match resp {
+        Ok(data) => response::ok(data),
+        Err(err) => response::bad_request(err),
+    }
+}
+
+pub async fn read_contract_with_proof(req: HttpRequest) -> HttpResponse {
+    let resp = _read_contract(req, true).await.map_err(|e| e.to_string());
+
+    match resp {
+        Ok(data) => response::ok(data),
+        Err(err) => response::bad_request(err),
+    }
+}
+
+#[inline(always)]
+async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
+    let service = HTTP_SERVICE.get().expect("State not initialized");
+
+    let query = service
+        .update_router
+        .inner
+        .at(&req.url)
+        .context("No route found")?
+        .params;
+
+    let params = ReadContractQueryParams::try_from(query.to_string())?;
+    params.validate()?;
+
+    let caller = if let (Some(msg), Some(sig)) = (params.msg, params.sig) {
+        siwe::recover(&msg, &sig).await?
+    } else {
+        ic_cdk::caller().to_string()
+    };
+
+    let payer = check_for_potential_grantee(&req.headers)?.unwrap_or(caller);
+
+    let rate = crate::methods::_read_contract(
+        params.chain_id,
+        params.function_signature,
+        params.contract_addr,
+        params.method,
+        params.params,
+        None,
+        with_signature,
+    )
+    .await?;
+
+    if let Some(_bytes @ true) = params.bytes {
+        let data = format!("0x{}", hex::encode(&rate.encode()));
+        Ok(serde_json::to_vec(&data)?)
+    } else {
+        Ok(serde_json::to_vec(&rate)?)
     }
 }

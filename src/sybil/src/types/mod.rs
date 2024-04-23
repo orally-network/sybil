@@ -1,12 +1,14 @@
 pub mod allowances;
 pub mod balances;
 pub mod cache;
+pub mod chains_rpc;
 pub mod config;
 pub mod exchange_rate;
 pub mod feeds;
 pub mod http;
 pub mod pagination;
 pub mod rate_data;
+pub mod read_contract;
 pub mod source;
 pub mod state;
 pub mod whitelist;

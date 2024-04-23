@@ -148,6 +148,20 @@ impl HttpService {
             )
             .expect("Failed to insert handler");
 
+        router
+            .insert(
+                "/read_contract:query",
+                Box::new(|request| Box::pin(handlers::read_contract(request))),
+            )
+            .expect("Failed to insert handler");
+
+        router
+            .insert(
+                "/read_contract_with_proof:query",
+                Box::new(|request| Box::pin(handlers::read_contract_with_proof(request))),
+            )
+            .expect("Failed to insert handler");
+
         let pre_middlewares: Vec<PreMiddleware> =
             vec![Box::new(|request| Box::pin(middlewares::logger(request)))];
 

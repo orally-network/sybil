@@ -1,31 +1,34 @@
 use anyhow::Result;
 use candid::{CandidType, Nat, Principal};
+use ic_cdk::api::management_canister::http_request::{TransformContext, TransformFunc};
 use ic_web3_rs::{
     api::Eth,
     contract::{tokens::Tokenizable, Contract, Options},
     ethabi::{Token, TopicFilter},
     ic::KeyInfo,
-    transports::ic_http::ICHttp,
+    transports::ic_http::{CallOptionsBuilder, ICHttp},
     types::{
-        BlockNumber, FilterBuilder, Log, Transaction, TransactionId, TransactionReceipt, H160,
-        H256, U256,
+        BlockId, BlockNumber, Bytes, CallRequest, FilterBuilder, Log, SignedTransaction,
+        Transaction, TransactionId, TransactionReceipt, H160, H256, U256, U64,
     },
     Transport, Web3,
 };
 use serde::Deserialize;
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 use thiserror::Error;
 
 use crate::retry_until_success;
 
 use super::{
     address::{self, AddressError},
-    nat, processors,
+    nat, processors, time,
 };
 
 pub const SUCCESSFUL_TX_STATUS: u64 = 1;
 pub const ECDSA_SIGN_CYCLES: u64 = 23_000_000_000;
 pub const ERC20_TRANSFER_METHOD: &str = "transfer";
+const TX_WAITING_TIMEOUT: u64 = 60 * 5;
+const TX_WAIT_DELAY: Duration = Duration::from_secs(3);
 
 mod evm_canister_transport;
 
@@ -233,5 +236,143 @@ impl<T: Transport> Web3Instance<T> {
             .map_err(|err| Web3Error::FailedToSendSignedCall(err.to_string()))?;
 
         Ok(format!("0x{}", hex::encode(tx_hash.0)))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn sign<Tk: Tokenizable + Clone>(
+        &self,
+        contract: &Contract<T>,
+        func: &str,
+        params: Vec<Tk>,
+        options: Options,
+        from: String,
+        key_name: String,
+        chain_id: u64,
+    ) -> Result<SignedTransaction, Web3Error> {
+        let signed_call = contract
+            .sign(
+                func,
+                params,
+                options,
+                from,
+                Self::key_info(key_name),
+                chain_id,
+            )
+            .await
+            .map_err(|err| Web3Error::UnableToSignContractCall(err.to_string()))?;
+
+        Ok(signed_call)
+    }
+
+    pub async fn send_raw_transaction(
+        &self,
+        signed_call: SignedTransaction,
+    ) -> Result<H256, Web3Error> {
+        let tx_hash = retry_until_success!(self.eth().send_raw_transaction(
+            signed_call.raw_transaction.clone(),
+            processors::transform_ctx()
+        ))
+        .map_err(|err| Web3Error::UnableToExecuteRawTx(err.to_string()))?;
+
+        Ok(tx_hash)
+    }
+
+    pub async fn send_raw_transaction_and_wait(
+        &self,
+        signed_call: SignedTransaction,
+    ) -> Result<TransactionReceipt, Web3Error> {
+        let tx_hash = self.send_raw_transaction(signed_call).await?;
+
+        self.wait_for_success_confirmation(tx_hash).await
+    }
+
+    pub async fn wait_for_success_confirmation(
+        &self,
+        tx_hash: H256,
+    ) -> Result<TransactionReceipt, Web3Error> {
+        let receipt = self.wait_for_confirmation(&tx_hash).await?;
+
+        let tx_status = receipt.status.expect("tx should be confirmed").as_u64();
+
+        if tx_status != SUCCESSFUL_TX_STATUS {
+            return Err(Web3Error::TxHasFailed);
+        }
+
+        Ok(receipt)
+    }
+
+    pub async fn wait_for_confirmation(
+        &self,
+        tx_hash: &H256,
+    ) -> Result<TransactionReceipt, Web3Error> {
+        let call_opts = CallOptionsBuilder::default()
+            .transform(Some(TransformContext {
+                function: TransformFunc(candid::Func {
+                    principal: ic_cdk::api::id(),
+                    method: "transform".into(),
+                }),
+                context: vec![],
+            }))
+            .cycles(None)
+            .max_resp(None)
+            .build()
+            .expect("failed to build call options");
+
+        let end_time = time::in_seconds() + TX_WAITING_TIMEOUT;
+        while time::in_seconds() < end_time {
+            super::sleep(TX_WAIT_DELAY).await;
+
+            let tx_receipt =
+                retry_until_success!(self.eth().transaction_receipt(*tx_hash, call_opts.clone()))
+                    .map_err(|err| Web3Error::UnableToGetTxReceipt(err.to_string()))?;
+
+            if let Some(tx_receipt) = tx_receipt {
+                if tx_receipt.status.is_some() {
+                    return Ok(tx_receipt);
+                }
+            }
+        }
+
+        Err(Web3Error::TxTimeout)
+    }
+
+    pub async fn get_call_result(
+        &self,
+        contract: &Contract<T>,
+        func: &str,
+        params: &[Token],
+        from: H160,
+        to: Option<H160>,
+        block_number: Option<U64>,
+    ) -> Result<Vec<Token>, Web3Error> {
+        let data = contract
+            .abi()
+            .function(func)
+            .and_then(|f| f.encode_input(params))
+            .map_err(|err| Web3Error::UnableToFormCallData(err.to_string()))?;
+
+        let call_request = CallRequest {
+            from: Some(from),
+            to,
+            data: Some(Bytes::from(data)),
+            ..Default::default()
+        };
+
+        let block_number = block_number.map(|block_number| BlockId::Number(block_number.into()));
+
+        let raw_result = retry_until_success!(self.eth().call(
+            call_request.clone(),
+            block_number,
+            processors::transform_ctx()
+        ))
+        .map_err(|err| Web3Error::UnableToCallContract(err.to_string()))?;
+
+        let call_result: Vec<Token> = contract
+            .abi()
+            .function(func)
+            .and_then(|f| f.decode_output(&raw_result.0))
+            .map_err(|err| Web3Error::UnableToDecodeOutput(err.to_string()))?;
+
+        Ok(call_result)
     }
 }

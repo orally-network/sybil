@@ -7,8 +7,15 @@ use validator::{Validate, ValidationErrors};
 
 use crate::log;
 use crate::metrics;
+use crate::types::balances::BalanceError;
+use crate::types::cache::SignaturesCacheError;
+use crate::types::chains_rpc::ChainsRPCError;
 use crate::types::feeds::FeedType;
 use crate::types::source::Source;
+use crate::utils::address::AddressError;
+use crate::utils::canister::CanisterError;
+use crate::utils::encoding::ParseTokensError;
+use crate::utils::web3;
 use crate::{
     types::{
         feeds::{Feed, FeedError, FeedStorage},
@@ -24,6 +31,20 @@ use crate::{
 pub enum CustomFeedError {
     #[error("SIWE Error: {0}")]
     SIWEError(#[from] SiweError),
+    #[error("Balance Error: {0}")]
+    BalanceError(#[from] BalanceError),
+    #[error("Signatures error: {0}")]
+    SignaturesError(#[from] SignaturesCacheError),
+    #[error("Chains RPC error: {0}")]
+    ChainsRPCError(#[from] ChainsRPCError),
+    #[error("address error: {0}")]
+    AddressError(#[from] AddressError),
+    #[error("Web3 Error: {0}")]
+    Web3Error(#[from] web3::Web3Error),
+    #[error("Parse Tokens Error")]
+    ParseTokensError(#[from] ParseTokensError),
+    #[error("Canister Error: {0}")]
+    CanisterError(#[from] CanisterError),
     #[error("Validation Error: {0}")]
     ValidationError(#[from] ValidationErrors),
     #[error("Whitelist Error: {0}")]
@@ -36,6 +57,10 @@ pub enum CustomFeedError {
     FeedNotFound,
     #[error("Not feed owner")]
     NotFeedOwner,
+    #[error("Failed to parse ABI: {0}")]
+    FailedToParseABI(String),
+    #[error("Abi doesn't contain method: {0}")]
+    AbiDoesntContainMethod(String),
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]

@@ -154,6 +154,33 @@ type AssetData = variant {
     };
 };
 
+type ReadContractMetadata = record {
+    chain_id: nat64;
+    contract_address: text;
+    method: text;
+    params: text;
+    timestamp: nat64;
+};
+
+type SolidityToken = variant {
+    Address : text;
+    FixedBytes : blob;
+    Bytes : blob;
+    Int : nat;
+    Uint : nat;
+    Bool : bool;
+    String : text;
+    FixedArray : vec SolidityToken;
+    Array : vec SolidityToken;
+    Tuple : vec SolidityToken;
+};
+
+type ReadContractResult = record {
+    data: vec SolidityToken;
+    meta: ReadContractMetadata;
+    signature: opt text;
+};
+
 type GetAssetDataWithProofResponse = variant { Ok : AssetDataResult; Err : text };
 type GetAssetDataResponse = variant { Ok : AssetDataResult; Err: text };
 type GetMultipleAssetsDataResponse = variant { Ok : MultipleAssetsDataResult; Err: text };
@@ -164,6 +191,8 @@ type NatResponse = variant { Ok : nat; Err: text };
 type BoolResponse = variant { Ok : bool; Err: text };
 type GetCfgResponse = variant { Ok : Cfg; Err: text };
 type GetWhitelistResponse = variant { Ok : vec text; Err: text };
+type ReadContractResponse = variant { Ok : ReadContractResult; Err: text };
+type GetAllChainsRPCResponse = variant { Ok : vec record {nat64; text}; Err: text };
 type Error = variant { Ok : null; Err : text };
 
 
@@ -183,6 +212,7 @@ service : {
     get_xrc_data_with_proof : (id : text, msg : opt text, sig : opt text) -> (GetAssetDataResponse);
     get_multiple_assets_data_with_proof : (ids : vec text, msg : opt text, sig : opt text) -> (GetMultipleAssetsDataResponse);
     get_multiple_assets_data : (ids : vec text, msg : opt text, sig : opt text) -> (GetMultipleAssetsDataResponse);
+    read_contract : (chain_id : nat64, function_signature: text, contract_address : text, method : text, params : text) -> (ReadContractResponse);
     is_feed_exists : (id : text) -> (bool);
     get_feeds : (filter: opt GetFeedsFilter, pagination: opt Pagination, msg: opt text, sig: opt text) -> (GetFeedsResponse);
     get_feed : (id: text, msg: opt text, sig: opt text) -> (GetFeedResponse);
@@ -199,6 +229,12 @@ service : {
 
     // canister
     eth_address : () -> (TextResponse);
+
+    // chains_rpc 
+    add_chain_rpc : (chain_id : nat64, url : text, secret : opt text) -> (Error);
+    remove_chain_rpc : (chain_id : nat64) -> (Error);
+    get_chain_rpc : (chain_id : nat64) -> (TextResponse);
+    get_all_chains_rpc : () -> (GetAllChainsRPCResponse);
 
     // balances
     add_to_balances_whitelist : (addresses : vec text) -> (Error);

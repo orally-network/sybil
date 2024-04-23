@@ -1,0 +1,154 @@
+use candid::{CandidType, Nat};
+use ic_web3_rs::{
+    ethabi::{encode, Token},
+    signing::keccak256,
+};
+use serde::{Deserialize, Serialize};
+
+use crate::{
+    log,
+    types::cache::SignaturesCache,
+    utils::{encoding::encode_packed, nat},
+};
+
+use super::cache::SignaturesCacheError;
+
+#[derive(CandidType, Serialize, Deserialize)]
+pub struct ReadContractMetadata {
+    pub chain_id: u64,
+    pub contract_address: String,
+    pub method: String,
+    pub params: String,
+    pub timestamp: u64,
+}
+
+impl ReadContractMetadata {
+    fn get_tokens(&self) -> Vec<Token> {
+        vec![
+            Token::Uint(self.chain_id.into()),
+            Token::Address(self.contract_address.parse().unwrap()),
+            Token::String(self.method.clone()),
+            Token::String(self.params.clone()),
+            Token::Uint(self.timestamp.into()),
+        ]
+    }
+}
+
+/// SolidityToken is a representation of a web3_rs Token, but with CandidType support
+#[derive(CandidType, Serialize, Deserialize, Clone)]
+pub enum SolidityToken {
+    Address(String),
+    FixedBytes(ic_web3_rs::ethabi::FixedBytes),
+    Bytes(ic_web3_rs::ethabi::Bytes),
+    Int(Nat),
+    Uint(Nat),
+    Bool(bool),
+    String(String),
+    FixedArray(Vec<SolidityToken>),
+    Array(Vec<SolidityToken>),
+    Tuple(Vec<SolidityToken>),
+}
+
+impl From<Token> for SolidityToken {
+    fn from(token: Token) -> Self {
+        match token {
+            Token::Address(address) => SolidityToken::Address(address.to_string()),
+            Token::FixedBytes(bytes) => SolidityToken::FixedBytes(bytes),
+            Token::Bytes(bytes) => SolidityToken::Bytes(bytes),
+            Token::Int(int) => SolidityToken::Int(nat::from_u256(&int)),
+            Token::Uint(uint) => SolidityToken::Uint(nat::from_u256(&uint)),
+            Token::Bool(boolean) => SolidityToken::Bool(boolean),
+            Token::String(string) => SolidityToken::String(string),
+            Token::FixedArray(tokens) => {
+                SolidityToken::FixedArray(tokens.into_iter().map(SolidityToken::from).collect())
+            }
+            Token::Array(tokens) => {
+                SolidityToken::Array(tokens.into_iter().map(SolidityToken::from).collect())
+            }
+            Token::Tuple(tokens) => {
+                SolidityToken::Tuple(tokens.into_iter().map(SolidityToken::from).collect())
+            }
+        }
+    }
+}
+
+impl From<SolidityToken> for Token {
+    fn from(token: SolidityToken) -> Self {
+        match token {
+            SolidityToken::Address(address) => Token::Address(address.parse().unwrap()),
+            SolidityToken::FixedBytes(bytes) => Token::FixedBytes(bytes),
+            SolidityToken::Bytes(bytes) => Token::Bytes(bytes),
+            SolidityToken::Int(int) => Token::Int(nat::to_u256(&int)),
+            SolidityToken::Uint(uint) => Token::Uint(nat::to_u256(&uint)),
+            SolidityToken::Bool(boolean) => Token::Bool(boolean),
+            SolidityToken::String(string) => Token::String(string),
+            SolidityToken::FixedArray(tokens) => {
+                Token::FixedArray(tokens.into_iter().map(Token::from).collect())
+            }
+            SolidityToken::Array(tokens) => {
+                Token::Array(tokens.into_iter().map(Token::from).collect())
+            }
+            SolidityToken::Tuple(tokens) => {
+                Token::Tuple(tokens.into_iter().map(Token::from).collect())
+            }
+        }
+    }
+}
+
+#[derive(CandidType, Serialize, Deserialize)]
+pub struct ReadContractResult {
+    pub data: Vec<SolidityToken>,
+    pub meta: ReadContractMetadata,
+    pub signature: Option<String>,
+}
+
+impl ReadContractResult {
+    fn encode_packed(&self) -> Vec<u8> {
+        let mut tokens = self
+            .data
+            .clone()
+            .into_iter()
+            .map(Token::from)
+            .collect::<Vec<Token>>();
+
+        tokens.append(&mut self.meta.get_tokens());
+
+        let encoded_packed = encode_packed(&tokens).expect("tokens should be valid");
+
+        encoded_packed
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        let mut tokens = self
+            .data
+            .clone()
+            .into_iter()
+            .map(Token::from)
+            .collect::<Vec<Token>>();
+
+        tokens.append(&mut self.meta.get_tokens());
+
+        tokens.push(if let Some(signature) = &self.signature {
+            Token::Bytes(hex::decode(signature.clone()).unwrap())
+        } else {
+            Token::Bytes(vec![])
+        });
+
+        encode(&tokens)
+    }
+
+    pub async fn sign(&mut self) -> Result<(), SignaturesCacheError> {
+        let sign_data = self.encode_packed();
+
+        log!(
+            "asset data signed: 0x{}",
+            hex::encode(keccak256(&sign_data))
+        );
+
+        self.signature = Some(hex::encode(
+            SignaturesCache::eth_sign_with_access(&sign_data).await?,
+        ));
+
+        Ok(())
+    }
+}

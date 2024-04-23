@@ -5,6 +5,7 @@ use candid::Principal;
 use serde::{Deserialize, Serialize};
 
 use super::allowances::Allowances;
+use super::chains_rpc::ChainsRPC;
 use super::{
     config::{Cfg, UpdateCfg},
     feeds::FeedStorage,
@@ -28,6 +29,7 @@ pub struct State {
     pub balances: Balances,
     pub allowances: Allowances,
     pub balances_cfg: BalancesCfg,
+    pub chains_rpc: ChainsRPC,
     pub eth_address: Option<Address>,
     pub whitelist: Whitelist,
 }
@@ -45,6 +47,7 @@ impl Default for State {
             balances: Balances::default(),
             allowances: Allowances::default(),
             balances_cfg: BalancesCfg::default(),
+            chains_rpc: ChainsRPC::default(),
             eth_address: None,
             whitelist: Whitelist::default(),
         }

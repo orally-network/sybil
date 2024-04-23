@@ -14,6 +14,7 @@ use crate::{
         allowances::Allowances,
         balances::{Balances, BalancesCfg},
         cache::{HttpCache, RateCache, SignaturesCache},
+        chains_rpc::ChainsRPC,
         feeds::{Feed, FeedStatus, FeedStorage, FeedType},
         rate_data::AssetDataResult,
         source::{HttpSource, Source},
@@ -170,6 +171,7 @@ pub struct OldState {
     pub balances: Balances,
     pub allowances: Option<Allowances>,
     pub balances_cfg: OldBalancesCfg,
+    pub chains_rpc: Option<ChainsRPC>,
     pub eth_address: Option<Address>,
     pub whitelist: Whitelist,
     pub data_fetchers: Option<DataFetchersStorage>,
@@ -193,6 +195,7 @@ impl From<OldState> for State {
             balances: state.balances,
             allowances: state.allowances.unwrap_or_default(),
             balances_cfg: state.balances_cfg.into(),
+            chains_rpc: state.chains_rpc.unwrap_or_default(),
             eth_address: state.eth_address,
             whitelist: state.whitelist,
         }

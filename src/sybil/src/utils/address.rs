@@ -19,8 +19,20 @@ pub enum AddressError {
     InvalidAddress,
 }
 
+pub fn trim_prefix(address: &str) -> &str {
+    address.trim_start_matches(PREFIX)
+}
+
+pub fn add_prefix(address: &str) -> String {
+    if address.starts_with(PREFIX) {
+        return address.to_string();
+    }
+
+    format!("0x{}", address)
+}
+
 pub fn to_h160(address: &str) -> Result<H160, AddressError> {
-    H160::from_str(address).map_err(|_| AddressError::InvalidAddress)
+    H160::from_str(address.trim_start_matches(PREFIX)).map_err(|_| AddressError::InvalidAddress)
 }
 
 pub fn from_h160(address: &H160) -> Result<Address, AddressError> {
