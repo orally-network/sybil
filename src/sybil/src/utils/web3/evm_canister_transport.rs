@@ -3,11 +3,12 @@
 use anyhow::Result;
 use candid::{CandidType, Principal};
 use cketh_common::{
-    eth_rpc::{RpcError, SendRawTransactionResult},
+    eth_rpc::{LogEntry, RpcError, SendRawTransactionResult},
     eth_rpc_client::{
         providers::{EthMainnetService, EthSepoliaService, RpcApi, RpcService},
         RpcConfig,
     },
+    numeric::BlockNumber,
 };
 use ic_cdk::api::call::call_with_payment128;
 use ic_web3_rs::{
@@ -17,6 +18,8 @@ use ic_web3_rs::{
 use jsonrpc_core::{Call, Output, Params, Request};
 use serde::Deserialize;
 use serde_json::Value;
+
+use crate::log;
 
 const MAX_CYCLES: u128 = 60_000_000_000;
 const DEFAULT_MAX_RESPONSE_BYTES: u64 = 100000;
@@ -98,6 +101,53 @@ pub enum MultiRpcResult<T> {
     Inconsistent(Vec<(RpcService, RpcResult<T>)>),
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize, Default)]
+pub enum BlockTag {
+    #[default]
+    Latest,
+    Finalized,
+    Safe,
+    Earliest,
+    Pending,
+    Number(BlockNumber),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize)]
+pub struct GetLogsArgs {
+    #[serde(rename = "fromBlock")]
+    pub from_block: Option<BlockTag>,
+    #[serde(rename = "toBlock")]
+    pub to_block: Option<BlockTag>,
+    pub addresses: Vec<String>,
+    pub topics: Option<Vec<Vec<String>>>,
+}
+
+async fn eth_get_logs(
+    evm_rpc_canister: Principal,
+    source: RpcServices,
+    config: Option<RpcConfig>,
+    args: GetLogsArgs,
+) -> Result<Value, ic_web3_rs::Error> {
+    let (result,): (MultiRpcResult<Vec<LogEntry>>,) = call_with_payment128(
+        evm_rpc_canister,
+        "eth_getLogs",
+        (source, config, args),
+        MAX_CYCLES,
+    )
+    .await
+    .map_err(|(code, msg)| {
+        ic_web3_rs::Error::Transport(TransportError::Message(format!("{:?}: {}", code, msg)))
+    })?;
+
+    let MultiRpcResult::Consistent(result) = result else {
+        unreachable!("Should be consistent result (or you need to implement handling of inconsistent results)")
+    };
+
+    result
+        .map(|val| serde_json::to_value(val).expect("should be able to serialize"))
+        .map_err(|err| ic_web3_rs::Error::InvalidResponse(format!("{:?}", err)))
+}
+
 async fn send_raw_tx(
     evm_rpc_canister: Principal,
     source: RpcServices,
@@ -172,6 +222,98 @@ impl Transport for EVMCanisterTransport {
                         None,
                         raw_tx,
                     ))
+                }
+                "eth_getLogs" => {
+                    let Params::Array(ref arr) = method_call.params else {
+                        unreachable!()
+                    };
+
+                    let value = arr[0].clone();
+
+                    let services = RpcServices::Custom {
+                        chain_id: 0,
+                        services: vec![RpcApi {
+                            url: self.rpc_url.clone(),
+                            headers: None,
+                        }],
+                    };
+
+                    log!("eth_getLogs params: {:?}", arr);
+
+                    let from_block = value.get("fromBlock").map(|v| {
+                        if v.is_string() {
+                            BlockTag::Number(
+                                BlockNumber::from_str_hex(v.as_str().unwrap()).unwrap(),
+                            )
+                        } else {
+                            unreachable!();
+                        }
+                    });
+
+                    let to_block = value.get("toBlock").map(|v| {
+                        if v.is_string() {
+                            BlockTag::Number(
+                                BlockNumber::from_str_hex(v.as_str().unwrap()).unwrap(),
+                            )
+                        } else {
+                            unreachable!();
+                        }
+                    });
+
+                    let addresses = value
+                        .get("address")
+                        .map(|v| {
+                            if v.is_array() {
+                                v.as_array()
+                                    .unwrap()
+                                    .iter()
+                                    .map(|v| v.as_str().unwrap().to_string())
+                                    .collect()
+                            } else {
+                                vec![v.as_str().unwrap().to_string()]
+                            }
+                        })
+                        .unwrap_or_default();
+
+                    let topics = value.get("topics").map(|v| {
+                        if v.is_array() {
+                            v.as_array()
+                                .unwrap()
+                                .iter()
+                                .map(|v| {
+                                    if v.is_array() {
+                                        v.as_array()
+                                            .unwrap()
+                                            .iter()
+                                            .map(|v| v.as_str().unwrap().to_string())
+                                            .collect()
+                                    } else {
+                                        vec![v.as_str().unwrap().to_string()]
+                                    }
+                                })
+                                .collect()
+                        } else {
+                            unreachable!();
+                        }
+                    });
+
+                    let args = GetLogsArgs {
+                        from_block,
+                        to_block,
+                        addresses,
+                        topics,
+                    };
+
+                    Box::pin(async move { eth_get_logs(ic_eth_rpc, services, None, args).await })
+                    // Box::pin(async move {
+                    //     execute_canister_call(
+                    //         ic_eth_rpc,
+                    //         service,
+                    //         json_rpc_payload,
+                    //         max_response_bytes,
+                    //     )
+                    //     .await
+                    // })
                 }
                 _ => Box::pin(async move {
                     execute_canister_call(ic_eth_rpc, service, json_rpc_payload, max_response_bytes)

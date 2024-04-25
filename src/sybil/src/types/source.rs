@@ -157,7 +157,7 @@ impl Source {
         };
 
         let mut logs = w3
-            .get_logs(
+            .get_logs_deplicated(
                 evm_event_logs_source.from_block,
                 evm_event_logs_source.to_block,
                 topic,

@@ -60,6 +60,29 @@ impl TryFrom<String> for GetXRCDataQueryParams {
 }
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
+struct ReadLogsQueryParams {
+    chain_id: u64,
+    block_from: Option<u64>,
+    block_to: Option<u64>,
+    topics0: Option<String>,
+    topics1: Option<String>,
+    topics2: Option<String>,
+    topics3: Option<String>,
+    addresses: Option<String>,
+    msg: Option<String>,
+    sig: Option<String>,
+    bytes: Option<bool>,
+}
+
+impl TryFrom<String> for ReadLogsQueryParams {
+    type Error = serde_qs::Error;
+
+    fn try_from(query: String) -> Result<Self, serde_qs::Error> {
+        serde_qs::from_str(&query)
+    }
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
 struct ReadContractQueryParams {
     chain_id: u64,
     function_signature: String,
@@ -306,6 +329,78 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
         params.contract_addr,
         params.method,
         params.params,
+        None,
+        with_signature,
+    )
+    .await?;
+
+    if let Some(_bytes @ true) = params.bytes {
+        let data = format!("0x{}", hex::encode(&result.encode()));
+        Ok(serde_json::to_vec(&data)?)
+    } else {
+        Ok(serde_json::to_vec(&result)?)
+    }
+}
+
+pub async fn read_logs(req: HttpRequest) -> HttpResponse {
+    let resp = _read_logs(req, false).await.map_err(|e| e.to_string());
+
+    match resp {
+        Ok(data) => response::ok(data),
+        Err(err) => response::bad_request(err),
+    }
+}
+
+pub async fn read_logs_with_proof(req: HttpRequest) -> HttpResponse {
+    let resp = _read_logs(req, true).await.map_err(|e| e.to_string());
+
+    match resp {
+        Ok(data) => response::ok(data),
+        Err(err) => response::bad_request(err),
+    }
+}
+
+#[inline(always)]
+async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
+    let service = HTTP_SERVICE.get().expect("State not initialized");
+
+    let query = service
+        .update_router
+        .inner
+        .at(&req.url)
+        .context("No route found")?
+        .params;
+
+    let params = ReadLogsQueryParams::try_from(query.to_string())?;
+    params.validate()?;
+
+    let caller = if let (Some(msg), Some(sig)) = (params.msg, params.sig) {
+        siwe::recover(&msg, &sig).await?
+    } else {
+        ic_cdk::caller().to_string()
+    };
+
+    let payer = check_for_potential_grantee(&req.headers)?.unwrap_or(caller);
+
+    let result = crate::methods::_read_logs(
+        params.chain_id,
+        params.block_from,
+        params.block_to,
+        params
+            .topics0
+            .map(|s| s.split(",").map(|s| s.to_string()).collect()),
+        params
+            .topics1
+            .map(|s| s.split(",").map(|s| s.to_string()).collect()),
+        params
+            .topics2
+            .map(|s| s.split(",").map(|s| s.to_string()).collect()),
+        params
+            .topics3
+            .map(|s| s.split(",").map(|s| s.to_string()).collect()),
+        params
+            .addresses
+            .map(|s| s.split(",").map(|s| s.to_string()).collect()),
         None,
         with_signature,
     )

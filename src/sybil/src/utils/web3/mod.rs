@@ -1,10 +1,12 @@
 use anyhow::Result;
 use candid::{CandidType, Nat, Principal};
+use cketh_common::eth_rpc::LogEntry;
 use ic_cdk::api::management_canister::http_request::{TransformContext, TransformFunc};
 use ic_web3_rs::{
-    api::Eth,
+    api::{Eth, Namespace},
     contract::{tokens::Tokenizable, Contract, Options},
     ethabi::{Token, TopicFilter},
+    helpers::{self, CallFuture},
     ic::KeyInfo,
     transports::ic_http::{CallOptionsBuilder, ICHttp},
     types::{
@@ -18,6 +20,8 @@ use std::{str::FromStr, time::Duration};
 use thiserror::Error;
 
 use crate::retry_until_success;
+
+use self::evm_canister_transport::EVMCanisterTransport;
 
 use super::{
     address::{self, AddressError},
@@ -85,12 +89,12 @@ pub struct Web3Instance<T: Transport> {
 pub fn instance(rpc_url: String, _evm_rpc_canister: Principal) -> Web3Instance<impl Transport> {
     // Switch between EVMCanisterTransport(calls go through emv_rpc canister) and ICHttp (calls go straight to the rpc)
 
-    // Web3Instance::new(Web3::new(EVMCanisterTransport::new(
-    //     rpc_url,
-    //     evm_rpc_canister,
-    // )))
+    Web3Instance::new(Web3::new(EVMCanisterTransport::new(
+        rpc_url,
+        _evm_rpc_canister,
+    )))
 
-    Web3Instance::new(Web3::new(ICHttp::new(&rpc_url, None).unwrap()))
+    // Web3Instance::new(Web3::new(ICHttp::new(&rpc_url, None).unwrap()))
 }
 
 impl<T: Transport> Web3Instance<T> {
@@ -113,19 +117,76 @@ impl<T: Transport> Web3Instance<T> {
 
     pub async fn get_logs(
         &self,
-        from: Option<u64>,
-        to: Option<u64>,
+        block_from: Option<u64>,
+        block_to: Option<u64>,
+        topics0: Option<Vec<H256>>,
+        topics1: Option<Vec<H256>>,
+        topics2: Option<Vec<H256>>,
+        topics3: Option<Vec<H256>>,
+        addresses: Option<Vec<H160>>,
+    ) -> Result<Vec<Log>, Web3Error> {
+        let mut filter_builder = FilterBuilder::default();
+
+        if let Some(from) = block_from {
+            filter_builder = filter_builder.from_block(BlockNumber::Number(from.into()));
+        }
+
+        if let Some(to) = block_to {
+            filter_builder = filter_builder.from_block(BlockNumber::Number(to.into()));
+        }
+
+        filter_builder = filter_builder.topic_filter(TopicFilter {
+            topic0: if let Some(topics0) = topics0 {
+                ic_web3_rs::ethabi::Topic::OneOf(topics0)
+            } else {
+                ic_web3_rs::ethabi::Topic::Any
+            },
+            topic1: if let Some(topics1) = topics1 {
+                ic_web3_rs::ethabi::Topic::OneOf(topics1)
+            } else {
+                ic_web3_rs::ethabi::Topic::Any
+            },
+            topic2: if let Some(topics2) = topics2 {
+                ic_web3_rs::ethabi::Topic::OneOf(topics2)
+            } else {
+                ic_web3_rs::ethabi::Topic::Any
+            },
+            topic3: if let Some(topics3) = topics3 {
+                ic_web3_rs::ethabi::Topic::OneOf(topics3)
+            } else {
+                ic_web3_rs::ethabi::Topic::Any
+            },
+        });
+
+        if let Some(addresses) = addresses {
+            filter_builder = filter_builder.address(addresses);
+        }
+
+        let logs = self
+            .eth()
+            .logs(filter_builder.build(), processors::transform_ctx())
+            .await
+            .map_err(|err| Web3Error::UnableToGetLogs(err.to_string()))?;
+
+        Ok(logs)
+    }
+
+    #[deprecated(note = "Use get_logs instead")]
+    pub async fn get_logs_deplicated(
+        &self,
+        block_from: Option<u64>,
+        block_to: Option<u64>,
         topic: Option<H256>,
         address: Option<H160>,
         block_hash: Option<H256>,
     ) -> Result<Vec<Log>, Web3Error> {
         let mut filter_builder = FilterBuilder::default();
 
-        if let Some(from) = from {
+        if let Some(from) = block_from {
             filter_builder = filter_builder.from_block(BlockNumber::Number(from.into()));
         }
 
-        if let Some(to) = to {
+        if let Some(to) = block_to {
             filter_builder = filter_builder.from_block(BlockNumber::Number(to.into()));
         }
 

@@ -29,7 +29,7 @@ type EvmEventLogsSource = record {
     event_abi : text;
 };
 
-type FeedType = variant { Custom : null; CustomNumber : null; CustomString : null; Default : null };
+type FeedType = variant { Custom : null; CustomNumber : null; Customtext : null; Default : null };
 
 
 type FeedStatus = record {
@@ -148,7 +148,7 @@ type AssetData = variant {
         value: nat64;
         decimals: nat64;
     };
-    CustomString: record {
+    Customtext: record {
         id: text;
         value: text;
     };
@@ -166,10 +166,10 @@ type SolidityToken = variant {
     Address : text;
     FixedBytes : blob;
     Bytes : blob;
-    Int : nat;
-    Uint : nat;
+    Int : text;
+    Uint : text;
     Bool : bool;
-    String : text;
+    text : text;
     FixedArray : vec SolidityToken;
     Array : vec SolidityToken;
     Tuple : vec SolidityToken;
@@ -179,6 +179,39 @@ type ReadContractResult = record {
     data: vec SolidityToken;
     meta: ReadContractMetadata;
     signature: opt text;
+};
+
+type ReadLogsMetadata = record {
+    chain_id : nat64;
+    block_from : opt nat64;
+    block_to : opt nat64;
+    topics0 : opt vec text;
+    topics1 : opt vec text;
+    topics2 : opt vec text;
+    topics3 : opt vec text;
+    addresses : opt vec text;
+    timestamp : nat64;
+};
+
+type ReadLogsResult = record {
+    data : vec ReadLogsData;
+    meta : ReadLogsMetadata;
+    signature : opt text;
+};
+
+
+type ReadLogsData = record {
+    address : text;
+    topics : vec text;
+    data : blob;
+    block_hash : opt text;
+    block_number : opt nat64;
+    transaction_hash : opt text;
+    transaction_index : opt nat64;
+    log_index : opt text;
+    transaction_log_index : opt text;
+    log_type : opt text;
+    removed : opt bool;
 };
 
 type GetAssetDataWithProofResponse = variant { Ok : AssetDataResult; Err : text };
@@ -192,6 +225,7 @@ type BoolResponse = variant { Ok : bool; Err: text };
 type GetCfgResponse = variant { Ok : Cfg; Err: text };
 type GetWhitelistResponse = variant { Ok : vec text; Err: text };
 type ReadContractResponse = variant { Ok : ReadContractResult; Err: text };
+type ReadLogsResponse = variant { Ok : ReadLogsResult; Err: text };
 type GetAllChainsRPCResponse = variant { Ok : vec record {nat64; text}; Err: text };
 type Error = variant { Ok : null; Err : text };
 
@@ -212,7 +246,8 @@ service : {
     get_xrc_data_with_proof : (id : text, msg : opt text, sig : opt text) -> (GetAssetDataResponse);
     get_multiple_assets_data_with_proof : (ids : vec text, msg : opt text, sig : opt text) -> (GetMultipleAssetsDataResponse);
     get_multiple_assets_data : (ids : vec text, msg : opt text, sig : opt text) -> (GetMultipleAssetsDataResponse);
-    read_contract : (chain_id : nat64, function_signature: text, contract_address : text, method : text, params : text) -> (ReadContractResponse);
+    read_contract : (chain_id : nat64, function_signature: text, contract_address : text, method : text, params : text, msg : opt text, sig : opt text) -> (ReadContractResponse);
+    read_logs : (chain_id : nat64, block_from : opt nat64, block_to : opt nat64, topic0 : opt vec text, topic1 : opt vec text, topic2 : opt vec text, topic3 : opt vec text, addresses : opt vec text, msg : opt text, sig : opt text) -> (ReadLogsResponse);
     is_feed_exists : (id : text) -> (bool);
     get_feeds : (filter: opt GetFeedsFilter, pagination: opt Pagination, msg: opt text, sig: opt text) -> (GetFeedsResponse);
     get_feed : (id: text, msg: opt text, sig: opt text) -> (GetFeedResponse);

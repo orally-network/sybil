@@ -9,6 +9,7 @@ pub mod http;
 pub mod pagination;
 pub mod rate_data;
 pub mod read_contract;
+pub mod read_logs;
 pub mod source;
 pub mod state;
 pub mod whitelist;

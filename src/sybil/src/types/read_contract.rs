@@ -29,6 +29,12 @@ impl ReadContractMetadata {
             Token::Uint(self.timestamp.into()),
         ]
     }
+
+    pub fn encode(&self) -> Vec<u8> {
+        let tuple = Token::Tuple(self.get_tokens());
+
+        encode(&vec![tuple])
+    }
 }
 
 /// SolidityToken is a representation of a web3_rs Token, but with CandidType support
@@ -101,37 +107,47 @@ pub struct ReadContractResult {
 
 impl ReadContractResult {
     fn encode_packed(&self) -> Vec<u8> {
-        let mut tokens = self
+        let tokens = self
             .data
             .clone()
             .into_iter()
             .map(Token::from)
             .collect::<Vec<Token>>();
 
-        tokens.append(&mut self.meta.get_tokens());
+        let encode_data = encode(&tokens);
 
-        let encoded_packed = encode_packed(&tokens).expect("tokens should be valid");
+        let encode_meta = self.meta.encode();
+
+        let encoded_packed =
+            encode_packed(&vec![Token::Bytes(encode_data), Token::Bytes(encode_meta)])
+                .expect("tokens should be valid");
 
         encoded_packed
     }
 
     pub fn encode(&self) -> Vec<u8> {
-        let mut tokens = self
+        let tokens = self
             .data
             .clone()
             .into_iter()
             .map(Token::from)
             .collect::<Vec<Token>>();
 
-        tokens.push(Token::Tuple(self.meta.get_tokens()));
+        let encode_data = encode(&tokens);
 
-        tokens.push(if let Some(signature) = &self.signature {
-            Token::Bytes(hex::decode(signature.clone()).unwrap())
+        let encode_meta = self.meta.encode();
+
+        let encode_signature = if let Some(signature) = &self.signature {
+            hex::decode(signature.clone()).unwrap()
         } else {
-            Token::Bytes(vec![])
-        });
+            vec![]
+        };
 
-        encode(&tokens)
+        encode(&vec![
+            Token::Bytes(encode_data),
+            Token::Bytes(encode_meta),
+            Token::Bytes(encode_signature),
+        ])
     }
 
     pub async fn sign(&mut self) -> Result<(), SignaturesCacheError> {
