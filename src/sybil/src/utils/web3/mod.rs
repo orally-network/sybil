@@ -132,7 +132,7 @@ impl<T: Transport> Web3Instance<T> {
         }
 
         if let Some(to) = block_to {
-            filter_builder = filter_builder.from_block(BlockNumber::Number(to.into()));
+            filter_builder = filter_builder.to_block(BlockNumber::Number(to.into()));
         }
 
         filter_builder = filter_builder.topic_filter(TopicFilter {

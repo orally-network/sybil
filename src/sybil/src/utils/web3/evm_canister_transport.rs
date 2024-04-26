@@ -238,8 +238,6 @@ impl Transport for EVMCanisterTransport {
                         }],
                     };
 
-                    log!("eth_getLogs params: {:?}", arr);
-
                     let from_block = value.get("fromBlock").map(|v| {
                         if v.is_string() {
                             BlockTag::Number(
