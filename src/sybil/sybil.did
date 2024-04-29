@@ -268,7 +268,8 @@ service : {
 
     // chains_rpc 
     add_chain_rpc : (chain_id : nat64, url : text, secret : opt text) -> (Error);
-    remove_chain_rpc : (chain_id : nat64) -> (Error);
+    remove_chain_rpcs : (chain_id : nat64) -> (Error);
+    remove_chain_rpc_by_index : (chain_id : nat64, index : nat64) -> (Error);
     get_chain_rpc : (chain_id : nat64) -> (GetChainsRPCResponse);
     get_all_chains_rpc : () -> (GetAllChainsRPCResponse);
 

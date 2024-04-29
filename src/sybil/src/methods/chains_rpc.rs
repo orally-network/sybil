@@ -23,14 +23,27 @@ pub fn _add_chain_rpc(
 }
 
 #[update]
-pub fn remove_chain_rpc(chain_id: u64) -> Result<(), String> {
-    _remove_chain_rpc(chain_id).map_err(|e| format!("{e:?}"))
+pub fn remove_chain_rpcs(chain_id: u64) -> Result<(), String> {
+    _remove_chain_rpcs(chain_id).map_err(|e| format!("{e:?}"))
 }
 
 #[inline(always)]
-pub fn _remove_chain_rpc(chain_id: u64) -> Result<(), ChainsRPCError> {
+pub fn _remove_chain_rpcs(chain_id: u64) -> Result<(), ChainsRPCError> {
     validate_caller()?;
-    ChainsRPC::remove_chain_rpc(chain_id);
+    ChainsRPC::remove_chain_rpcs(chain_id);
+
+    Ok(())
+}
+
+#[update]
+pub fn remove_chain_rpc_by_index(chain_id: u64, index: usize) -> Result<(), String> {
+    _remove_chain_rpc_by_index(chain_id, index).map_err(|e| format!("{e:?}"))
+}
+
+#[inline(always)]
+pub fn _remove_chain_rpc_by_index(chain_id: u64, index: usize) -> Result<(), ChainsRPCError> {
+    validate_caller()?;
+    ChainsRPC::remove_chain_rpc_by_index(chain_id, index);
 
     Ok(())
 }

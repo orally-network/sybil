@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use std::fmt::Debug;
+
 use anyhow::Result;
 use candid::{CandidType, Principal};
 use cketh_common::{
@@ -19,24 +21,30 @@ use jsonrpc_core::{Call, Output, Params, Request};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::log;
-
 const MAX_CYCLES: u128 = 60_000_000_000;
 const DEFAULT_MAX_RESPONSE_BYTES: u64 = 100000;
 
 /// ICEthRpc deals with the JSON-RPC canister nametd "ic-eth-rpc" which is deployed on the IC.
 #[derive(Clone, Debug)]
 pub struct EVMCanisterTransport {
-    rpc_url: String,
+    rpcs_url: Vec<String>,
     evm_rpc_canister: Principal,
     max_response_bytes: u64,
 }
 
 impl EVMCanisterTransport {
     /// Create new ICEthRpc instance
-    pub fn new(rpc_url: String, evm_rpc_canister: Principal) -> Self {
+    pub fn new_with_one_rpc(rpc_url: String, evm_rpc_canister: Principal) -> Self {
         Self {
-            rpc_url,
+            rpcs_url: vec![rpc_url],
+            evm_rpc_canister,
+            max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES,
+        }
+    }
+
+    pub fn new(rpcs_url: Vec<String>, evm_rpc_canister: Principal) -> Self {
+        Self {
+            rpcs_url,
             evm_rpc_canister,
             max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES,
         }
@@ -101,6 +109,40 @@ pub enum MultiRpcResult<T> {
     Inconsistent(Vec<(RpcService, RpcResult<T>)>),
 }
 
+impl<T: Debug + Clone> MultiRpcResult<T> {
+    pub fn evaluate(&self) -> Result<T, ic_web3_rs::Error> {
+        match self {
+            MultiRpcResult::Consistent(result) => result
+                .clone()
+                .map_err(|err| ic_web3_rs::Error::InvalidResponse(format!("{:?}", err))),
+            MultiRpcResult::Inconsistent(results) => {
+                let result =
+                    results.iter().find_map(
+                        |(_, result)| {
+                            if result.is_ok() {
+                                Some(result)
+                            } else {
+                                None
+                            }
+                        },
+                    );
+
+                match result {
+                    Some(result) => result
+                        .clone()
+                        .map_err(|err| ic_web3_rs::Error::InvalidResponse(format!("{:?}", err))),
+                    None => {
+                        return Err(ic_web3_rs::Error::InvalidResponse(format!(
+                            "All results are errors: {:?}",
+                            results
+                        )))
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize, Default)]
 pub enum BlockTag {
     #[default]
@@ -128,7 +170,7 @@ async fn eth_get_logs(
     config: Option<RpcConfig>,
     args: GetLogsArgs,
 ) -> Result<Value, ic_web3_rs::Error> {
-    let (result,): (MultiRpcResult<Vec<LogEntry>>,) = call_with_payment128(
+    let (results,): (MultiRpcResult<Vec<LogEntry>>,) = call_with_payment128(
         evm_rpc_canister,
         "eth_getLogs",
         (source, config, args),
@@ -139,13 +181,9 @@ async fn eth_get_logs(
         ic_web3_rs::Error::Transport(TransportError::Message(format!("{:?}: {}", code, msg)))
     })?;
 
-    let MultiRpcResult::Consistent(result) = result else {
-        unreachable!("Should be consistent result (or you need to implement handling of inconsistent results)")
-    };
+    let result = results.evaluate()?;
 
-    result
-        .map(|val| serde_json::to_value(val).expect("should be able to serialize"))
-        .map_err(|err| ic_web3_rs::Error::InvalidResponse(format!("{:?}", err)))
+    Ok(serde_json::to_value(result).expect("should be able to serialize"))
 }
 
 async fn send_raw_tx(
@@ -154,7 +192,7 @@ async fn send_raw_tx(
     config: Option<RpcConfig>,
     raw_tx: Vec<u8>,
 ) -> Result<Value, ic_web3_rs::Error> {
-    let (result,): (MultiRpcResult<SendRawTransactionResult>,) = call_with_payment128(
+    let (results,): (MultiRpcResult<SendRawTransactionResult>,) = call_with_payment128(
         evm_rpc_canister,
         "eth_sendRawTransaction",
         (source, config, format!("0x{}", hex::encode(raw_tx.clone()))),
@@ -165,19 +203,16 @@ async fn send_raw_tx(
         ic_web3_rs::Error::Transport(TransportError::Message(format!("{:?}: {}", code, msg)))
     })?;
 
-    let MultiRpcResult::Consistent(result) = result else {
-        unreachable!("Should be consistent result (or you need to implement handling of inconsistent results, idk, I'm not your mom)")
-    };
+    let result = results.evaluate()?;
 
-    result
-        .map(|val| {
-            if let SendRawTransactionResult::Ok = val {
-                Value::String(format!("{:#?}", H256::from_slice(&keccak256(&raw_tx))))
-            } else {
-                unreachable!("Should be a hash")
-            }
-        })
-        .map_err(|err| ic_web3_rs::Error::InvalidResponse(format!("{:?}", err)))
+    if let SendRawTransactionResult::Ok = result {
+        Ok(Value::String(format!(
+            "{:#?}",
+            H256::from_slice(&keccak256(&raw_tx))
+        )))
+    } else {
+        unreachable!("Should be a hash")
+    }
 }
 
 impl Transport for EVMCanisterTransport {
@@ -191,7 +226,7 @@ impl Transport for EVMCanisterTransport {
 
     fn send(&self, _: RequestId, call: Call, _: CallOptions) -> Self::Out {
         let service: RpcService = RpcService::Custom(RpcApi {
-            url: self.rpc_url.clone(),
+            url: self.rpcs_url.get(0).unwrap().clone(),
             headers: None,
         });
 
@@ -214,10 +249,14 @@ impl Transport for EVMCanisterTransport {
                         ic_eth_rpc,
                         RpcServices::Custom {
                             chain_id: 5,
-                            services: vec![RpcApi {
-                                url: self.rpc_url.clone(),
-                                headers: None,
-                            }],
+                            services: self
+                                .rpcs_url
+                                .iter()
+                                .map(|url| RpcApi {
+                                    url: url.clone(),
+                                    headers: None,
+                                })
+                                .collect(),
                         },
                         None,
                         raw_tx,
@@ -232,10 +271,14 @@ impl Transport for EVMCanisterTransport {
 
                     let services = RpcServices::Custom {
                         chain_id: 0,
-                        services: vec![RpcApi {
-                            url: self.rpc_url.clone(),
-                            headers: None,
-                        }],
+                        services: self
+                            .rpcs_url
+                            .iter()
+                            .map(|url| RpcApi {
+                                url: url.clone(),
+                                headers: None,
+                            })
+                            .collect(),
                     };
 
                     let from_block = value.get("fromBlock").map(|v| {

@@ -55,7 +55,11 @@ dfx canister call sybil add_to_whitelist "(\"${CALLER}\")"
 dfx canister call sybil eth_address
 dfx canister call sybil deposit "(\"${TX_HASH}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil get_balance "(\"${CALLER}\")"
+
+# Chains rpc
 dfx canister call sybil add_chain_rpc "(11155111, \"https://endpoints.omniatech.io/v1/eth/sepolia/public\", null)"
+dfx canister call sybil get_all_chains_rpc 
+dfx canister call sybil remove_chain_rpc_by_index "(11155111, 1)"
 
 # read contract
 dfx canister call sybil read_contract "(42161, \"function balanceOf(address account) external view returns (uint256)\", \"0xA533f744B179F2431f5395978e391107DC76e103\", \"balanceOf\", \"(0x654DFF41D51c230FA400205A633101C5C1f1969C)\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"

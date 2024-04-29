@@ -1,14 +1,12 @@
 use anyhow::Result;
 use candid::{CandidType, Nat, Principal};
-use cketh_common::eth_rpc::LogEntry;
 use ic_cdk::api::management_canister::http_request::{TransformContext, TransformFunc};
 use ic_web3_rs::{
-    api::{Eth, Namespace},
+    api::Eth,
     contract::{tokens::Tokenizable, Contract, Options},
     ethabi::{Token, TopicFilter},
-    helpers::{self, CallFuture},
     ic::KeyInfo,
-    transports::ic_http::{CallOptionsBuilder, ICHttp},
+    transports::ic_http::CallOptionsBuilder,
     types::{
         BlockId, BlockNumber, Bytes, CallRequest, FilterBuilder, Log, SignedTransaction,
         Transaction, TransactionId, TransactionReceipt, H160, H256, U256, U64,
@@ -89,7 +87,7 @@ pub struct Web3Instance<T: Transport> {
 pub fn instance(rpc_url: String, _evm_rpc_canister: Principal) -> Web3Instance<impl Transport> {
     // Switch between EVMCanisterTransport(calls go through emv_rpc canister) and ICHttp (calls go straight to the rpc)
 
-    Web3Instance::new(Web3::new(EVMCanisterTransport::new(
+    Web3Instance::new(Web3::new(EVMCanisterTransport::new_with_one_rpc(
         rpc_url,
         _evm_rpc_canister,
     )))

@@ -119,10 +119,19 @@ impl ChainsRPC {
         })
     }
 
-    pub fn remove_chain_rpc(chain_id: u64) {
+    pub fn remove_chain_rpcs(chain_id: u64) {
         STATE.with(|state| {
             let mut state = state.borrow_mut();
             state.chains_rpc.0.remove(&chain_id);
+        });
+    }
+
+    pub fn remove_chain_rpc_by_index(chain_id: u64, index: usize) {
+        STATE.with(|state| {
+            let mut state = state.borrow_mut();
+            if let Some(rpc_urls) = state.chains_rpc.0.get_mut(&chain_id) {
+                rpc_urls.remove(index);
+            }
         });
     }
 }
