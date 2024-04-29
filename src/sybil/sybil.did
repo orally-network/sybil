@@ -226,7 +226,8 @@ type GetCfgResponse = variant { Ok : Cfg; Err: text };
 type GetWhitelistResponse = variant { Ok : vec text; Err: text };
 type ReadContractResponse = variant { Ok : ReadContractResult; Err: text };
 type ReadLogsResponse = variant { Ok : ReadLogsResult; Err: text };
-type GetAllChainsRPCResponse = variant { Ok : vec record {nat64; text}; Err: text };
+type GetChainsRPCResponse = variant { Ok : vec text; Err: text };
+type GetAllChainsRPCResponse = variant { Ok : vec record {nat64; vec text}; Err: text };
 type Error = variant { Ok : null; Err : text };
 
 
@@ -268,7 +269,7 @@ service : {
     // chains_rpc 
     add_chain_rpc : (chain_id : nat64, url : text, secret : opt text) -> (Error);
     remove_chain_rpc : (chain_id : nat64) -> (Error);
-    get_chain_rpc : (chain_id : nat64) -> (TextResponse);
+    get_chain_rpc : (chain_id : nat64) -> (GetChainsRPCResponse);
     get_all_chains_rpc : () -> (GetAllChainsRPCResponse);
 
     // balances

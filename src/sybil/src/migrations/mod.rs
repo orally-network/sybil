@@ -14,7 +14,7 @@ use crate::{
         allowances::Allowances,
         balances::{Balances, BalancesCfg},
         cache::{HttpCache, RateCache, SignaturesCache},
-        chains_rpc::ChainsRPC,
+        chains_rpc::{ChainsRPC, RPCUrl},
         feeds::{Feed, FeedStatus, FeedStorage, FeedType},
         rate_data::AssetDataResult,
         source::{HttpSource, Source},
@@ -195,7 +195,7 @@ impl From<OldState> for State {
             balances: state.balances,
             allowances: state.allowances.unwrap_or_default(),
             balances_cfg: state.balances_cfg.into(),
-            chains_rpc: state.chains_rpc.unwrap_or_default(),
+            chains_rpc: state.chains_rpc.unwrap_or_default().into(),
             eth_address: state.eth_address,
             whitelist: state.whitelist,
         }

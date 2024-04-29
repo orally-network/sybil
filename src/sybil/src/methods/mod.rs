@@ -220,7 +220,7 @@ pub async fn _read_contract(
         };
     }
 
-    let chain_rpc = ChainsRPC::get_chain_rpc(chain_id)?;
+    let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
 
     let w3 = web3::instance(chain_rpc, clone_with_state!(evm_rpc_canister));
 
@@ -358,7 +358,7 @@ pub async fn _read_logs(
         };
     }
 
-    let chain_rpc = ChainsRPC::get_chain_rpc(chain_id)?;
+    let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
 
     let w3 = web3::instance(chain_rpc, clone_with_state!(evm_rpc_canister));
 
@@ -390,13 +390,13 @@ pub async fn _read_logs(
         data: logs.into_iter().map(ReadLogsData::from).collect(),
         meta: ReadLogsMetadata {
             chain_id,
-            block_from,
-            block_to,
-            topics0,
-            topics1,
-            topics2,
-            topics3,
-            addresses,
+            block_from: block_from.unwrap_or_default(),
+            block_to: block_to.unwrap_or_default(),
+            topics0: topics0.unwrap_or_default(),
+            topics1: topics1.unwrap_or_default(),
+            topics2: topics2.unwrap_or_default(),
+            topics3: topics3.unwrap_or_default(),
+            addresses: addresses.unwrap_or_default(),
             timestamp: in_seconds(),
         },
         signature: None,

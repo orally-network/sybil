@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display};
+use std::collections::HashMap;
 
 use candid::CandidType;
 use serde::{Deserialize, Serialize};
@@ -25,12 +25,12 @@ impl RPCUrl {
     }
 }
 
-impl Display for RPCUrl {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl RPCUrl {
+    fn to_string_with_access(&self) -> String {
         if validate_caller().is_ok() {
-            write!(f, "{}", self.get_url())
+            self.get_url()
         } else {
-            write!(f, "{}", self.url)
+            self.url.clone()
         }
     }
 }
@@ -44,17 +44,30 @@ pub enum ChainsRPCError {
 }
 
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug, Default)]
-pub struct ChainsRPC(HashMap<u64, RPCUrl>);
+pub struct ChainsRPC(pub HashMap<u64, Vec<RPCUrl>>);
 
 impl ChainsRPC {
     pub fn add_chain_rpc(chain_id: u64, url: String, secret: Option<String>) {
         STATE.with(|state| {
             let mut state = state.borrow_mut();
-            state.chains_rpc.0.insert(chain_id, RPCUrl { url, secret });
+
+            if state.chains_rpc.0.contains_key(&chain_id) {
+                state
+                    .chains_rpc
+                    .0
+                    .get_mut(&chain_id)
+                    .unwrap()
+                    .push(RPCUrl { url, secret });
+            } else {
+                state
+                    .chains_rpc
+                    .0
+                    .insert(chain_id, vec![RPCUrl { url, secret }]);
+            }
         });
     }
 
-    pub fn get_chain_rpc(chain_id: u64) -> Result<String, ChainsRPCError> {
+    pub fn get_first_chain_rpc(chain_id: u64) -> Result<String, ChainsRPCError> {
         Ok(STATE
             .with(|state| {
                 let state = state.borrow();
@@ -65,17 +78,43 @@ impl ChainsRPC {
                     .cloned()
                     .ok_or(ChainsRPCError::ChainDoesNotExist)
             })?
+            .first()
+            .unwrap()
             .get_url())
     }
 
-    pub fn get_all_chains_rpc() -> HashMap<u64, String> {
+    pub fn get_chain_rpc(chain_id: u64) -> Result<Vec<String>, ChainsRPCError> {
+        Ok(STATE
+            .with(|state| {
+                let state = state.borrow();
+                state
+                    .chains_rpc
+                    .0
+                    .get(&chain_id)
+                    .cloned()
+                    .ok_or(ChainsRPCError::ChainDoesNotExist)
+            })?
+            .into_iter()
+            .map(|rpc_url| rpc_url.get_url())
+            .collect())
+    }
+
+    pub fn get_all_chains_rpc() -> HashMap<u64, Vec<String>> {
         STATE.with(|state| {
             state
                 .borrow()
                 .chains_rpc
                 .0
                 .iter()
-                .map(|(chain_id, rpc_url)| (*chain_id, rpc_url.to_string()))
+                .map(|(chain_id, rpc_url)| {
+                    (
+                        *chain_id,
+                        rpc_url
+                            .into_iter()
+                            .map(|rpc_url| rpc_url.to_string_with_access())
+                            .collect(),
+                    )
+                })
                 .collect()
         })
     }

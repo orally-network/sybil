@@ -13,74 +13,59 @@ use super::cache::SignaturesCacheError;
 #[derive(CandidType, Serialize, Deserialize, Debug)]
 pub struct ReadLogsMetadata {
     pub chain_id: u64,
-    pub block_from: Option<u64>,
-    pub block_to: Option<u64>,
-    pub topics0: Option<Vec<String>>,
-    pub topics1: Option<Vec<String>>,
-    pub topics2: Option<Vec<String>>,
-    pub topics3: Option<Vec<String>>,
-    pub addresses: Option<Vec<String>>,
+    pub block_from: u64,
+    pub block_to: u64,
+    pub topics0: Vec<String>,
+    pub topics1: Vec<String>,
+    pub topics2: Vec<String>,
+    pub topics3: Vec<String>,
+    pub addresses: Vec<String>,
     pub timestamp: u64,
 }
 
 impl ReadLogsMetadata {
     fn get_tokens(&self) -> Vec<Token> {
-        let mut tokens = vec![Token::Uint(self.chain_id.into())];
-
-        if let Some(block_from) = self.block_from {
-            tokens.push(Token::Uint(block_from.into()));
-        }
-
-        if let Some(block_to) = self.block_to {
-            tokens.push(Token::Uint(block_to.into()));
-        }
-
-        if let Some(topics0) = &self.topics0 {
-            tokens.push(Token::Array(
-                topics0
+        let tokens = vec![
+            Token::Uint(self.chain_id.into()),
+            Token::Uint(self.block_from.into()),
+            Token::Uint(self.block_to.into()),
+            Token::Array(
+                self.topics0
+                    .clone()
                     .into_iter()
-                    .map(|s| Token::String(s.clone()))
+                    .map(Token::String)
                     .collect(),
-            ));
-        }
-
-        if let Some(topics1) = &self.topics1 {
-            tokens.push(Token::Array(
-                topics1
+            ),
+            Token::Array(
+                self.topics1
+                    .clone()
                     .into_iter()
-                    .map(|s| Token::String(s.clone()))
+                    .map(Token::String)
                     .collect(),
-            ));
-        }
-
-        if let Some(topics2) = &self.topics2 {
-            tokens.push(Token::Array(
-                topics2
+            ),
+            Token::Array(
+                self.topics2
+                    .clone()
                     .into_iter()
-                    .map(|s| Token::String(s.clone()))
+                    .map(Token::String)
                     .collect(),
-            ));
-        }
-
-        if let Some(topics3) = &self.topics3 {
-            tokens.push(Token::Array(
-                topics3
+            ),
+            Token::Array(
+                self.topics3
+                    .clone()
                     .into_iter()
-                    .map(|s| Token::String(s.clone()))
+                    .map(Token::String)
                     .collect(),
-            ));
-        }
-
-        if let Some(addresses) = &self.addresses {
-            tokens.push(Token::Array(
-                addresses
+            ),
+            Token::Array(
+                self.addresses
+                    .clone()
                     .into_iter()
-                    .map(|s| Token::String(s.clone()))
+                    .map(Token::String)
                     .collect(),
-            ));
-        }
-
-        tokens.push(Token::Uint(self.timestamp.into()));
+            ),
+            Token::Uint(self.timestamp.into()),
+        ];
 
         tokens
     }
@@ -97,14 +82,14 @@ pub struct ReadLogsData {
     pub address: String,
     pub topics: Vec<String>,
     pub data: Vec<u8>,
-    pub block_hash: Option<String>,
-    pub block_number: Option<u64>,
-    pub transaction_hash: Option<String>,
-    pub transaction_index: Option<u64>,
-    pub log_index: Option<String>,
-    pub transaction_log_index: Option<String>,
-    pub log_type: Option<String>,
-    pub removed: Option<bool>,
+    pub block_hash: String,
+    pub block_number: u64,
+    pub transaction_hash: String,
+    pub transaction_index: u64,
+    pub log_index: String,
+    pub transaction_log_index: String,
+    pub log_type: String,
+    pub removed: bool,
 }
 
 impl From<Log> for ReadLogsData {
@@ -115,57 +100,48 @@ impl From<Log> for ReadLogsData {
             address: format!("{:?}", log.address),
             topics,
             data: log.data.0,
-            block_hash: log.block_hash.map(|h| format!("{:?}", h)),
-            block_number: log.block_number.map(|n| n.as_u64()),
-            transaction_hash: log.transaction_hash.map(|h| format!("{:?}", h)),
-            transaction_index: log.transaction_index.map(|i| i.as_u64()),
-            log_index: log.log_index.map(|i| format!("{:?}", i)),
-            transaction_log_index: log.transaction_log_index.map(|i| format!("{:?}", i)),
-            log_type: log.log_type.clone(),
-            removed: log.removed,
+            block_hash: log
+                .block_hash
+                .map(|h| format!("{:?}", h))
+                .unwrap_or_default(),
+            block_number: log.block_number.map(|n| n.as_u64()).unwrap_or_default(),
+            transaction_hash: log
+                .transaction_hash
+                .map(|h| format!("{:?}", h))
+                .unwrap_or_default(),
+            transaction_index: log
+                .transaction_index
+                .map(|i| i.as_u64())
+                .unwrap_or_default(),
+            log_index: log
+                .log_index
+                .map(|i| format!("{:?}", i))
+                .unwrap_or_default(),
+            transaction_log_index: log
+                .transaction_log_index
+                .map(|i| format!("{:?}", i))
+                .unwrap_or_default(),
+            log_type: log.log_type.clone().unwrap_or_default(),
+            removed: log.removed.unwrap_or_default(),
         }
     }
 }
 
 impl ReadLogsData {
     fn get_tokens(&self) -> Vec<Token> {
-        let mut tokens = vec![
+        let tokens = vec![
             Token::String(self.address.clone()),
             Token::Array(self.topics.clone().into_iter().map(Token::String).collect()),
             Token::Bytes(self.data.clone()),
+            Token::String(self.block_hash.clone()),
+            Token::Uint(self.block_number.into()),
+            Token::String(self.transaction_hash.clone()),
+            Token::Uint(self.transaction_index.into()),
+            Token::String(self.log_index.clone()),
+            Token::String(self.transaction_log_index.clone()),
+            Token::String(self.log_type.clone()),
+            Token::Bool(self.removed),
         ];
-
-        if let Some(block_hash) = &self.block_hash {
-            tokens.push(Token::String(block_hash.clone()));
-        }
-
-        if let Some(block_number) = self.block_number {
-            tokens.push(Token::Uint(block_number.into()));
-        }
-
-        if let Some(transaction_hash) = &self.transaction_hash {
-            tokens.push(Token::String(transaction_hash.clone()));
-        }
-
-        if let Some(transaction_index) = self.transaction_index {
-            tokens.push(Token::Uint(transaction_index.into()));
-        }
-
-        if let Some(log_index) = &self.log_index {
-            tokens.push(Token::String(log_index.clone()));
-        }
-
-        if let Some(transaction_log_index) = &self.transaction_log_index {
-            tokens.push(Token::String(transaction_log_index.clone()));
-        }
-
-        if let Some(log_type) = &self.log_type {
-            tokens.push(Token::String(log_type.clone()));
-        }
-
-        if let Some(removed) = self.removed {
-            tokens.push(Token::Bool(removed));
-        }
 
         tokens
     }
@@ -190,7 +166,7 @@ impl ReadLogsResult {
             .map(|log| log.get_token())
             .collect::<Vec<Token>>();
 
-        let encode_data = encode(&tokens);
+        let encode_data = encode(&vec![Token::Array(tokens)]);
 
         let encode_meta = self.meta.encode();
 
@@ -208,7 +184,7 @@ impl ReadLogsResult {
             .map(|log| log.get_token())
             .collect::<Vec<Token>>();
 
-        let encode_data = encode(&tokens);
+        let encode_data = encode(&vec![Token::Array(tokens)]);
 
         let encode_meta = self.meta.encode();
 
