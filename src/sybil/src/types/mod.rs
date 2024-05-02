@@ -1,4 +1,5 @@
 pub mod allowances;
+pub mod api_keys;
 pub mod balances;
 pub mod cache;
 pub mod chains_rpc;

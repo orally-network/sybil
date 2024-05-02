@@ -12,9 +12,10 @@ use crate::{
     log, metrics,
     types::{
         allowances::Allowances,
+        api_keys::APIKeys,
         balances::{Balances, BalancesCfg},
         cache::{HttpCache, RateCache, SignaturesCache},
-        chains_rpc::{ChainsRPC, RPCUrl},
+        chains_rpc::ChainsRPC,
         feeds::{Feed, FeedStatus, FeedStorage, FeedType},
         rate_data::AssetDataResult,
         source::{HttpSource, Source},
@@ -161,6 +162,7 @@ impl From<OldBalancesCfg> for BalancesCfg {
 
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug)]
 pub struct OldState {
+    pub api_keys: Option<APIKeys>,
     pub exchange_rate_canister: Principal,
     pub fallback_xrc: Option<Principal>,
     pub evm_rpc_canister: Option<Principal>,
@@ -181,6 +183,7 @@ pub struct OldState {
 impl From<OldState> for State {
     fn from(state: OldState) -> Self {
         Self {
+            api_keys: state.api_keys.unwrap_or_default(),
             exchange_rate_canister: state.exchange_rate_canister,
             fallback_xrc: state.fallback_xrc.unwrap_or_else(|| {
                 Principal::from_text("a3uxy-eiaaa-aaaao-a2qaa-cai").expect("Invalid principal")

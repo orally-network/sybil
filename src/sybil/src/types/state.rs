@@ -5,6 +5,7 @@ use candid::Principal;
 use serde::{Deserialize, Serialize};
 
 use super::allowances::Allowances;
+use super::api_keys::APIKeys;
 use super::chains_rpc::ChainsRPC;
 use super::{
     config::{Cfg, UpdateCfg},
@@ -19,6 +20,7 @@ use crate::{
 
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug)]
 pub struct State {
+    pub api_keys: APIKeys,
     pub exchange_rate_canister: Principal,
     pub fallback_xrc: Principal,
     pub evm_rpc_canister: Principal,
@@ -37,6 +39,7 @@ pub struct State {
 impl Default for State {
     fn default() -> Self {
         Self {
+            api_keys: APIKeys::default(),
             exchange_rate_canister: Principal::from_str("aaaaa-aa").expect("Invalid principal"),
             fallback_xrc: Principal::from_str("aaaaa-aa").expect("Invalid principal"),
             evm_rpc_canister: Principal::from_str("aaaaa-aa").expect("Invalid principal"),

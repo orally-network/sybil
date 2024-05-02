@@ -1,4 +1,5 @@
 pub mod allowances;
+pub mod api_keys;
 pub mod balances;
 pub mod chains_rpc;
 pub mod controllers;
@@ -10,9 +11,8 @@ pub mod whitelist;
 
 use std::str::FromStr;
 
-use candid::Func;
 use futures::future::join_all;
-use ic_cdk::{api::time, query, update};
+use ic_cdk::{query, update};
 
 use ic_web3_rs::{contract::Contract, types::H256};
 use thiserror::Error;
@@ -23,7 +23,7 @@ use ic_utils::{
 };
 
 use crate::{
-    clone_with_state, log, metrics,
+    clone_with_state, metrics,
     types::{
         balances::{BalanceError, Balances},
         chains_rpc::ChainsRPC,
@@ -135,7 +135,7 @@ pub async fn get_asset_data_with_proof(
         ic_cdk::caller().to_string()
     };
 
-    _get_asset_data(id, true, payer)
+    _get_asset_data(id, true, Some(payer))
         .await
         .map_err(|e| format!("failed to get asset data with proof: {}", e))
 }
@@ -417,7 +417,7 @@ pub async fn _read_logs(
 pub async fn _get_asset_data(
     id: String,
     with_signature: bool,
-    payer: String,
+    payer: Option<String>,
 ) -> Result<AssetDataResult, AssetsError> {
     if with_signature {
         metrics!(inc GET_ASSET_DATA_WITH_PROOF_CALLS, id);
@@ -448,7 +448,7 @@ pub async fn get_xrc_data(
         ic_cdk::caller().to_string()
     };
 
-    _get_xrc_data(id, false, payer)
+    _get_xrc_data(id, false, Some(payer))
         .await
         .map_err(|e| format!("failed to get asset data: {}", e))
 }
@@ -467,7 +467,7 @@ pub async fn get_xrc_data_with_proof(
         ic_cdk::caller().to_string()
     };
 
-    _get_xrc_data(id, true, payer)
+    _get_xrc_data(id, true, Some(payer))
         .await
         .map_err(|e| format!("failed to get asset data: {}", e))
 }
@@ -475,7 +475,7 @@ pub async fn get_xrc_data_with_proof(
 pub async fn _get_xrc_data(
     id: String,
     with_signature: bool,
-    payer: String,
+    payer: Option<String>,
 ) -> Result<AssetDataResult, AssetsError> {
     let rate = Feed {
         id: id.clone(),
@@ -506,7 +506,7 @@ pub async fn get_asset_data(
         ic_cdk::caller().to_string()
     };
 
-    _get_asset_data(id, false, payer)
+    _get_asset_data(id, false, None)
         .await
         .map_err(|e| format!("failed to get asset data: {}", e))
 }
@@ -525,7 +525,7 @@ pub async fn get_multiple_assets_data_with_proof(
         ic_cdk::caller().to_string()
     };
 
-    let mut multiple_assetds_data = _get_multiple_assets_data(ids, true, payer)
+    let mut multiple_assetds_data = _get_multiple_assets_data(ids, true, None)
         .await
         .map_err(|e| format!("failed to get assets data: {}", e))?;
 
@@ -551,7 +551,7 @@ pub async fn get_multiple_assets_data(
         ic_cdk::caller().to_string()
     };
 
-    _get_multiple_assets_data(ids, false, payer)
+    _get_multiple_assets_data(ids, false, None)
         .await
         .map_err(|e| format!("failed to get assets data: {}", e))
 }
@@ -559,7 +559,7 @@ pub async fn get_multiple_assets_data(
 pub async fn _get_multiple_assets_data(
     ids: Vec<String>,
     with_signature: bool,
-    payer: String,
+    payer: Option<String>,
 ) -> Result<MultipleAssetsDataResult, AssetsError> {
     let mut data = Vec::with_capacity(ids.len());
 

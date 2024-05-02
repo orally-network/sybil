@@ -2,20 +2,15 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-use super::{response, HttpRequest, HttpResponse, HTTP_SERVICE};
-use crate::{
-    log,
-    methods::{_get_asset_data, _get_multiple_assets_data},
-    types::allowances::Allowances,
-};
-
-use crate::utils::siwe;
+use super::{response, utils::resolve_payer, HttpRequest, HttpResponse, HTTP_SERVICE};
+use crate::methods::{_get_asset_data, _get_multiple_assets_data};
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
 struct GetAssetDataQueryParams {
     id: String,
     msg: Option<String>,
     sig: Option<String>,
+    api_key: Option<String>,
     bytes: Option<bool>,
 }
 
@@ -32,6 +27,7 @@ struct GetMultipleAssetsDataQueryParams {
     ids: String,
     msg: Option<String>,
     sig: Option<String>,
+    api_key: Option<String>,
     bytes: Option<bool>,
 }
 
@@ -46,6 +42,7 @@ impl TryFrom<String> for GetMultipleAssetsDataQueryParams {
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
 struct GetXRCDataQueryParams {
     id: String,
+    api_key: Option<String>,
     msg: Option<String>,
     sig: Option<String>,
     bytes: Option<bool>,
@@ -71,6 +68,7 @@ struct ReadLogsQueryParams {
     addresses: Option<String>,
     msg: Option<String>,
     sig: Option<String>,
+    api_key: Option<String>,
     bytes: Option<bool>,
 }
 
@@ -91,6 +89,7 @@ struct ReadContractQueryParams {
     params: String,
     msg: Option<String>,
     sig: Option<String>,
+    api_key: Option<String>,
     bytes: Option<bool>,
 }
 
@@ -156,13 +155,14 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     let params = GetXRCDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let caller = if let (Some(msg), Some(sig)) = (params.msg, params.sig) {
-        siwe::recover(&msg, &sig).await?
-    } else {
-        ic_cdk::caller().to_string()
-    };
-
-    let payer = check_for_potential_grantee(&req.headers)?.unwrap_or(caller);
+    let payer = resolve_payer(
+        &req,
+        "get_xrc_data".to_string(),
+        params.msg,
+        params.sig,
+        params.api_key,
+    )
+    .await?;
 
     let rate = crate::methods::_get_xrc_data(params.id, with_signature, payer).await?;
 
@@ -198,13 +198,14 @@ async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Resu
     let params = GetAssetDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let caller = if let (Some(msg), Some(sig)) = (params.msg, params.sig) {
-        siwe::recover(&msg, &sig).await?
-    } else {
-        ic_cdk::caller().to_string()
-    };
-
-    let payer = check_for_potential_grantee(&req.headers)?.unwrap_or(caller);
+    let payer = resolve_payer(
+        &req,
+        "get_asset_data".to_string(),
+        params.msg,
+        params.sig,
+        params.api_key,
+    )
+    .await?;
 
     let rate = _get_asset_data(params.id, with_signature, payer).await?;
 
@@ -244,17 +245,18 @@ async fn _get_multiple_assets_data_request(
     let params = GetMultipleAssetsDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let caller = if let (Some(msg), Some(sig)) = (params.msg, params.sig) {
-        siwe::recover(&msg, &sig).await?
-    } else {
-        ic_cdk::caller().to_string()
-    };
-
-    let payer = check_for_potential_grantee(&req.headers)?.unwrap_or(caller);
+    let payer = resolve_payer(
+        &req,
+        "get_multiple_assets_data".to_string(),
+        params.msg,
+        params.sig,
+        params.api_key,
+    )
+    .await?;
 
     let ids = params.ids.split(",").map(|s| s.to_string()).collect();
 
-    let rate = _get_multiple_assets_data(ids, with_signature, payer).await?;
+    let rate = _get_multiple_assets_data(ids, with_signature, None).await?;
 
     if let Some(_bytes @ true) = params.bytes {
         let data = format!("0x{}", hex::encode(&rate.encode()));
@@ -268,19 +270,6 @@ pub async fn gather_metrics() -> HttpResponse {
     let data = crate::utils::metrics::gather_metrics();
 
     response::ok(data)
-}
-
-fn check_for_potential_grantee(headers: &[(String, String)]) -> Result<Option<String>> {
-    let grantee = headers
-        .iter()
-        .find(|(k, _)| k == "referer" || k == "origin")
-        .map(|(_, v)| v);
-
-    if let Some(grantee) = grantee {
-        Ok(Allowances::get_allowed_user(grantee)?)
-    } else {
-        Ok(None)
-    }
 }
 
 pub async fn read_contract(req: HttpRequest) -> HttpResponse {
@@ -315,13 +304,14 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
     let params = ReadContractQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let caller = if let (Some(msg), Some(sig)) = (params.msg, params.sig) {
-        siwe::recover(&msg, &sig).await?
-    } else {
-        ic_cdk::caller().to_string()
-    };
-
-    let payer = check_for_potential_grantee(&req.headers)?.unwrap_or(caller);
+    let payer = resolve_payer(
+        &req,
+        "read_contract".to_string(),
+        params.msg,
+        params.sig,
+        params.api_key,
+    )
+    .await?;
 
     let result = crate::methods::_read_contract(
         params.chain_id,
@@ -374,13 +364,14 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
     let params = ReadLogsQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let caller = if let (Some(msg), Some(sig)) = (params.msg, params.sig) {
-        siwe::recover(&msg, &sig).await?
-    } else {
-        ic_cdk::caller().to_string()
-    };
-
-    let payer = check_for_potential_grantee(&req.headers)?.unwrap_or(caller);
+    let payer = resolve_payer(
+        &req,
+        "read_logs".to_string(),
+        params.msg,
+        params.sig,
+        params.api_key,
+    )
+    .await?;
 
     let result = crate::methods::_read_logs(
         params.chain_id,

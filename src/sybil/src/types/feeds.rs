@@ -192,7 +192,7 @@ impl FeedStorage {
     pub async fn rate(
         id: &str,
         with_signature: bool,
-        payer: String,
+        payer: Option<String>,
     ) -> Result<AssetDataResult, FeedError> {
         let mut rate = match Self::get(id) {
             Some(feed) => match feed.feed_type.clone() {

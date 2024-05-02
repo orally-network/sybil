@@ -28,7 +28,7 @@ pub fn add_prefix(address: &str) -> String {
         return address.to_string();
     }
 
-    format!("0x{}", address)
+    format!("{}{}", PREFIX, address)
 }
 
 pub fn to_h160(address: &str) -> Result<H160, AddressError> {
@@ -64,7 +64,7 @@ pub fn from_str(address: &str) -> Result<Address, AddressError> {
             checksum.push_str(&trimmed[pos..pos + 1].to_ascii_lowercase());
         }
     }
-    Ok(format!("0x{checksum}"))
+    Ok(format!("{PREFIX}{checksum}"))
 }
 
 pub fn is_valid(address: &str) -> bool {

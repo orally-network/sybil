@@ -56,6 +56,17 @@ dfx canister call sybil eth_address
 dfx canister call sybil deposit "(\"${TX_HASH}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil get_balance "(\"${CALLER}\")"
 
+# api keys
+dfx canister call sybil get_api_keys 
+dfx canister call sybil get_api_key "(\"${SIWE_MSG}\", \"${SIWE_SIG}\")"
+dfx canister call sybil revoke_key "(\"${API_KEY}\")"
+dfx canister call sybil get_user_by_key "(\"${API_KEY}\")"
+dfx canister call sybil update_request_limit "(\"${API_KEY}\", 10000, \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
+dfx canister call sybil update_request_limit_by_domain "(\"${API_KEY}\", 1000, \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
+dfx canister call sybil update_free_request_limit "(1000)"
+dfx canister call sybil ban_domain "(\"${API_KEY}\", \"${DOMAIN}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
+dfx canister call sybil allow_domain "(\"${API_KEY}\", \"${DOMAIN}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
+
 # Chains rpc
 dfx canister call sybil add_chain_rpc "(11155111, \"https://endpoints.omniatech.io/v1/eth/sepolia/public\", null)"
 dfx canister call sybil get_all_chains_rpc 

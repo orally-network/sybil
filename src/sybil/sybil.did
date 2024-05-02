@@ -214,6 +214,25 @@ type ReadLogsData = record {
     removed : opt bool;
 };
 
+
+type APIUser = record {
+    address : text;
+    request_count : nat64;
+    request_count_per_method : vec record {text; nat64};
+    request_count_per_domain : vec record {text; nat64};
+    last_request : nat64;
+    banned_domains : vec text;
+    request_limit_by_domain : nat64;
+    request_limit : nat64;
+};
+
+type SybilAPIKey = record {
+    keys_to_user : vec record {text; APIUser};
+    user_to_keys : vec record {text; vec text};
+    free_request_limit : nat64;
+};
+
+
 type GetAssetDataWithProofResponse = variant { Ok : AssetDataResult; Err : text };
 type GetAssetDataResponse = variant { Ok : AssetDataResult; Err: text };
 type GetMultipleAssetsDataResponse = variant { Ok : MultipleAssetsDataResult; Err: text };
@@ -228,6 +247,9 @@ type ReadContractResponse = variant { Ok : ReadContractResult; Err: text };
 type ReadLogsResponse = variant { Ok : ReadLogsResult; Err: text };
 type GetChainsRPCResponse = variant { Ok : vec text; Err: text };
 type GetAllChainsRPCResponse = variant { Ok : vec record {nat64; vec text}; Err: text };
+type GetUserAPIKeysResponse = variant { Ok : opt vec text; Err: text };
+type GetUserByKeyResponse = variant { Ok : opt APIUser; Err: text };
+type GetAPIKeysResponse = variant { Ok : SybilAPIKey; Err: text };
 type Error = variant { Ok : null; Err : text };
 
 
@@ -256,6 +278,19 @@ service : {
     // allowances
     grant : (grantee : text, msg : text, sig : text) -> (Error);
     restrict : (grantee : text, msg : text, sig : text) -> (Error);
+
+    // api keys
+    get_api_key : (msg : text, sig : text) -> (TextResponse);
+    get_user_api_keys : (address : text) -> (GetUserAPIKeysResponse);
+    get_user_by_key : (key : text) -> (GetUserByKeyResponse);
+    revoke_keys : (address : text) -> (Error);
+    revoke_key : (key : text) -> ();
+    update_free_request_limit : (new_limit : nat64) -> (Error);
+    update_request_limit : (key : text, new_limit : nat64, msg : text, sig : text) -> (Error);
+    update_request_limit_by_domain : (key : text, new_limit : nat64, msg : text, sig : text) -> (Error);
+    get_api_keys : () -> (GetAPIKeysResponse);
+    ban_domain : (key : text, domain : text, msg : text, sig : text) -> (Error);
+    allow_domain : (key : text, domain : text, msg : text, sig : text) -> (Error);
     
     // controllers
     sign_message : (msg : text) -> (TextResponse);
