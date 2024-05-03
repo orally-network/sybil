@@ -1,6 +1,12 @@
-use crate::types::{allowances::Allowances, api_keys::APIKeys, http::HttpRequest};
+use crate::{
+    log,
+    types::{allowances::Allowances, api_keys::APIKeys, http::HttpRequest},
+    HTTP_REQUESTS_COUNTER,
+};
 
 use anyhow::Result;
+
+const MAX_FREE_REQUESTS: u128 = 100;
 
 pub async fn resolve_payer(
     req: &HttpRequest,
@@ -8,37 +14,40 @@ pub async fn resolve_payer(
     msg: Option<String>,
     sig: Option<String>,
     api_key: Option<String>,
-) -> Result<Option<String>> {
-    let domain = req
+) -> Result<(Option<String>, bool)> {
+    let Some(domain) = req
         .headers
         .iter()
         .find(|(k, _)| k == "referer" || k == "origin")
         .map(|(_, v)| v)
-        .cloned();
+        .cloned()
+    else {
+        return Ok((None, false));
+    };
+
+    let requests_per_domain = HTTP_REQUESTS_COUNTER.with(|c| {
+        let mut c = c.borrow_mut();
+        let counter = c.entry(domain.clone()).or_insert(0);
+        *counter += 1;
+
+        *counter - 1
+    });
+
+    if requests_per_domain < MAX_FREE_REQUESTS {
+        return Ok((None, true));
+    }
 
     let caller = match (msg, sig, api_key) {
         (Some(msg), Some(sig), _) => crate::utils::siwe::recover(&msg, &sig).await?,
         (_, _, Some(api_key)) => {
-            let (address, is_free) = APIKeys::auth_key(api_key, method, domain.clone())?;
+            let (address, is_free) = APIKeys::auth_key(api_key, method, Some(domain.clone()))?;
 
-            if is_free {
-                return Ok(None);
-            }
-
-            address
+            return Ok((Some(address), is_free));
         }
-        _ => ic_cdk::caller().to_string(),
+        _ => return Ok((None, false)),
     };
 
-    let payer = check_for_potential_grantee(domain)?.unwrap_or(caller);
+    let payer = Allowances::get_allowed_user(&domain)?.unwrap_or(caller);
 
-    Ok(Some(payer))
-}
-
-fn check_for_potential_grantee(grantee: Option<String>) -> Result<Option<String>> {
-    if let Some(grantee) = grantee {
-        Ok(Allowances::get_allowed_user(&grantee)?)
-    } else {
-        Ok(None)
-    }
+    Ok((Some(payer), false))
 }

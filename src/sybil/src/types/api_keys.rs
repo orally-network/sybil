@@ -32,8 +32,8 @@ pub enum APIKeysError {
     LimitExceeded,
     #[error("Address is not an owner of the key")]
     InvalidOwner,
-    #[error("This domain is banned")]
-    BannedDomain,
+    #[error("Now Allowed")]
+    NotAllowed,
 }
 
 #[derive(Default, Serialize, Deserialize, CandidType, Debug, Clone)]
@@ -43,6 +43,8 @@ pub struct User {
     request_count_per_method: HashMap<String, u64>,
     request_count_per_domain: HashMap<String, u64>,
     banned_domains: HashSet<String>,
+    allowed_domains: HashSet<String>,
+    is_public: bool, // if true, everyone except banned domains can use this key, if false, only allowed domains can use this key
     last_request: u64, // timestamp of the last request
     request_limit_by_domain: u64,
     request_limit: u64,
@@ -80,11 +82,13 @@ impl User {
     }
 
     pub fn ban_domain(&mut self, domain: String) {
+        self.allowed_domains.remove(&domain);
         self.banned_domains.insert(domain);
     }
 
-    pub fn allow_domain(&mut self, domain: &str) {
-        self.banned_domains.remove(domain);
+    pub fn allow_domain(&mut self, domain: String) {
+        self.banned_domains.remove(&domain);
+        self.allowed_domains.insert(domain);
     }
 
     pub fn check_restrictions(&self, domain: Option<&str>) -> Result<(), APIKeysError> {
@@ -93,8 +97,10 @@ impl User {
         }
 
         if let Some(domain) = domain {
-            if self.banned_domains.contains(domain) {
-                return Err(APIKeysError::BannedDomain);
+            if self.banned_domains.contains(domain)
+                || (!self.is_public && !self.allowed_domains.contains(domain))
+            {
+                return Err(APIKeysError::NotAllowed);
             }
 
             if self.get_request_count_by_domain(&domain) >= self.request_limit_by_domain {
@@ -173,6 +179,8 @@ impl APIKeys {
                     request_count_per_method: HashMap::new(),
                     request_count_per_domain: HashMap::new(),
                     banned_domains: HashSet::new(),
+                    allowed_domains: HashSet::new(),
+                    is_public: true,
                     last_request: 0,
                     request_limit_by_domain: DEFAULT_REQUEST_BY_DOMAIN_LIMIT,
                     request_limit: DEFAULT_REQUEST_LIMIT,
@@ -342,7 +350,27 @@ impl APIKeys {
                     return Err(APIKeysError::InvalidOwner);
                 }
 
-                user.allow_domain(&domain);
+                user.allow_domain(domain);
+            } else {
+                return Err(APIKeysError::InvalidKey);
+            }
+            Ok(())
+        })
+    }
+
+    pub fn change_public_status(
+        address: String,
+        key: String,
+        is_public: bool,
+    ) -> Result<(), APIKeysError> {
+        STATE.with(|state| {
+            let mut state = state.borrow_mut();
+            if let Some(user) = state.api_keys.keys_to_user.get_mut(&key) {
+                if user.address != address {
+                    return Err(APIKeysError::InvalidOwner);
+                }
+
+                user.is_public = is_public;
             } else {
                 return Err(APIKeysError::InvalidKey);
             }

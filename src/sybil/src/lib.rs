@@ -5,7 +5,7 @@ mod migrations;
 mod types;
 mod utils;
 
-use std::cell::RefCell;
+use std::{cell::RefCell, collections::HashMap};
 
 use http::HttpService;
 use ic_cdk::{
@@ -24,6 +24,7 @@ use crate::types::cache::{HttpCache, SignaturesCache};
 thread_local! {
     pub static STATE: RefCell<State> = RefCell::default();
     pub static CACHE: RefCell<RateCache> = RefCell::default();
+    pub static HTTP_REQUESTS_COUNTER: RefCell<HashMap<String, u128>> = RefCell::default();
     pub static HTTP_CACHE: RefCell<HttpCache> = RefCell::default();
     pub static SIGNATURES_CACHE: RefCell<SignaturesCache> = RefCell::default();
 }

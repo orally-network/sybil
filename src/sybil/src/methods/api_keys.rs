@@ -193,3 +193,27 @@ pub async fn _allow_domain(
 
     APIKeys::allow_domain(caller, key, domain)
 }
+
+#[update]
+pub async fn change_public_status(
+    key: String,
+    is_public: bool,
+    msg: String,
+    sig: String,
+) -> Result<(), String> {
+    _change_public_status(key, is_public, msg, sig)
+        .await
+        .map_err(|e| format!("cannot update request limit: {}", e))
+}
+
+#[inline]
+pub async fn _change_public_status(
+    key: String,
+    is_public: bool,
+    msg: String,
+    sig: String,
+) -> Result<(), APIKeysError> {
+    let caller = siwe::recover(&msg, &sig).await?;
+
+    APIKeys::change_public_status(caller, key, is_public)
+}

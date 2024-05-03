@@ -1,105 +1,19 @@
 use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-use super::{response, utils::resolve_payer, HttpRequest, HttpResponse, HTTP_SERVICE};
-use crate::methods::{_get_asset_data, _get_multiple_assets_data};
-
-#[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
-struct GetAssetDataQueryParams {
-    id: String,
-    msg: Option<String>,
-    sig: Option<String>,
-    api_key: Option<String>,
-    bytes: Option<bool>,
-}
-
-impl TryFrom<String> for GetAssetDataQueryParams {
-    type Error = serde_qs::Error;
-
-    fn try_from(query: String) -> Result<Self, serde_qs::Error> {
-        serde_qs::from_str(&query)
-    }
-}
-
-#[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
-struct GetMultipleAssetsDataQueryParams {
-    ids: String,
-    msg: Option<String>,
-    sig: Option<String>,
-    api_key: Option<String>,
-    bytes: Option<bool>,
-}
-
-impl TryFrom<String> for GetMultipleAssetsDataQueryParams {
-    type Error = serde_qs::Error;
-
-    fn try_from(query: String) -> Result<Self, serde_qs::Error> {
-        serde_qs::from_str(&query)
-    }
-}
-
-#[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
-struct GetXRCDataQueryParams {
-    id: String,
-    api_key: Option<String>,
-    msg: Option<String>,
-    sig: Option<String>,
-    bytes: Option<bool>,
-}
-
-impl TryFrom<String> for GetXRCDataQueryParams {
-    type Error = serde_qs::Error;
-
-    fn try_from(query: String) -> Result<Self, serde_qs::Error> {
-        serde_qs::from_str(&query)
-    }
-}
-
-#[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
-struct ReadLogsQueryParams {
-    chain_id: u64,
-    block_from: Option<u64>,
-    block_to: Option<u64>,
-    topics0: Option<String>,
-    topics1: Option<String>,
-    topics2: Option<String>,
-    topics3: Option<String>,
-    addresses: Option<String>,
-    msg: Option<String>,
-    sig: Option<String>,
-    api_key: Option<String>,
-    bytes: Option<bool>,
-}
-
-impl TryFrom<String> for ReadLogsQueryParams {
-    type Error = serde_qs::Error;
-
-    fn try_from(query: String) -> Result<Self, serde_qs::Error> {
-        serde_qs::from_str(&query)
-    }
-}
-
-#[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
-struct ReadContractQueryParams {
-    chain_id: u64,
-    function_signature: String,
-    contract_addr: String,
-    method: String,
-    params: String,
-    msg: Option<String>,
-    sig: Option<String>,
-    api_key: Option<String>,
-    bytes: Option<bool>,
-}
-
-impl TryFrom<String> for ReadContractQueryParams {
-    type Error = serde_qs::Error;
-
-    fn try_from(query: String) -> Result<Self, serde_qs::Error> {
-        serde_qs::from_str(&query)
-    }
-}
+use super::{
+    response,
+    types::{
+        GetAssetDataQueryParams, GetMultipleAssetsDataQueryParams, GetXRCDataQueryParams,
+        ReadContractQueryParams, ReadLogsQueryParams,
+    },
+    utils::resolve_payer,
+    HttpRequest, HttpResponse, HTTP_SERVICE,
+};
+use crate::{
+    log,
+    methods::{_get_asset_data, _get_multiple_assets_data},
+};
 
 pub async fn get_asset_data_request(req: HttpRequest) -> HttpResponse {
     let resp = _get_asset_data_request(req, false)
@@ -155,7 +69,7 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     let params = GetXRCDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let payer = resolve_payer(
+    let (payer, is_free) = resolve_payer(
         &req,
         "get_xrc_data".to_string(),
         params.msg,
@@ -164,7 +78,11 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     )
     .await?;
 
-    let rate = crate::methods::_get_xrc_data(params.id, with_signature, payer).await?;
+    if payer.is_none() && !is_free {
+        return Err(anyhow::anyhow!("No payer provided"));
+    }
+
+    let rate = crate::methods::_get_xrc_data(params.id, with_signature, None).await?;
 
     if let Some(_bytes @ true) = params.bytes {
         let data = format!("0x{}", hex::encode(&rate.encode()));
@@ -198,7 +116,7 @@ async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Resu
     let params = GetAssetDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let payer = resolve_payer(
+    let (payer, is_free) = resolve_payer(
         &req,
         "get_asset_data".to_string(),
         params.msg,
@@ -207,7 +125,11 @@ async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Resu
     )
     .await?;
 
-    let rate = _get_asset_data(params.id, with_signature, payer).await?;
+    if payer.is_none() && !is_free {
+        return Err(anyhow::anyhow!("No payer provided"));
+    }
+
+    let rate = _get_asset_data(params.id, with_signature, None).await?;
 
     if let Some(_bytes @ true) = params.bytes {
         let data = format!("0x{}", hex::encode(&rate.encode()));
@@ -245,7 +167,7 @@ async fn _get_multiple_assets_data_request(
     let params = GetMultipleAssetsDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let payer = resolve_payer(
+    let (payer, is_free) = resolve_payer(
         &req,
         "get_multiple_assets_data".to_string(),
         params.msg,
@@ -253,6 +175,10 @@ async fn _get_multiple_assets_data_request(
         params.api_key,
     )
     .await?;
+
+    if payer.is_none() && !is_free {
+        return Err(anyhow::anyhow!("No payer provided"));
+    }
 
     let ids = params.ids.split(",").map(|s| s.to_string()).collect();
 
@@ -304,7 +230,7 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
     let params = ReadContractQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let payer = resolve_payer(
+    let (payer, is_free) = resolve_payer(
         &req,
         "read_contract".to_string(),
         params.msg,
@@ -312,6 +238,10 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
         params.api_key,
     )
     .await?;
+
+    if payer.is_none() && !is_free {
+        return Err(anyhow::anyhow!("No payer provided"));
+    }
 
     let result = crate::methods::_read_contract(
         params.chain_id,
@@ -364,7 +294,7 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
     let params = ReadLogsQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let payer = resolve_payer(
+    let (payer, is_free) = resolve_payer(
         &req,
         "read_logs".to_string(),
         params.msg,
@@ -372,6 +302,10 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
         params.api_key,
     )
     .await?;
+
+    if payer.is_none() && !is_free {
+        return Err(anyhow::anyhow!("No payer provided"));
+    }
 
     let result = crate::methods::_read_logs(
         params.chain_id,

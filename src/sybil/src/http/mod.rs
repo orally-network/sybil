@@ -2,6 +2,7 @@ mod handlers;
 mod middlewares;
 mod response;
 mod router;
+mod types;
 mod utils;
 
 use std::future::Future;
@@ -12,10 +13,7 @@ use ic_cdk::{query, update};
 
 use router::Router;
 
-use crate::{
-    log,
-    types::http::{HttpRequest, HttpResponse},
-};
+use crate::types::http::{HttpRequest, HttpResponse};
 
 pub static HTTP_SERVICE: OnceLock<HttpService> = OnceLock::new();
 
