@@ -33,3 +33,11 @@ pub struct HttpResponse {
     pub headers: Vec<HeaderField>,
     pub body: ByteBuf,
 }
+
+#[derive(Clone, Debug, Default)]
+pub struct APIRequest {
+    pub method: String,
+    pub count: u128,
+    pub domain: String,
+    pub last_request: u64,
+}

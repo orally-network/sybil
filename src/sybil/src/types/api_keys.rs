@@ -212,9 +212,9 @@ impl APIKeys {
                 return Err(APIKeysError::InvalidKey);
             };
 
-            user.check_restrictions(domain.as_deref())?;
-
             user.update_request_count();
+
+            user.check_restrictions(domain.as_deref())?;
 
             user.increment_request_count_by_method(&method);
             if let Some(domain) = domain {

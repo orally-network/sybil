@@ -10,10 +10,7 @@ use super::{
     utils::resolve_payer,
     HttpRequest, HttpResponse, HTTP_SERVICE,
 };
-use crate::{
-    log,
-    methods::{_get_asset_data, _get_multiple_assets_data},
-};
+use crate::methods::{_get_asset_data, _get_multiple_assets_data};
 
 pub async fn get_asset_data_request(req: HttpRequest) -> HttpResponse {
     let resp = _get_asset_data_request(req, false)

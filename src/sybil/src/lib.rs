@@ -15,6 +15,7 @@ use ic_cdk::{
 use types::{
     cache::RateCache,
     config::Cfg,
+    http::APIRequest,
     state::{self, State},
 };
 use utils::canister::set_custom_panic_hook;
@@ -24,7 +25,7 @@ use crate::types::cache::{HttpCache, SignaturesCache};
 thread_local! {
     pub static STATE: RefCell<State> = RefCell::default();
     pub static CACHE: RefCell<RateCache> = RefCell::default();
-    pub static HTTP_REQUESTS_COUNTER: RefCell<HashMap<String, u128>> = RefCell::default();
+    pub static HTTP_REQUESTS: RefCell<HashMap<String, APIRequest>> = RefCell::default();
     pub static HTTP_CACHE: RefCell<HttpCache> = RefCell::default();
     pub static SIGNATURES_CACHE: RefCell<SignaturesCache> = RefCell::default();
 }
