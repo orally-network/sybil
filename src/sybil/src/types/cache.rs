@@ -6,6 +6,7 @@ use ic_cdk::api::management_canister::ecdsa::{EcdsaCurve, EcdsaKeyId, SignWithEc
 use ic_cdk::api::management_canister::http_request::{
     http_request, CanisterHttpRequestArgument, HttpResponse,
 };
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use hex::FromHexError;
@@ -24,7 +25,7 @@ use crate::{
         time,
     },
 };
-use crate::{HTTP_CACHE, SIGNATURES_CACHE};
+use crate::{HTTP_CACHE, SIGNATURES_CACHE, UNIVERSAL_CACHE};
 
 use super::rate_data::AssetDataResult;
 use super::{Seconds, Timestamp};
@@ -34,6 +35,7 @@ const HTTP_WATTING_TIMEOUT_SECS: u64 = 24;
 const HTTP_OUTCALL_REQUEST_CYCLES: u128 = 400_000_000;
 const HTTP_OUTCALL_PAYLOAD_CYCLES: u128 = 100_000;
 const MAX_RESPONSE_BYTES: u128 = 2 * 1024 * 1024; // 2 MB
+const CACHE_TTL_SEC: u64 = 3 * 60; // 3 minutes
 
 #[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
 pub struct RateCache(HashMap<String, RateCacheEntry>);
@@ -341,5 +343,64 @@ impl SignaturesCache {
 
         self.signatures
             .retain(|key, _| !keys_to_remove.contains(key));
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum CacheError {
+    #[error("Cannot deserialize data: {0}")]
+    DeserializationError(String),
+    #[error("Cannot serialize data: {0}")]
+    SerializationError(String),
+    #[error("Cannot get data: {0}")]
+    GetDataError(String),
+}
+
+#[derive(Debug, Clone, CandidType)]
+pub struct CacheEntry {
+    pub data: Vec<u8>,
+    pub expires_at: u64,
+}
+
+#[derive(Debug, Clone, Default, CandidType)]
+pub struct Cache(HashMap<String, CacheEntry>);
+
+impl Cache {
+    pub fn new() -> Self {
+        Self(HashMap::new())
+    }
+
+    pub fn with<'a, T: Serialize + DeserializeOwned>(
+        key: String,
+        func: impl Fn() -> anyhow::Result<T>,
+    ) -> Result<T, CacheError> {
+        UNIVERSAL_CACHE.with(|c| {
+            let mut cache = c.borrow_mut();
+
+            let entry = cache.0.get(&key);
+
+            if let Some(entry) = entry {
+                if entry.expires_at < time::in_seconds() {
+                    cache.0.remove(&key);
+                } else {
+                    return serde_cbor::from_slice(&entry.data)
+                        .map_err(|err| CacheError::DeserializationError(format!("{}", err)));
+                }
+            }
+
+            let data = func().map_err(|err| CacheError::GetDataError(format!("{}", err)))?;
+            let data_serialized = serde_cbor::to_vec(&data)
+                .map_err(|err| CacheError::SerializationError(format!("{}", err)))?;
+
+            cache.0.insert(
+                key,
+                CacheEntry {
+                    data: data_serialized,
+                    expires_at: time::in_seconds() + CACHE_TTL_SEC,
+                },
+            );
+
+            Ok(data)
+        })
     }
 }
