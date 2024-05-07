@@ -34,10 +34,9 @@ pub struct HttpResponse {
     pub body: ByteBuf,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, CandidType, Deserialize)]
 pub struct APIRequest {
     pub method: String,
     pub count: u128,
-    pub domain: String,
     pub last_request: u64,
 }

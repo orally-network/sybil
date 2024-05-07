@@ -12,9 +12,9 @@ use crate::utils::{address, CallerError};
 use crate::STATE;
 
 const HEX_API_KEYS_LEN: usize = 32;
-const DEFAULT_REQUEST_LIMIT: u64 = 10000;
-const DEFAULT_REQUEST_BY_DOMAIN_LIMIT: u64 = 1000;
-const DEFAULT_FREE_REQUEST_LIMIT: u64 = 1000;
+const DEFAULT_REQUEST_LIMIT: u64 = 100_000;
+const DEFAULT_REQUEST_BY_DOMAIN_LIMIT: u64 = 10_000;
+const DEFAULT_FREE_REQUEST_LIMIT: u64 = 0;
 
 #[derive(Error, Debug)]
 pub enum APIKeysError {

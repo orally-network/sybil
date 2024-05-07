@@ -1,7 +1,11 @@
+use std::collections::HashMap;
+
 use ic_cdk::{query, update};
 
 use crate::types::api_keys::{APIKeys, APIKeysError, User};
+use crate::types::http::APIRequest;
 use crate::utils::{siwe, validate_caller};
+use crate::HTTP_REQUESTS;
 
 #[update]
 pub async fn get_api_key(msg: String, sig: String) -> Result<String, String> {
@@ -216,4 +220,18 @@ pub async fn _change_public_status(
     let caller = siwe::recover(&msg, &sig).await?;
 
     APIKeys::change_public_status(caller, key, is_public)
+}
+
+#[query]
+pub async fn get_requests_by_domain() -> Result<HashMap<String, APIRequest>, String> {
+    _get_requests_by_domain()
+        .await
+        .map_err(|e| format!("cannot update request limit: {}", e))
+}
+
+#[inline]
+pub async fn _get_requests_by_domain() -> Result<HashMap<String, APIRequest>, APIKeysError> {
+    validate_caller()?;
+
+    Ok(HTTP_REQUESTS.with(|c| c.borrow().clone()))
 }

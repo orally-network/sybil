@@ -232,6 +232,12 @@ type SybilAPIKey = record {
     free_request_limit : nat64;
 };
 
+type APIRequest = record {
+    method : text; 
+    count : nat;
+    last_request : nat64;
+};
+
 
 type GetAssetDataWithProofResponse = variant { Ok : AssetDataResult; Err : text };
 type GetAssetDataResponse = variant { Ok : AssetDataResult; Err: text };
@@ -250,6 +256,7 @@ type GetAllChainsRPCResponse = variant { Ok : vec record {nat64; vec text}; Err:
 type GetUserAPIKeysResponse = variant { Ok : opt vec text; Err: text };
 type GetUserByKeyResponse = variant { Ok : opt APIUser; Err: text };
 type GetAPIKeysResponse = variant { Ok : SybilAPIKey; Err: text };
+type GetRequestsByDomainResponse = variant { Ok : vec record {text; APIRequest}; Err: text };
 type Error = variant { Ok : null; Err : text };
 
 
@@ -280,6 +287,7 @@ service : {
     restrict : (grantee : text, msg : text, sig : text) -> (Error);
 
     // api keys
+    get_requests_by_domain : () -> (GetRequestsByDomainResponse);
     get_api_key : (msg : text, sig : text) -> (TextResponse);
     get_user_api_keys : (address : text) -> (GetUserAPIKeysResponse);
     get_user_by_key : (key : text) -> (GetUserByKeyResponse);

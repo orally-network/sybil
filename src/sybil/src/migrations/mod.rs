@@ -17,6 +17,7 @@ use crate::{
         cache::{HttpCache, RateCache, SignaturesCache},
         chains_rpc::ChainsRPC,
         feeds::{Feed, FeedStatus, FeedStorage, FeedType},
+        http::APIRequest,
         rate_data::AssetDataResult,
         source::{HttpSource, Source},
         state::State,
@@ -27,7 +28,7 @@ use crate::{
         canister::set_custom_panic_hook,
         metrics::{Metric, Metrics, METRICS},
     },
-    CACHE, HTTP_CACHE, SIGNATURES_CACHE, STATE,
+    CACHE, HTTP_CACHE, HTTP_REQUESTS, SIGNATURES_CACHE, STATE,
 };
 
 #[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
@@ -253,6 +254,8 @@ fn pre_upgrade() {
     let signatures_cache =
         SIGNATURES_CACHE.with(|signatures_cache| signatures_cache.borrow().clone());
 
+    let http_requests = HTTP_REQUESTS.with(|http_requests| http_requests.borrow().clone());
+
     let log_data = logger::pre_upgrade_stable_data();
     let monitor_data = monitor::pre_upgrade_stable_data();
 
@@ -265,6 +268,7 @@ fn pre_upgrade() {
         monitor_data,
         http_cache,
         signatures_cache,
+        http_requests,
         metrics,
     ))
     .expect("should be able to save");
@@ -272,13 +276,23 @@ fn pre_upgrade() {
 
 #[post_upgrade]
 fn post_upgrade() {
-    let (state, cache, log_data, monitor_data, http_cache, signatures_cache, metrics): (
+    let (
+        state,
+        cache,
+        log_data,
+        monitor_data,
+        http_cache,
+        signatures_cache,
+        http_requests,
+        metrics,
+    ): (
         OldState,
         OldRateCache,
         logger::PostUpgradeStableData,
         monitor::PostUpgradeStableData,
         HttpCache,
         SignaturesCache,
+        Option<HashMap<String, APIRequest>>,
         Option<OldMetrics>,
     ) = storage::stable_restore().expect("should be able to restore");
 
@@ -293,6 +307,11 @@ fn post_upgrade() {
     CACHE.with(|c| c.replace(cache.into()));
     HTTP_CACHE.with(|c| c.replace(http_cache));
     SIGNATURES_CACHE.with(|c| c.replace(signatures_cache));
+    HTTP_REQUESTS.with(|c| {
+        if let Some(http_requests) = http_requests {
+            c.replace(http_requests);
+        }
+    });
 
     if let Some(metrics) = metrics {
         METRICS.with(|m| m.replace(metrics.into()));

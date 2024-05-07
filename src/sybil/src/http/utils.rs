@@ -1,6 +1,9 @@
 use crate::{
-    log,
-    types::{allowances::Allowances, api_keys::APIKeys, http::HttpRequest},
+    types::{
+        allowances::Allowances,
+        api_keys::APIKeys,
+        http::{APIRequest, HttpRequest},
+    },
     HTTP_REQUESTS,
 };
 
@@ -31,8 +34,14 @@ pub async fn resolve_payer(
 
     let requests_per_domain = HTTP_REQUESTS.with(|c| {
         let mut c = c.borrow_mut();
-        let api_request = c.entry(domain.clone()).or_default();
+        let api_request = c.entry(domain.clone()).or_insert(APIRequest {
+            count: 0,
+            method: method.clone(),
+            last_request: time(),
+        });
+
         api_request.count += 1;
+        api_request.method = method.clone();
 
         let now = OffsetDateTime::from_unix_timestamp_nanos(ic_cdk::api::time() as i128)
             .unwrap()
