@@ -24,7 +24,7 @@ pub async fn get_asset_data(
         ic_cdk::caller().to_string()
     };
 
-    _get_asset_data(id, false, None)
+    _get_asset_data(id, false, None, None)
         .await
         .map_err(|e| format!("failed to get asset data: {}", e))
 }
@@ -43,7 +43,7 @@ pub async fn get_asset_data_with_proof(
         ic_cdk::caller().to_string()
     };
 
-    _get_asset_data(id, true, Some(payer))
+    _get_asset_data(id, true, Some(payer), None)
         .await
         .map_err(|e| format!("failed to get asset data with proof: {}", e))
 }
@@ -53,6 +53,7 @@ pub async fn _get_asset_data(
     id: String,
     with_signature: bool,
     payer: Option<String>,
+    cache_ttl: Option<u64>,
 ) -> Result<AssetDataResult, FeedError> {
     if with_signature {
         metrics!(inc GET_ASSET_DATA_WITH_PROOF_CALLS, id);
@@ -65,6 +66,7 @@ pub async fn _get_asset_data(
     let rate = Cache::with(
         func_signature,
         FeedStorage::rate(&id, with_signature, payer),
+        cache_ttl,
     )
     .await?;
 

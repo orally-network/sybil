@@ -2,7 +2,6 @@ mod handlers;
 mod middlewares;
 mod response;
 mod router;
-mod types;
 mod utils;
 
 use std::future::Future;

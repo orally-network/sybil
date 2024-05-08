@@ -364,29 +364,39 @@ pub struct CacheEntry {
     pub expires_at: u64,
 }
 
+/// Cache for storing data.
+/// Stores data for separate cache_ttl time and separate func_signature.
+/// Cache: cache_ttl -> func_signature -> cache_entry
+/// User could specify cache_ttl, then the data will be stored for this ttl separately.
 #[derive(Debug, Clone, Default, CandidType)]
-pub struct Cache(HashMap<String, CacheEntry>);
+pub struct Cache(HashMap<u64, HashMap<String, CacheEntry>>);
 
 impl Cache {
     pub fn new() -> Self {
         Self(HashMap::new())
     }
 
-    pub async fn with<T, E, Fut>(key: String, func: Fut) -> Result<T, E>
+    /// Get data from cache by key.
+    /// If data is not found or expired, then call `func`` to get data and store it in cache with `cache_ttl` time to live.
+    /// If `cache_ttl` is not specified, then use default value.
+    pub async fn with<T, E, Fut>(key: String, func: Fut, cache_ttl: Option<u64>) -> Result<T, E>
     where
         T: Serialize + DeserializeOwned,
         E: std::error::Error + std::convert::From<CacheError>,
         Fut: Future<Output = Result<T, E>>,
     {
+        let cache_ttl = cache_ttl.unwrap_or(CACHE_TTL_SEC);
+
         let cache = UNIVERSAL_CACHE.with(|c| {
             let mut cache = c.borrow_mut();
+            let cache_by_ttl = cache.0.entry(cache_ttl).or_default();
 
-            let entry = cache.0.get(&key);
+            let entry = cache_by_ttl.get(&key);
 
             if let Some(entry) = entry {
                 if entry.expires_at < time::in_seconds() {
                     log!("Cache entry expired");
-                    cache.0.remove(&key);
+                    cache_by_ttl.remove(&key);
                 } else {
                     log!("Cache entry found");
                     return Some(
@@ -412,12 +422,13 @@ impl Cache {
 
         UNIVERSAL_CACHE.with(|c| {
             let mut cache = c.borrow_mut();
+            let cache_by_ttl = cache.0.entry(cache_ttl).or_default();
 
-            cache.0.insert(
+            cache_by_ttl.insert(
                 key,
                 CacheEntry {
                     data: data_serialized,
-                    expires_at: time::in_seconds() + CACHE_TTL_SEC,
+                    expires_at: time::in_seconds() + cache_ttl,
                 },
             );
         });

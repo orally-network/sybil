@@ -42,6 +42,7 @@ pub async fn read_contract_with_proof(
         params,
         None,
         true,
+        None,
     )
     .await
     .map_err(|e| format!("Failed to read contract: {e}"))
@@ -73,6 +74,7 @@ pub async fn read_contract(
         params,
         None,
         false,
+        None,
     )
     .await
     .map_err(|e| format!("Failed to read contract: {e}"))
@@ -87,6 +89,7 @@ pub async fn _read_contract(
     params: String,
     payer: Option<String>,
     with_signature: bool,
+    cache_ttl: Option<u64>,
 ) -> Result<ReadContractResult, CustomFeedError> {
     let func_signature = stringify_func_call!(_read_contract(
         chain_id,
@@ -167,5 +170,5 @@ pub async fn _read_contract(
         Ok(result)
     };
 
-    Cache::with(func_signature, func_body).await
+    Cache::with(func_signature, func_body, cache_ttl).await
 }

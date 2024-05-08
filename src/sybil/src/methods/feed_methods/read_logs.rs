@@ -41,6 +41,7 @@ pub async fn read_logs(
 
     _read_logs(
         chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, None, false,
+        None,
     )
     .await
     .map_err(|e| format!("failed to read logs: {}", e))
@@ -69,6 +70,7 @@ pub async fn read_logs_with_proof(
 
     _read_logs(
         chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, None, true,
+        None,
     )
     .await
     .map_err(|e| format!("failed to read logs: {}", e))
@@ -86,6 +88,7 @@ pub async fn _read_logs(
     addresses: Option<Vec<String>>,
     payer: Option<String>,
     with_signature: bool,
+    cache_ttl: Option<u64>,
 ) -> Result<ReadLogsResult, CustomFeedError> {
     let func_signature = stringify_func_call!(_read_logs(
         chain_id,
@@ -163,5 +166,5 @@ pub async fn _read_logs(
         Ok(result)
     };
 
-    Cache::with(func_signature, func_body).await
+    Cache::with(func_signature, func_body, cache_ttl).await
 }

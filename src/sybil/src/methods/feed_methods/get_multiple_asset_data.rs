@@ -3,7 +3,11 @@ use ic_cdk::update;
 
 use crate::{
     stringify_func_call,
-    types::{cache::Cache, feeds::FeedError, rate_data::MultipleAssetsDataResult},
+    types::{
+        cache::{self, Cache},
+        feeds::FeedError,
+        rate_data::MultipleAssetsDataResult,
+    },
     utils::siwe,
 };
 
@@ -23,7 +27,7 @@ pub async fn get_multiple_assets_data(
         ic_cdk::caller().to_string()
     };
 
-    _get_multiple_assets_data(ids, false, None)
+    _get_multiple_assets_data(ids, false, None, None)
         .await
         .map_err(|e| format!("failed to get assets data: {}", e))
 }
@@ -42,7 +46,7 @@ pub async fn get_multiple_assets_data_with_proof(
         ic_cdk::caller().to_string()
     };
 
-    let mut multiple_assetds_data = _get_multiple_assets_data(ids, true, None)
+    let mut multiple_assetds_data = _get_multiple_assets_data(ids, true, None, None)
         .await
         .map_err(|e| format!("failed to get assets data: {}", e))?;
 
@@ -58,6 +62,7 @@ pub async fn _get_multiple_assets_data(
     ids: Vec<String>,
     with_signature: bool,
     payer: Option<String>,
+    cache_ttl: Option<u64>,
 ) -> Result<MultipleAssetsDataResult, FeedError> {
     let func_signature = stringify_func_call!(_get_multiple_assets_data(ids, with_signature));
 
@@ -66,7 +71,7 @@ pub async fn _get_multiple_assets_data(
 
         let futures = ids
             .into_iter()
-            .map(|id| _get_asset_data(id, false, payer.clone()))
+            .map(|id| _get_asset_data(id, false, payer.clone(), None))
             .collect::<Vec<_>>();
 
         for result in join_all(futures).await {
@@ -85,5 +90,5 @@ pub async fn _get_multiple_assets_data(
         Ok(rates)
     };
 
-    Cache::with(func_signature, func_body).await
+    Cache::with(func_signature, func_body, cache_ttl).await
 }
