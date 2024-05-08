@@ -10,7 +10,6 @@ use super::{
     utils::resolve_payer,
     HttpRequest, HttpResponse, HTTP_SERVICE,
 };
-use crate::methods::{_get_asset_data, _get_multiple_assets_data};
 
 pub async fn get_asset_data_request(req: HttpRequest) -> HttpResponse {
     let resp = _get_asset_data_request(req, false)
@@ -79,7 +78,9 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
         return Err(anyhow::anyhow!("No payer provided"));
     }
 
-    let rate = crate::methods::_get_xrc_data(params.id, with_signature, None).await?;
+    let rate =
+        crate::methods::feed_methods::get_xrc_data::_get_xrc_data(params.id, with_signature, None)
+            .await?;
 
     if let Some(_bytes @ true) = params.bytes {
         let data = format!("0x{}", hex::encode(&rate.encode()));
@@ -126,7 +127,12 @@ async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Resu
         return Err(anyhow::anyhow!("No payer provided"));
     }
 
-    let rate = _get_asset_data(params.id, with_signature, None).await?;
+    let rate = crate::methods::feed_methods::get_asset_data::_get_asset_data(
+        params.id,
+        with_signature,
+        None,
+    )
+    .await?;
 
     if let Some(_bytes @ true) = params.bytes {
         let data = format!("0x{}", hex::encode(&rate.encode()));
@@ -179,7 +185,12 @@ async fn _get_multiple_assets_data_request(
 
     let ids = params.ids.split(",").map(|s| s.to_string()).collect();
 
-    let rate = _get_multiple_assets_data(ids, with_signature, None).await?;
+    let rate = crate::methods::feed_methods::get_multiple_asset_data::_get_multiple_assets_data(
+        ids,
+        with_signature,
+        None,
+    )
+    .await?;
 
     if let Some(_bytes @ true) = params.bytes {
         let data = format!("0x{}", hex::encode(&rate.encode()));
@@ -240,7 +251,7 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
         return Err(anyhow::anyhow!("No payer provided"));
     }
 
-    let result = crate::methods::_read_contract(
+    let result = crate::methods::feed_methods::read_contract::_read_contract(
         params.chain_id,
         params.function_signature,
         params.contract_addr,
@@ -304,7 +315,7 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
         return Err(anyhow::anyhow!("No payer provided"));
     }
 
-    let result = crate::methods::_read_logs(
+    let result = crate::methods::feed_methods::read_logs::_read_logs(
         params.chain_id,
         params.block_from,
         params.block_to,
