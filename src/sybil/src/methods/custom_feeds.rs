@@ -61,6 +61,8 @@ pub enum CustomFeedError {
     FailedToParseABI(String),
     #[error("Abi doesn't contain method: {0}")]
     AbiDoesntContainMethod(String),
+    #[error("Cache error: {0}")]
+    CacheError(#[from] crate::types::cache::CacheError),
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize, Validate)]

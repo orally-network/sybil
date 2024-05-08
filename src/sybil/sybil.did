@@ -299,6 +299,7 @@ service : {
     get_api_keys : () -> (GetAPIKeysResponse);
     ban_domain : (key : text, domain : text, msg : text, sig : text) -> (Error);
     allow_domain : (key : text, domain : text, msg : text, sig : text) -> (Error);
+    change_public_status : (key : text, is_public : bool, msg : text, sig : text) -> (Error);
     
     // controllers
     sign_message : (msg : text) -> (TextResponse);

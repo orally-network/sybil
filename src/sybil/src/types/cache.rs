@@ -1,7 +1,9 @@
+use std::borrow::BorrowMut;
 use std::collections::HashMap;
 
 use candid::CandidType;
 use derivative::Derivative;
+use futures::Future;
 use ic_cdk::api::management_canister::ecdsa::{EcdsaCurve, EcdsaKeyId, SignWithEcdsaArgument};
 use ic_cdk::api::management_canister::http_request::{
     http_request, CanisterHttpRequestArgument, HttpResponse,
@@ -346,7 +348,7 @@ impl SignaturesCache {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, CandidType)]
 pub enum CacheError {
     #[error("Cannot deserialize data: {0}")]
     DeserializationError(String),
@@ -370,27 +372,46 @@ impl Cache {
         Self(HashMap::new())
     }
 
-    pub fn with<'a, T: Serialize + DeserializeOwned>(
-        key: String,
-        func: impl Fn() -> anyhow::Result<T>,
-    ) -> Result<T, CacheError> {
-        UNIVERSAL_CACHE.with(|c| {
+    pub async fn with<T, E, Fut>(key: String, func: Fut) -> Result<T, E>
+    where
+        T: Serialize + DeserializeOwned,
+        E: std::error::Error + std::convert::From<CacheError>,
+        Fut: Future<Output = Result<T, E>>,
+    {
+        let cache = UNIVERSAL_CACHE.with(|c| {
             let mut cache = c.borrow_mut();
 
             let entry = cache.0.get(&key);
 
             if let Some(entry) = entry {
                 if entry.expires_at < time::in_seconds() {
+                    log!("Cache entry expired");
                     cache.0.remove(&key);
                 } else {
-                    return serde_cbor::from_slice(&entry.data)
-                        .map_err(|err| CacheError::DeserializationError(format!("{}", err)));
+                    log!("Cache entry found");
+                    return Some(
+                        serde_cbor::from_slice(&entry.data)
+                            .map_err(|err| CacheError::DeserializationError(format!("{}", err))),
+                    );
                 }
             }
 
-            let data = func().map_err(|err| CacheError::GetDataError(format!("{}", err)))?;
-            let data_serialized = serde_cbor::to_vec(&data)
-                .map_err(|err| CacheError::SerializationError(format!("{}", err)))?;
+            None
+        });
+
+        if let Some(data) = cache {
+            return Ok(data?);
+        }
+
+        let data = func
+            .await
+            .map_err(|err| CacheError::GetDataError(format!("{}", err)))?;
+
+        let data_serialized = serde_cbor::to_vec(&data)
+            .map_err(|err| CacheError::SerializationError(format!("{}", err)))?;
+
+        UNIVERSAL_CACHE.with(|c| {
+            let mut cache = c.borrow_mut();
 
             cache.0.insert(
                 key,
@@ -399,8 +420,8 @@ impl Cache {
                     expires_at: time::in_seconds() + CACHE_TTL_SEC,
                 },
             );
+        });
 
-            Ok(data)
-        })
+        Ok(data)
     }
 }

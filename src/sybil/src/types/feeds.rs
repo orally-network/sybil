@@ -8,6 +8,7 @@ use thiserror::Error;
 
 use super::{
     balances::{BalanceError, Balances},
+    cache::CacheError,
     exchange_rate::{Asset, AssetClass, ExchangeRate, ExchangeRateError, GetExchangeRateRequest},
     rate_data::{AssetData, AssetDataResult, RateDataError},
     source::{HttpSource, Source, SourceError},
@@ -54,6 +55,8 @@ pub enum FeedError {
     Canister(#[from] canister::CanisterError),
     #[error("Error in sources: {0:?}")]
     SourceError(Vec<SourceError>),
+    #[error("Cache error: {0}")]
+    CacheError(#[from] CacheError),
 }
 
 pub struct RateResult {

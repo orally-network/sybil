@@ -23,9 +23,10 @@ use ic_utils::{
 };
 
 use crate::{
-    clone_with_state, metrics,
+    clone_with_state, metrics, stringify_func_call,
     types::{
         balances::{BalanceError, Balances},
+        cache::Cache,
         chains_rpc::ChainsRPC,
         feeds::{Feed, FeedError, FeedStorage, GetFeedsFilter, DEFAULT_UPDATE_FREQ},
         pagination::{Pagination, PaginationResult},
@@ -212,73 +213,86 @@ pub async fn _read_contract(
     payer: Option<String>,
     with_signature: bool,
 ) -> Result<ReadContractResult, CustomFeedError> {
-    let base_fee = state::get_cfg().balances_cfg.base_fee;
+    let func_signature = stringify_func_call!(_read_contract(
+        chain_id,
+        function_signature,
+        contract_addr,
+        method,
+        params,
+        with_signature
+    ));
 
-    if let Some(ref payer) = payer {
-        if !Balances::is_sufficient(payer, &base_fee)? {
-            return Err(BalanceError::InsufficientBalance)?;
+    let func_body = async move {
+        let base_fee = state::get_cfg().balances_cfg.base_fee;
+
+        if let Some(ref payer) = payer {
+            if !Balances::is_sufficient(payer, &base_fee)? {
+                return Err(BalanceError::InsufficientBalance)?;
+            };
+        }
+
+        let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
+
+        let w3 = web3::instance(chain_rpc, clone_with_state!(evm_rpc_canister));
+
+        let contract_address = address::to_h160(&contract_addr)?;
+
+        let ethabi_contract = ethers_core::abi::parse_abi_str(&function_signature)
+            .map_err(|err| CustomFeedError::FailedToParseABI(err.to_string()))?;
+
+        let contract = Contract::new(w3.eth(), contract_address, ethabi_contract);
+
+        let function = contract
+            .abi()
+            .function(&method)
+            .map_err(|_| CustomFeedError::AbiDoesntContainMethod(method.clone()))?;
+
+        let inputs = function
+            .inputs
+            .iter()
+            .map(|p| p.kind.clone())
+            .collect::<Vec<_>>();
+
+        let tokens = parse_tokens(&inputs, params[1..params.len() - 1].to_string())?;
+
+        let from = canister::eth_address().await?.to_string();
+
+        let call_result = w3
+            .get_call_result(
+                &contract,
+                &method,
+                &tokens,
+                address::to_h160(&from)?,
+                Some(contract_address),
+                None, // tx_hash.block_number,
+            )
+            .await?;
+
+        let mut result = ReadContractResult {
+            data: call_result.into_iter().map(SolidityToken::from).collect(),
+            meta: ReadContractMetadata {
+                chain_id,
+                contract_address: contract_addr,
+                method,
+                params,
+                timestamp: in_seconds(),
+            },
+            signature: None,
         };
-    }
 
-    let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
+        if with_signature {
+            result.sign().await?;
+        }
 
-    let w3 = web3::instance(chain_rpc, clone_with_state!(evm_rpc_canister));
+        if let Some(payer) = payer {
+            Balances::reduce_amount(&payer, &base_fee)?;
+            Balances::add_amount(&canister::eth_address().await?, &base_fee)?;
+        }
 
-    let contract_address = address::to_h160(&contract_addr)?;
-
-    let ethabi_contract = ethers_core::abi::parse_abi_str(&function_signature)
-        .map_err(|err| CustomFeedError::FailedToParseABI(err.to_string()))?;
-
-    let contract = Contract::new(w3.eth(), contract_address, ethabi_contract);
-
-    let function = contract
-        .abi()
-        .function(&method)
-        .map_err(|_| CustomFeedError::AbiDoesntContainMethod(method.clone()))?;
-
-    let inputs = function
-        .inputs
-        .iter()
-        .map(|p| p.kind.clone())
-        .collect::<Vec<_>>();
-
-    let tokens = parse_tokens(&inputs, params[1..params.len() - 1].to_string())?;
-
-    let from = canister::eth_address().await?.to_string();
-
-    let call_result = w3
-        .get_call_result(
-            &contract,
-            &method,
-            &tokens,
-            address::to_h160(&from)?,
-            Some(contract_address),
-            None, // tx_hash.block_number,
-        )
-        .await?;
-
-    let mut result = ReadContractResult {
-        data: call_result.into_iter().map(SolidityToken::from).collect(),
-        meta: ReadContractMetadata {
-            chain_id,
-            contract_address: contract_addr,
-            method,
-            params,
-            timestamp: in_seconds(),
-        },
-        signature: None,
+        Ok(result)
     };
 
-    if with_signature {
-        result.sign().await?;
-    }
-
-    if let Some(payer) = payer {
-        Balances::reduce_amount(&payer, &base_fee)?;
-        Balances::add_amount(&canister::eth_address().await?, &base_fee)?;
-    }
-
-    Ok(result)
+    Cache::with(func_signature, func_body).await
 }
 
 #[update]
@@ -350,81 +364,103 @@ pub async fn _read_logs(
     payer: Option<String>,
     with_signature: bool,
 ) -> Result<ReadLogsResult, CustomFeedError> {
-    let base_fee = state::get_cfg().balances_cfg.base_fee;
+    let func_signature = stringify_func_call!(_read_logs(
+        chain_id,
+        block_from,
+        block_to,
+        topics0,
+        topics1,
+        topics2,
+        topics3,
+        addresses,
+        with_signature
+    ));
 
-    if let Some(ref payer) = payer {
-        if !Balances::is_sufficient(payer, &base_fee)? {
-            return Err(BalanceError::InsufficientBalance)?;
+    let func_body = async {
+        let base_fee = state::get_cfg().balances_cfg.base_fee;
+        if let Some(ref payer) = payer {
+            if !Balances::is_sufficient(payer, &base_fee)? {
+                return Err(BalanceError::InsufficientBalance)?;
+            };
+        }
+
+        let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
+
+        let w3 = web3::instance(chain_rpc, clone_with_state!(evm_rpc_canister));
+
+        let logs = w3
+            .get_logs(
+                block_from,
+                block_to,
+                topics0
+                    .clone()
+                    .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
+                topics1
+                    .clone()
+                    .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
+                topics2
+                    .clone()
+                    .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
+                topics3
+                    .clone()
+                    .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
+                addresses.clone().map(|v| {
+                    v.into_iter()
+                        .map(|t| address::to_h160(&t).unwrap())
+                        .collect()
+                }),
+            )
+            .await?;
+
+        let mut result = ReadLogsResult {
+            data: logs.into_iter().map(ReadLogsData::from).collect(),
+            meta: ReadLogsMetadata {
+                chain_id,
+                block_from: block_from.unwrap_or_default(),
+                block_to: block_to.unwrap_or_default(),
+                topics0: topics0.unwrap_or_default(),
+                topics1: topics1.unwrap_or_default(),
+                topics2: topics2.unwrap_or_default(),
+                topics3: topics3.unwrap_or_default(),
+                addresses: addresses.unwrap_or_default(),
+                timestamp: in_seconds(),
+            },
+            signature: None,
         };
-    }
 
-    let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
+        if with_signature {
+            result.sign().await?;
+        }
 
-    let w3 = web3::instance(chain_rpc, clone_with_state!(evm_rpc_canister));
+        if let Some(payer) = payer {
+            Balances::reduce_amount(&payer, &base_fee)?;
+            Balances::add_amount(&canister::eth_address().await?, &base_fee)?;
+        }
 
-    let logs = w3
-        .get_logs(
-            block_from,
-            block_to,
-            topics0
-                .clone()
-                .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
-            topics1
-                .clone()
-                .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
-            topics2
-                .clone()
-                .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
-            topics3
-                .clone()
-                .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
-            addresses.clone().map(|v| {
-                v.into_iter()
-                    .map(|t| address::to_h160(&t).unwrap())
-                    .collect()
-            }),
-        )
-        .await?;
-
-    let mut result = ReadLogsResult {
-        data: logs.into_iter().map(ReadLogsData::from).collect(),
-        meta: ReadLogsMetadata {
-            chain_id,
-            block_from: block_from.unwrap_or_default(),
-            block_to: block_to.unwrap_or_default(),
-            topics0: topics0.unwrap_or_default(),
-            topics1: topics1.unwrap_or_default(),
-            topics2: topics2.unwrap_or_default(),
-            topics3: topics3.unwrap_or_default(),
-            addresses: addresses.unwrap_or_default(),
-            timestamp: in_seconds(),
-        },
-        signature: None,
+        Ok(result)
     };
 
-    if with_signature {
-        result.sign().await?;
-    }
-
-    if let Some(payer) = payer {
-        Balances::reduce_amount(&payer, &base_fee)?;
-        Balances::add_amount(&canister::eth_address().await?, &base_fee)?;
-    }
-
-    Ok(result)
+    Cache::with(func_signature, func_body).await
 }
 
 pub async fn _get_asset_data(
     id: String,
     with_signature: bool,
     payer: Option<String>,
-) -> Result<AssetDataResult, AssetsError> {
+) -> Result<AssetDataResult, FeedError> {
     if with_signature {
         metrics!(inc GET_ASSET_DATA_WITH_PROOF_CALLS, id);
     } else {
         metrics!(inc GET_ASSET_DATA_CALLS, id);
     }
-    let rate = FeedStorage::rate(&id, with_signature, payer).await?;
+
+    let func_signature = stringify_func_call!(_get_asset_data(id, with_signature));
+
+    let rate = Cache::with(
+        func_signature,
+        FeedStorage::rate(&id, with_signature, payer),
+    )
+    .await?;
 
     if with_signature {
         metrics!(inc SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS, id);
@@ -476,20 +512,26 @@ pub async fn _get_xrc_data(
     id: String,
     with_signature: bool,
     payer: Option<String>,
-) -> Result<AssetDataResult, AssetsError> {
-    let rate = Feed {
-        id: id.clone(),
-        update_freq: DEFAULT_UPDATE_FREQ,
-        ..Default::default()
+) -> Result<AssetDataResult, FeedError> {
+    let func_signature = stringify_func_call!(_get_xrc_data(id, with_signature));
+
+    let func_body = async move {
+        let rate = Feed {
+            id: id.clone(),
+            update_freq: DEFAULT_UPDATE_FREQ,
+            ..Default::default()
+        };
+
+        let mut rate = FeedStorage::get_default_rate(&rate, None).await?;
+
+        if with_signature {
+            rate.sign().await.map_err(FeedError::RateDataError)?;
+        }
+
+        Ok(rate)
     };
 
-    let mut rate = FeedStorage::get_default_rate(&rate, None).await?;
-
-    if with_signature {
-        rate.sign().await.map_err(FeedError::RateDataError)?;
-    }
-
-    Ok(rate)
+    Cache::with(func_signature, func_body).await
 }
 
 #[update]
@@ -560,28 +602,34 @@ pub async fn _get_multiple_assets_data(
     ids: Vec<String>,
     with_signature: bool,
     payer: Option<String>,
-) -> Result<MultipleAssetsDataResult, AssetsError> {
-    let mut data = Vec::with_capacity(ids.len());
+) -> Result<MultipleAssetsDataResult, FeedError> {
+    let func_signature = stringify_func_call!(_get_multiple_assets_data(ids, with_signature));
 
-    let futures = ids
-        .into_iter()
-        .map(|id| _get_asset_data(id, false, payer.clone()))
-        .collect::<Vec<_>>();
+    let func_body = async move {
+        let mut data = Vec::with_capacity(ids.len());
 
-    for result in join_all(futures).await {
-        data.push(result?.data);
-    }
+        let futures = ids
+            .into_iter()
+            .map(|id| _get_asset_data(id, false, payer.clone()))
+            .collect::<Vec<_>>();
 
-    let mut rates = MultipleAssetsDataResult {
-        data,
-        signature: None,
+        for result in join_all(futures).await {
+            data.push(result?.data);
+        }
+
+        let mut rates = MultipleAssetsDataResult {
+            data,
+            signature: None,
+        };
+
+        if with_signature {
+            rates.sign().await.map_err(FeedError::RateDataError)?;
+        }
+
+        Ok(rates)
     };
 
-    if with_signature {
-        rates.sign().await.map_err(FeedError::RateDataError)?;
-    }
-
-    Ok(rates)
+    Cache::with(func_signature, func_body).await
 }
 
 #[query(name = "getCanistergeekInformation")]
