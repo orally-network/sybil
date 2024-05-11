@@ -66,13 +66,24 @@ type CreateDefaultFeedRequest = record {
     decimals : nat;
 };
 
+type ERC20Contract = record {
+    erc20_contract : text;
+    token_symbol : text;
+};
+
+type AllowedChain = record {
+    rpc : text;
+    erc20_contracts : vec ERC20Contract;
+};
 
 type BalancesCfg = record {
     rpc : text;
     chain_id : nat;
     erc20_contract : text;
+    treasure_address : text;
     fee_per_byte : nat;
     base_fee : nat;
+    allowed_chains : vec record {nat64 ; AllowedChain};
     whitelist : vec text;
 };
 
@@ -319,10 +330,15 @@ service : {
 
     // balances
     add_to_balances_whitelist : (addresses : vec text) -> (Error);
-    deposit : (tx_hash : text, grantee : text, msg : text, sig : text) -> (Error);
+    deposit : (chain_id : nat64, tx_hash : text, grantee : opt text, msg : text, sig : text) -> (Error);
     get_balance : (address : text) -> (NatResponse);
-    withdraw : (amount : nat, to : text, msg : text, sig : text) -> (TextResponse);
-    withdraw_fees : (to : text) -> (TextResponse);
+    //withdraw : (amount : nat, to : text, msg : text, sig : text) -> (TextResponse);
+    //withdraw_fees : (to : text) -> (TextResponse);
+    add_allowed_chain : (chain_id : nat64, rpc : text, coin_symbol : text) -> (Error);
+    remove_allowed_chain : (chain_id : nat64) -> (Error);
+    add_allowed_erc20_tokens : (chain_id : nat64, tokens : vec ERC20Contract) -> (Error);
+    remove_allowed_erc20_tokens : (chain_id : nat64, tokens : vec text) -> (Error);
+    update_treasure_address : (address : text) -> (Error);
 
     // whitelist
     add_to_whitelist : (address : text) -> (Error);

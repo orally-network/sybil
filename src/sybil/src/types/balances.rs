@@ -6,7 +6,7 @@ use thiserror::Error;
 use candid::{CandidType, Nat};
 use ic_web3_rs::ethabi::Error as EthabiError;
 
-use super::{whitelist::WhitelistError, Address};
+use super::{feeds::FeedError, whitelist::WhitelistError, Address};
 use crate::{
     clone_with_state,
     utils::{address::AddressError, canister::CanisterError, siwe::SiweError, web3::Web3Error},
@@ -15,14 +15,32 @@ use crate::{
 
 #[derive(CandidType, Deserialize, Serialize, Default, Clone, Debug)]
 pub struct BalancesCfg {
+    #[deprecated]
     pub rpc: String,
     pub chain_id: Nat,
+    #[deprecated]
     pub erc20_contract: Address,
+    // Allowed chains with their ERC20 contracts that allowed to be deposited
+    pub allowed_chains: HashMap<u64, AllowedChain>,
+    pub treasure_address: Address,
     pub fee_per_byte: Nat,
     pub base_fee: Nat,
     // Vec of addresses that won't be charged for anything
     #[serde(default)]
     pub whitelist: HashSet<String>,
+}
+
+#[derive(CandidType, Deserialize, Serialize, Default, Clone, Debug, Eq, PartialEq, Hash)]
+pub struct ERC20Contract {
+    pub erc20_contract: String,
+    pub token_symbol: String,
+}
+
+#[derive(CandidType, Deserialize, Serialize, Default, Clone, Debug)]
+pub struct AllowedChain {
+    pub rpc: String,
+    pub coin_symbol: String,
+    pub erc20_contracts: HashSet<ERC20Contract>,
 }
 
 #[derive(Error, Debug)]
@@ -73,6 +91,12 @@ pub enum DepositError {
     Whitelist(#[from] WhitelistError),
     #[error("invalid transfer event")]
     InvalidTransferEvent,
+    #[error("This chain is not allowed for deposit")]
+    ChainNotAllowed,
+    #[error("This ERC20 contract is not allowed for deposit")]
+    ERC20NotAllowed,
+    #[error("Feed error: {0}")]
+    FeedError(#[from] FeedError),
 }
 
 #[derive(Debug, CandidType, Deserialize, Serialize, Default, Clone)]

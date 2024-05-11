@@ -33,6 +33,7 @@ make local_upgrade
 ## Enviroment
 
 ```sh
+CHAIN_ID=11155111 &
 CALLER="0x6696eD42dFBe875E60779b8163fDCc39B088222A" &&
 SIWE_MSG="localhost:4361 wants you to sign in with your Ethereum account:
 0x6696eD42dFBe875E60779b8163fDCc39B088222A
@@ -51,9 +52,12 @@ TX_HASH="{Enter tx hash here, where you sent some tokens to the sybil address}"
 ## Usage
 
 ```sh
+dfx canister call sybil add_allowed_chain "(11155111, \"https://ethereum-sepolia-rpc.publicnode.com\", \"SepoilaETH\")"
+dfx canister call sybil update_treasure_address "(\"${CALLER}\")"
+dfx canister call sybil add_allowed_erc20_tokens "(11155111:nat64, vec {record { erc20_contract = \"0xD6CdFF58Dd98528730549c6E5EEdF1be397A723f\"; token_symbol =  \"SHR\"}})"
 dfx canister call sybil add_to_whitelist "(\"${CALLER}\")" 
 dfx canister call sybil eth_address
-dfx canister call sybil deposit "(\"${TX_HASH}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
+dfx canister call sybil deposit "(${CHAIN_ID}, \"${TX_HASH}\", null, \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil get_balance "(\"${CALLER}\")"
 
 # api keys

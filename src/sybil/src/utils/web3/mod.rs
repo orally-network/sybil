@@ -212,10 +212,7 @@ impl<T: Transport> Web3Instance<T> {
         Ok(logs)
     }
 
-    pub async fn get_tx(&self, tx_hash: &str) -> Result<Transaction, Web3Error> {
-        let tx_hash =
-            H256::from_str(tx_hash).map_err(|err| Web3Error::FromHexError(err.to_string()))?;
-
+    pub async fn get_tx(&self, tx_hash: H256) -> Result<Transaction, Web3Error> {
         let result = retry_until_success!(self
             .eth()
             .transaction(TransactionId::from(tx_hash), processors::transform_ctx_tx()))

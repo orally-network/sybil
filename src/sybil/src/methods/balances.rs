@@ -1,6 +1,6 @@
-use std::str::FromStr;
+use std::{collections::HashSet, str::FromStr};
 
-use candid::Nat;
+use candid::{bindings::candid::value, Nat};
 use ic_cdk::{query, update};
 use ic_web3_rs::{
     contract::Contract,
@@ -16,8 +16,9 @@ use crate::{
     clone_with_state, log,
     types::{
         allowances::Allowances,
-        balances::{BalanceError, Balances, DepositError},
-        state,
+        balances::{AllowedChain, BalanceError, Balances, DepositError, ERC20Contract},
+        rate_data::AssetData,
+        state::{self, get_cfg},
         whitelist::{Whitelist, WhitelistError},
     },
     utils::{
@@ -30,6 +31,8 @@ use crate::{
     },
     STATE,
 };
+
+use super::feed_methods::get_xrc_data::_get_xrc_data;
 
 lazy_static! {
     static ref TRANSFER_EVENT: Event = Event {
@@ -74,6 +77,23 @@ pub enum BalancesError {
     Caller(#[from] CallerError),
     #[error("Canister error: {0})")]
     Canister(#[from] canister::CanisterError),
+    #[error("This Chain is not allowed")]
+    ChainNotAllowed,
+    #[error("Allowed chain not found")]
+    AllowedChainNotFound,
+    #[error("Allowed chain already exists")]
+    AllowedChainAlreadyExists,
+}
+
+#[update]
+pub async fn update_treasure_address(address: String) -> Result<(), String> {
+    validate_caller().map_err(|_| format!("caller is not a controller"))?;
+    STATE.with(|state| {
+        let mut state = state.borrow_mut();
+        state.balances_cfg.treasure_address = address;
+    });
+
+    Ok(())
 }
 
 #[update]
@@ -88,19 +108,148 @@ pub async fn add_to_balances_whitelist(addresses: Vec<String>) -> Result<(), Str
 }
 
 #[update]
+pub async fn remove_allowed_erc20_tokens(
+    chain_id: u64,
+    token_names: Vec<String>,
+) -> Result<(), String> {
+    _remove_allowed_erc20_tokens(chain_id, token_names)
+        .await
+        .map_err(|e| format!("failed to remove allowed erc20 token: {}", e))
+}
+
+#[inline(always)]
+async fn _remove_allowed_erc20_tokens(
+    chain_id: u64,
+    token_names: Vec<String>,
+) -> Result<(), BalancesError> {
+    validate_caller()?;
+
+    STATE.with(|state| {
+        let mut state = state.borrow_mut();
+
+        let allowed_chain = state
+            .balances_cfg
+            .allowed_chains
+            .get_mut(&chain_id)
+            .ok_or(BalancesError::AllowedChainNotFound)?;
+
+        allowed_chain
+            .erc20_contracts
+            .retain(|e| !token_names.contains(&e.token_symbol));
+
+        Ok(())
+    })
+}
+
+#[update]
+pub async fn add_allowed_erc20_tokens(
+    chain_id: u64,
+    tokens: Vec<ERC20Contract>,
+) -> Result<(), String> {
+    _add_allowed_erc20_tokens(chain_id, tokens)
+        .map_err(|e| format!("failed to add allowed erc20 token: {}", e))
+}
+
+#[inline(always)]
+fn _add_allowed_erc20_tokens(
+    chain_id: u64,
+    tokens: Vec<ERC20Contract>,
+) -> Result<(), BalancesError> {
+    validate_caller()?;
+
+    STATE.with(|state| {
+        let mut state = state.borrow_mut();
+
+        let allowed_chain = state
+            .balances_cfg
+            .allowed_chains
+            .get_mut(&chain_id)
+            .ok_or(BalancesError::AllowedChainNotFound)?;
+
+        allowed_chain.erc20_contracts.extend(tokens);
+
+        Ok(())
+    })
+}
+
+#[update]
+pub async fn add_allowed_chain(
+    chain_id: u64,
+    rpc: String,
+    coin_symbol: String,
+) -> Result<(), String> {
+    _add_allowed_chain(chain_id, rpc, coin_symbol)
+        .await
+        .map_err(|e| format!("failed to add allowed chain: {}", e))
+}
+
+#[inline(always)]
+async fn _add_allowed_chain(
+    chain_id: u64,
+    rpc: String,
+    coin_symbol: String,
+) -> Result<(), BalancesError> {
+    validate_caller()?;
+
+    STATE.with(|state| {
+        let mut state = state.borrow_mut();
+
+        if state.balances_cfg.allowed_chains.contains_key(&chain_id) {
+            return Err(BalancesError::AllowedChainAlreadyExists);
+        }
+
+        state.balances_cfg.allowed_chains.insert(
+            chain_id,
+            AllowedChain {
+                rpc,
+                coin_symbol,
+                erc20_contracts: HashSet::new(),
+            },
+        );
+
+        Ok(())
+    })
+}
+
+#[update]
+pub async fn remove_allowed_chain(chain_id: u64) -> Result<(), String> {
+    _remove_allowed_chain(chain_id)
+        .await
+        .map_err(|e| format!("failed to add allowed chain: {}", e))
+}
+
+#[inline(always)]
+async fn _remove_allowed_chain(chain_id: u64) -> Result<(), BalancesError> {
+    validate_caller()?;
+
+    STATE.with(|state| {
+        let mut state = state.borrow_mut();
+
+        if state.balances_cfg.allowed_chains.contains_key(&chain_id) {
+            return Err(BalancesError::AllowedChainAlreadyExists);
+        }
+
+        state.balances_cfg.allowed_chains.remove(&chain_id);
+        Ok(())
+    })
+}
+
+#[update]
 pub async fn deposit(
+    chain_id: u64,
     tx_hash: String,
     grantee: Option<String>, // Grant permissions to use this user's balance to this domain
     msg: String,
     sig: String,
 ) -> Result<(), String> {
-    _deposit(tx_hash, grantee, msg, sig)
+    _deposit(chain_id, tx_hash, grantee, msg, sig)
         .await
         .map_err(|e| format!("deposit failed: {}", e))
 }
 
 #[inline(always)]
 async fn _deposit(
+    chain_id: u64,
     tx_hash: String,
     grantee: Option<String>,
     msg: String,
@@ -113,39 +262,110 @@ async fn _deposit(
     let caller_eth = address::to_h160(&caller)?;
 
     let balances_cfg = state::get_cfg().balances_cfg;
-    let w3 = web3::instance(balances_cfg.rpc, clone_with_state!(evm_rpc_canister));
+    let allowed_chain = balances_cfg
+        .allowed_chains
+        .get(&chain_id)
+        .ok_or(DepositError::ChainNotAllowed)?;
+
+    let w3 = web3::instance(
+        allowed_chain.rpc.clone(),
+        clone_with_state!(evm_rpc_canister),
+    );
 
     let tx_receipt = w3.get_tx_receipt(&tx_hash).await?;
 
-    validate_deposit_tx_receipt(
-        &tx_receipt,
-        &caller_eth,
-        &address::to_h160(&balances_cfg.erc20_contract)?,
-    )?;
+    let tx = w3.get_tx(tx_receipt.transaction_hash.clone()).await?;
 
-    let tx = w3.get_tx(&tx_hash).await?;
+    // Deposit ERC20 tokens
+    let mut amount =
+        deposit_erc20(&tx_receipt, &caller_eth, &allowed_chain.erc20_contracts).await?;
 
-    let (event_from, event_to, value) = get_transfer_log(&tx_receipt.logs)?;
-    validate_transfer_log(
-        &event_from,
-        &event_to,
-        &caller_eth,
-        &address::to_h160(&canister::eth_address().await?)?,
-    )?;
+    let value_usd = if clone_with_state!(mock) {
+        tx.value
+    } else {
+        let xrc_data = _get_xrc_data(
+            format!("{}/USD", allowed_chain.coin_symbol),
+            false,
+            None,
+            None,
+        )
+        .await?;
+
+        let AssetData::DefaultPriceFeed { rate, .. } = xrc_data.data else {
+            unreachable!("xrc data should be default price feed");
+        };
+
+        rate.into()
+    };
+
+    amount += value_usd; // Deposit native coint
 
     if !Balances::contains(&caller) {
         Balances::add(&caller)?;
     }
 
     Balances::add_nonce(&caller, &nat::from_u256(&tx.nonce))?;
-    Balances::add_amount(&caller, &nat::from_u256(&value))?;
+    Balances::add_amount(&caller, &nat::from_u256(&amount))?;
 
     if let Some(grantee) = grantee {
         Allowances::grant(grantee, caller.clone())?;
     }
 
-    log!("[BALANCES] address {}, deposited {} tokens", caller, value);
+    log!("[BALANCES] address {}, deposited {} tokens", caller, amount);
+
     Ok(())
+}
+
+/// Check whether the transaction contains transfer of allowed ERC20 tokens
+#[inline(always)]
+async fn deposit_erc20(
+    tx_receipt: &TransactionReceipt,
+    caller: &H160,
+    contracts: &HashSet<ERC20Contract>,
+) -> Result<U256, DepositError> {
+    let tx_status = tx_receipt
+        .status
+        .ok_or(DepositError::TxNotFinalized)?
+        .as_u64();
+    if tx_status != SUCCESSFUL_TX_STATUS {
+        return Err(DepositError::TxFailed);
+    }
+
+    if &tx_receipt.from != caller {
+        return Err(DepositError::CallerIsNotTxSender);
+    }
+
+    let to = tx_receipt.to.ok_or(DepositError::TxWithoutReceiver)?;
+
+    let receiver = address::from_h160(&to)?;
+
+    let erc20_contract = contracts
+        .iter()
+        .find(|c| c.erc20_contract == receiver)
+        .ok_or(DepositError::ERC20NotAllowed)?;
+
+    let (event_from, event_to, value) = get_transfer_log(&tx_receipt.logs)?;
+    validate_transfer_log(&event_from, &event_to, &caller)?;
+
+    let value_usd = if clone_with_state!(mock) {
+        value
+    } else {
+        let xrc_data = _get_xrc_data(
+            format!("{}/USD", erc20_contract.token_symbol),
+            false,
+            None,
+            None,
+        )
+        .await?;
+
+        let AssetData::DefaultPriceFeed { rate, .. } = xrc_data.data else {
+            unreachable!("xrc data should be default price feed");
+        };
+
+        rate.into()
+    };
+
+    Ok(value_usd)
 }
 
 #[inline(always)]
@@ -171,43 +391,12 @@ fn get_transfer_log(logs: &[TxLog]) -> Result<(H160, H160, U256), DepositError> 
 }
 
 #[inline(always)]
-fn validate_deposit_tx_receipt(
-    tx_receipt: &TransactionReceipt,
-    caller: &H160,
-    contract: &H160,
-) -> Result<(), DepositError> {
-    let tx_status = tx_receipt
-        .status
-        .ok_or(DepositError::TxNotFinalized)?
-        .as_u64();
-    if tx_status != SUCCESSFUL_TX_STATUS {
-        return Err(DepositError::TxFailed);
-    }
-
-    if &tx_receipt.from != caller {
-        return Err(DepositError::CallerIsNotTxSender);
-    }
-
-    let to = tx_receipt.to.ok_or(DepositError::TxWithoutReceiver)?;
-    if &to != contract {
-        return Err(DepositError::TxNotSentToErc20Contract);
-    }
-
-    Ok(())
-}
-
-#[inline(always)]
-fn validate_transfer_log(
-    from: &H160,
-    to: &H160,
-    caller: &H160,
-    canister_eth_address: &H160,
-) -> Result<(), DepositError> {
+fn validate_transfer_log(from: &H160, to: &H160, caller: &H160) -> Result<(), DepositError> {
     if from != caller {
         return Err(DepositError::CallerIsNotTransferSender);
     }
 
-    if to != canister_eth_address {
+    if address::from_h160(to)? != get_cfg().balances_cfg.treasure_address {
         return Err(DepositError::TokenReceiverIsNotCanisterEthAddress);
     }
 
@@ -224,101 +413,116 @@ fn _get_balance(addr: String) -> Result<Nat, BalancesError> {
     Ok(Balances::get_amount(&address::from_str(&addr)?).unwrap_or_default())
 }
 
-#[update]
-pub async fn withdraw(amount: Nat, to: String, msg: String, sig: String) -> Result<String, String> {
-    _withdraw(amount, to, msg, sig)
-        .await
-        .map_err(|e| format!("withdraw failed: {}", e))
-}
+// TODO: delete
+// #[update]
+// pub async fn withdraw(
+//     chain_id: u64,
+//     amount: Nat,
+//     to: String,
+//     msg: String,
+//     sig: String,
+// ) -> Result<String, String> {
+//     _withdraw(chain_id, amount, to, msg, sig)
+//         .await
+//         .map_err(|e| format!("withdraw failed: {}", e))
+// }
 
-#[inline(always)]
-async fn _withdraw(
-    amount: Nat,
-    to: String,
-    msg: String,
-    sig: String,
-) -> Result<String, BalancesError> {
-    let caller = siwe::recover(&msg, &sig).await?;
-    let receiver = address::from_str(&to)?;
-    if !Whitelist::contains(&caller) {
-        return Err(WhitelistError::AddressNotWhitelisted.into());
-    }
+// #[inline(always)]
+// async fn _withdraw(
+//     chain_id: u64,
+//     amount: Nat,
+//     to: String,
+//     msg: String,
+//     sig: String,
+// ) -> Result<String, BalancesError> {
+//     let caller = siwe::recover(&msg, &sig).await?;
+//     let receiver = address::from_str(&to)?;
+//     if !Whitelist::contains(&caller) {
+//         return Err(WhitelistError::AddressNotWhitelisted.into());
+//     }
 
-    if amount == 0 {
-        return Err(BalanceError::InsufficientBalance)?;
-    }
+//     if amount == 0 {
+//         return Err(BalanceError::InsufficientBalance)?;
+//     }
 
-    if !Balances::is_sufficient(&caller, &amount)? {
-        return Err(BalanceError::InsufficientBalance.into());
-    }
+//     if !Balances::is_sufficient(&caller, &amount)? {
+//         return Err(BalanceError::InsufficientBalance.into());
+//     }
 
-    let cfg = state::get_cfg().balances_cfg;
+//     let cfg = state::get_cfg().balances_cfg;
+//     let allowed_chain = cfg
+//         .allowed_chains
+//         .get(&chain_id)
+//         .ok_or(BalancesError::ChainNotAllowed)?;
 
-    let w3 = web3::instance(cfg.rpc, clone_with_state!(evm_rpc_canister));
-    let contract_addr =
-        Address::from_str(&cfg.erc20_contract).map_err(|_| AddressError::InvalidAddress)?;
+//     let w3 = web3::instance(
+//         allowed_chain.rpc.clone(),
+//         clone_with_state!(evm_rpc_canister),
+//     );
+//     let contract_addr =
+//         Address::from_str(&cfg.erc20_contract).map_err(|_| AddressError::InvalidAddress)?;
 
-    let contract = Contract::from_json(w3.eth(), contract_addr, TOKEN_ABI)
-        .map_err(|err| BalancesError::Contract(err.to_string()))?;
+//     let contract = Contract::from_json(w3.eth(), contract_addr, TOKEN_ABI)
+//         .map_err(|err| BalancesError::Contract(err.to_string()))?;
 
-    let tx_hash = w3
-        .send_erc20(
-            &contract,
-            &amount,
-            &receiver,
-            canister::eth_address().await?.to_string(),
-            clone_with_state!(key_name),
-            nat::to_u64(&cfg.chain_id),
-        )
-        .await?;
+//     let tx_hash = w3
+//         .send_erc20(
+//             &contract,
+//             &amount,
+//             &receiver,
+//             canister::eth_address().await?.to_string(),
+//             clone_with_state!(key_name),
+//             nat::to_u64(&cfg.chain_id),
+//         )
+//         .await?;
 
-    Balances::reduce_amount(&caller, &amount)?;
+//     Balances::reduce_amount(&caller, &amount)?;
 
-    log!("[BALANCES] address {}, withdrew {} tokens", caller, amount);
-    Ok(tx_hash)
-}
+//     log!("[BALANCES] address {}, withdrew {} tokens", caller, amount);
+//     Ok(tx_hash)
+// }
 
-#[update]
-pub async fn withdraw_fees(to: String) -> Result<String, String> {
-    _withdraw_fees(to)
-        .await
-        .map_err(|e| format!("withdraw fees failed: {}", e))
-}
+// #[update]
+// pub async fn withdraw_fees(to: String) -> Result<String, String> {
+//     _withdraw_fees(to)
+//         .await
+//         .map_err(|e| format!("withdraw fees failed: {}", e))
+// }
 
-#[inline(always)]
-async fn _withdraw_fees(to: String) -> Result<String, BalancesError> {
-    validate_caller()?;
-    let receiver = address::from_str(&to)?;
+// #[inline(always)]
+// async fn _withdraw_fees(to: String) -> Result<String, BalancesError> {
+//     validate_caller()?;
+//     let receiver = address::from_str(&to)?;
 
-    let canister_addr = canister::eth_address().await?;
+//     let canister_addr = canister::eth_address().await?;
 
-    let fees = Balances::get_amount(&canister_addr)?;
-    if fees == 0 {
-        return Err(BalanceError::InsufficientBalance)?;
-    }
+//     let fees = Balances::get_amount(&canister_addr)?;
+//     if fees == 0 {
+//         return Err(BalanceError::InsufficientBalance)?;
+//     }
 
-    let cfg = state::get_cfg().balances_cfg;
+//     let cfg = state::get_cfg().balances_cfg;
 
-    let w3 = web3::instance(cfg.rpc, clone_with_state!(evm_rpc_canister));
-    let contract_addr =
-        Address::from_str(&cfg.erc20_contract).map_err(|_| AddressError::InvalidAddress)?;
+//     let w3 = web3::instance(cfg.rpc, clone_with_state!(evm_rpc_canister));
+//     let contract_addr =
+//         Address::from_str(&cfg.erc20_contract).map_err(|_| AddressError::InvalidAddress)?;
 
-    let contract = Contract::from_json(w3.eth(), contract_addr, TOKEN_ABI)
-        .map_err(|err| BalancesError::Contract(err.to_string()))?;
+//     let contract = Contract::from_json(w3.eth(), contract_addr, TOKEN_ABI)
+//         .map_err(|err| BalancesError::Contract(err.to_string()))?;
 
-    let tx_hash = w3
-        .send_erc20(
-            &contract,
-            &fees,
-            &receiver,
-            canister::eth_address().await?.to_string(),
-            clone_with_state!(key_name),
-            nat::to_u64(&cfg.chain_id),
-        )
-        .await?;
+//     let tx_hash = w3
+//         .send_erc20(
+//             &contract,
+//             &fees,
+//             &receiver,
+//             canister::eth_address().await?.to_string(),
+//             clone_with_state!(key_name),
+//             nat::to_u64(&cfg.chain_id),
+//         )
+//         .await?;
 
-    Balances::reduce_amount(&canister_addr, &fees)?;
+//     Balances::reduce_amount(&canister_addr, &fees)?;
 
-    log!("[BALANCES] address {}, withdrew {} tokens", to, fees);
-    Ok(tx_hash)
-}
+//     log!("[BALANCES] address {}, withdrew {} tokens", to, fees);
+//     Ok(tx_hash)
+// }
