@@ -20,9 +20,11 @@ use ic_utils::{
 };
 
 use crate::{
+    log,
     types::{
         feeds::{Feed, FeedError, FeedStorage, GetFeedsFilter},
         pagination::{Pagination, PaginationResult},
+        state,
     },
     utils::{canister, siwe},
 };
@@ -126,4 +128,9 @@ pub async fn eth_address() -> Result<String, String> {
     canister::eth_address()
         .await
         .map_err(|e| format!("failed to get eth address: {}", e))
+}
+
+#[query]
+pub async fn treasure_address() -> String {
+    state::get_cfg().balances_cfg.treasure_address.clone()
 }

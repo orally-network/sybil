@@ -330,6 +330,7 @@ service : {
     get_all_chains_rpc : () -> (GetAllChainsRPCResponse);
 
     // balances
+    treasure_address : () -> (text);
     add_to_balances_whitelist : (addresses : vec text) -> (Error);
     deposit : (chain_id : nat64, tx_hash : text, grantee : opt text, msg : text, sig : text) -> (Error);
     get_balance : (address : text) -> (NatResponse);

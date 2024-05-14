@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, ItemFn, Meta};
+use syn::{parse_macro_input, ItemFn};
 
 extern crate proc_macro;
 
@@ -23,7 +23,7 @@ pub fn cycles_count(_args: TokenStream, item: TokenStream) -> TokenStream {
             let cycles_before = ic_cdk::api::canister_balance();
             let res = #block;
             let cycles_after = ic_cdk::api::canister_balance();
-            log!("Cycles used for method {}: {:?}",stringify!(#name), cycles_after - cycles_before);
+            log!("Cycles used for method {}: {:?}",stringify!(#name), cycles_before - cycles_after);
             res
         }
     };

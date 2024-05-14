@@ -56,6 +56,7 @@ dfx canister call sybil add_allowed_chain "(11155111, \"https://ethereum-sepolia
 dfx canister call sybil update_treasure_address "(\"${CALLER}\")"
 dfx canister call sybil add_allowed_erc20_tokens "(${CHAIN_ID}:nat64, vec {record { erc20_contract = \"0xD6CdFF58Dd98528730549c6E5EEdF1be397A723f\"; token_symbol = \"SHR\"; decimals = 6:nat64}})"
 dfx canister call sybil add_to_whitelist "(\"${CALLER}\")" 
+dfx canister call sybil treasure_address # address to deposit to
 dfx canister call sybil eth_address
 dfx canister call sybil deposit "(${CHAIN_ID}, \"${TX_HASH}\", null, \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil get_balance "(\"${CALLER}\")"
