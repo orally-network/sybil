@@ -1,13 +1,11 @@
+use crate::log;
 use futures::future::join_all;
 use ic_cdk::update;
+use sybil_utils::cycles_count;
 
 use crate::{
     stringify_func_call,
-    types::{
-        cache::{self, Cache},
-        feeds::FeedError,
-        rate_data::MultipleAssetsDataResult,
-    },
+    types::{cache::Cache, feeds::FeedError, rate_data::MultipleAssetsDataResult},
     utils::siwe,
 };
 
@@ -58,6 +56,8 @@ pub async fn get_multiple_assets_data_with_proof(
     Ok(multiple_assetds_data)
 }
 
+#[inline]
+#[cycles_count]
 pub async fn _get_multiple_assets_data(
     ids: Vec<String>,
     with_signature: bool,

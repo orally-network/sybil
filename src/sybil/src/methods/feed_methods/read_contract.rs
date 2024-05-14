@@ -1,9 +1,10 @@
 use ic_cdk::update;
 
 use ic_web3_rs::contract::Contract;
+use sybil_utils::cycles_count;
 
 use crate::{
-    clone_with_state,
+    clone_with_state, log,
     methods::custom_feeds::CustomFeedError,
     stringify_func_call,
     types::{
@@ -81,6 +82,7 @@ pub async fn read_contract(
 }
 
 #[inline]
+#[cycles_count]
 pub async fn _read_contract(
     chain_id: u64,
     function_signature: String,

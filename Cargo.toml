@@ -1,5 +1,2 @@
 [workspace]
-members = [
-    "src/sybil",
-    "tests"
-]
+members = ["src/sybil", "src/sybil_utils", "tests"]

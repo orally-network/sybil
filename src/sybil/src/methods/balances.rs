@@ -1,17 +1,15 @@
-use std::{collections::HashSet, str::FromStr};
+use std::collections::HashSet;
 
-use candid::{bindings::candid::value, parser::types::Dec, Nat};
-use cketh_common::tx;
+use candid::Nat;
 use ic_cdk::{query, update};
 use ic_web3_rs::{
-    contract::Contract,
-    ethabi::{Address, Event, EventParam, ParamType},
+    ethabi::{Event, EventParam, ParamType},
     types::{Log as TxLog, Transaction, TransactionReceipt, H160, H256, U256},
 };
 use lazy_static::lazy_static;
+use sybil_utils::cycles_count;
 use thiserror::Error;
 
-pub const TOKEN_ABI: &[u8] = include_bytes!("../assets/ERC20ABI.json");
 const DECIMALS: u64 = 6;
 const ETH_DECIMALS: u64 = 18;
 
@@ -248,6 +246,7 @@ pub async fn deposit(
 }
 
 #[inline(always)]
+#[cycles_count]
 async fn _deposit(
     chain_id: u64,
     tx_hash: String,

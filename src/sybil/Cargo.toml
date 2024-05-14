@@ -45,3 +45,4 @@ jsonrpc-core = "18.0.0"
 serde_cbor = "0.11.2"
 url = "2.5.0"
 ethers-core = "2.0.14"
+sybil_utils = { path = "../sybil_utils" }

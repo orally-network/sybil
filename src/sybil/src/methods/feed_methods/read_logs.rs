@@ -3,9 +3,10 @@ use std::str::FromStr;
 use ic_cdk::update;
 
 use ic_web3_rs::types::H256;
+use sybil_utils::cycles_count;
 
 use crate::{
-    clone_with_state,
+    clone_with_state, log,
     methods::custom_feeds::CustomFeedError,
     stringify_func_call,
     types::{
@@ -77,6 +78,7 @@ pub async fn read_logs_with_proof(
 }
 
 #[inline]
+#[cycles_count]
 pub async fn _read_logs(
     chain_id: u64,
     block_from: Option<u64>,

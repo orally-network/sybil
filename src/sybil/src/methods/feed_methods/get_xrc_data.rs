@@ -1,7 +1,8 @@
 use ic_cdk::update;
+use sybil_utils::cycles_count;
 
 use crate::{
-    stringify_func_call,
+    log, stringify_func_call,
     types::{
         cache::Cache,
         feeds::{Feed, FeedError, FeedStorage, DEFAULT_UPDATE_FREQ},
@@ -48,6 +49,8 @@ pub async fn get_xrc_data_with_proof(
         .map_err(|e| format!("failed to get asset data: {}", e))
 }
 
+#[inline]
+#[cycles_count]
 pub async fn _get_xrc_data(
     id: String,
     with_signature: bool,

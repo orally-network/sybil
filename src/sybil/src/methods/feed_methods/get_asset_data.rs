@@ -1,4 +1,7 @@
 use ic_cdk::update;
+use sybil_utils::cycles_count;
+
+use crate::log;
 
 use crate::{
     metrics, stringify_func_call,
@@ -49,6 +52,7 @@ pub async fn get_asset_data_with_proof(
 }
 
 #[inline]
+#[cycles_count]
 pub async fn _get_asset_data(
     id: String,
     with_signature: bool,

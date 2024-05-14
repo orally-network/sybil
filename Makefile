@@ -8,8 +8,10 @@ local_deploy_evm_rpc:
 
 
 local_deploy_sybil: local_deploy_xrc local_deploy_evm_rpc
-	$(eval RPC_URL?=https://ethereum-goerli-rpc.publicnode.com)
+	$(eval ADDRESS?=0x6696eD42dFBe875E60779b8163fDCc39B088222A)
+	$(eval RPC_URL?=https://ethereum-sepolia-rpc.publicnode.com)
 	$(eval XRC_ID := $(shell dfx canister id xrc))
+	$(eval TREASURE_ADDRESS := $(shell dfx canister id xrc))
 	$(eval FALLBACK_XRC := $(shell dfx canister id xrc))
 	$(eval EVM_RPC_CANISTER := $(shell dfx canister id evm_rpc))
 
@@ -24,9 +26,21 @@ local_deploy_sybil: local_deploy_xrc local_deploy_evm_rpc
 			mock=true; \
 			key_name=\"dfx_test_key\"; \
 			balances_cfg=record { \
-				rpc=\"${RPC_URL}\"; \
+				rpc=\"depricated\"; \
 				chain_id=5:nat; \
-				erc20_contract=\"0xfad6367E97217cC51b4cd838Cc086831f81d38C2\"; \
+				erc20_contract=\"depricated\"; \
+				allowed_chains = vec {record { \
+					11155111:nat64; record { \
+						erc20_contracts = vec { record { \
+							erc20_contract = \"0xD6CdFF58Dd98528730549c6E5EEdF1be397A723f\"; \
+							token_symbol = \"SHR\"; \
+							decimals = 6:nat64; \
+						}}; \
+						coin_symbol = \"Eth\"; \
+						rpc = \"${RPC_URL}\"; \
+					} \
+				}}; \
+				treasure_address=\"${ADDRESS}\"; \
 				fee_per_byte=0:nat; \
 				base_fee=0:nat; \
 				whitelist = vec {}; \

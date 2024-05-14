@@ -1,13 +1,11 @@
 use thiserror::Error;
 
-use ic_web3_rs::ic::get_eth_addr;
-
-use super::address::{self, AddressError};
+use super::address::AddressError;
 use crate::{
     clone_with_state, log,
     types::{
         balances::{BalanceError, Balances},
-        Address,
+        state, Address,
     },
     update_state,
 };
@@ -27,13 +25,13 @@ pub async fn eth_address() -> Result<Address, CanisterError> {
         return Ok(address);
     }
 
-    let key_name = clone_with_state!(key_name);
+    // let raw_address = get_eth_addr(None, None, key_name)
+    //     .await
+    //     .map_err(CanisterError::UnableToGetEthAddress)?;
 
-    let raw_address = get_eth_addr(None, None, key_name)
-        .await
-        .map_err(CanisterError::UnableToGetEthAddress)?;
+    // let formatted_address = address::from_h160(&raw_address)?;
 
-    let formatted_address = address::from_h160(&raw_address)?;
+    let formatted_address = state::get_cfg().balances_cfg.treasure_address;
 
     update_state!(eth_address, Some(formatted_address.clone()));
     Balances::add(&formatted_address)?;

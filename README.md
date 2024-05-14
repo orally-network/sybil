@@ -33,7 +33,7 @@ make local_upgrade
 ## Enviroment
 
 ```sh
-CHAIN_ID=11155111 &
+CHAIN_ID=11155111 &&
 CALLER="0x6696eD42dFBe875E60779b8163fDCc39B088222A" &&
 SIWE_MSG="localhost:4361 wants you to sign in with your Ethereum account:
 0x6696eD42dFBe875E60779b8163fDCc39B088222A
@@ -78,10 +78,10 @@ dfx canister call sybil get_all_chains_rpc
 dfx canister call sybil remove_chain_rpc_by_index "(11155111, 1)"
 
 # read contract
-dfx canister call sybil read_contract "(42161, \"function balanceOf(address account) external view returns (uint256)\", \"0xA533f744B179F2431f5395978e391107DC76e103\", \"balanceOf\", \"(0x654DFF41D51c230FA400205A633101C5C1f1969C)\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
+dfx canister call sybil read_contract "(42161, \"function balanceOf(address account) external view returns (uint256)\", \"0xA533f744B179F2431f5395978e391107DC76e103\", \"balanceOf\", \"(0x654DFF41D51c230FA400205A633101C5C1f1969C)\", opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 
 # read logs
-dfx canister call sybil read_logs "(11155111, opt 5366640, opt 5366640, opt vec { \"0xdc9a6ce9bdf5d7327deb64beb9074cf0bc6e6c9ca2b318dae8b8ad4d38dd9344\" }, null, null, null, opt vec { \"0x67de6b66516E098EF945EAddE48C54fABfD3Dcf9\"}, \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
+dfx canister call sybil read_logs "(11155111, opt 5366640, opt 5366640, opt vec { \"0xdc9a6ce9bdf5d7327deb64beb9074cf0bc6e6c9ca2b318dae8b8ad4d38dd9344\" }, null, null, null, opt vec { \"0x67de6b66516E098EF945EAddE48C54fABfD3Dcf9\"}, opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 
 
 dfx canister call sybil create_custom_feed "(record {id=\"BTC/USDT\"; feed_type=variant {Custom}; update_freq=3600:nat; decimals=opt 6; sources=vec {variant { HttpSource = record {uri=\"https://api.pro.coinbase.com/products/{key1}/candles?granularity=60\"; api_keys = opt vec {record { title = \"key1\"; key = \"BTC-USDT\"}}; resolver=\"/0/1\"}}};msg=\"${SIWE_MSG}\"; sig=\"${SIWE_SIG}\"})"
