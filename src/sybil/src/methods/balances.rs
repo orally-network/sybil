@@ -1,16 +1,19 @@
 use std::{collections::HashSet, str::FromStr};
 
-use candid::{bindings::candid::value, Nat};
+use candid::{bindings::candid::value, parser::types::Dec, Nat};
+use cketh_common::tx;
 use ic_cdk::{query, update};
 use ic_web3_rs::{
     contract::Contract,
     ethabi::{Address, Event, EventParam, ParamType},
-    types::{Log as TxLog, TransactionReceipt, H160, H256, U256},
+    types::{Log as TxLog, Transaction, TransactionReceipt, H160, H256, U256},
 };
 use lazy_static::lazy_static;
 use thiserror::Error;
 
 pub const TOKEN_ABI: &[u8] = include_bytes!("../assets/ERC20ABI.json");
+const DECIMALS: u64 = 6;
+const ETH_DECIMALS: u64 = 18;
 
 use crate::{
     clone_with_state, log,
@@ -63,8 +66,6 @@ lazy_static! {
 pub enum BalancesError {
     #[error("Address error: {0}")]
     AddressError(#[from] AddressError),
-    #[error("Failed to get contract from json: {0}")]
-    Contract(String),
     #[error("Balance error: {0}")]
     BalanceError(#[from] BalanceError),
     #[error("SIWE error: {0}")]
@@ -77,8 +78,6 @@ pub enum BalancesError {
     Caller(#[from] CallerError),
     #[error("Canister error: {0})")]
     Canister(#[from] canister::CanisterError),
-    #[error("This Chain is not allowed")]
-    ChainNotAllowed,
     #[error("Allowed chain not found")]
     AllowedChainNotFound,
     #[error("Allowed chain already exists")]
@@ -88,6 +87,7 @@ pub enum BalancesError {
 #[update]
 pub async fn update_treasure_address(address: String) -> Result<(), String> {
     validate_caller().map_err(|_| format!("caller is not a controller"))?;
+    let address = address::from_str(&address).map_err(|e| format!("invalid address: {}", e))?;
     STATE.with(|state| {
         let mut state = state.borrow_mut();
         state.balances_cfg.treasure_address = address;
@@ -268,7 +268,11 @@ async fn _deposit(
         .ok_or(DepositError::ChainNotAllowed)?;
 
     let w3 = web3::instance(
-        allowed_chain.rpc.clone(),
+        format!(
+            "{}{}",
+            clone_with_state!(rpc_wrapper),
+            urlencoding::encode(&allowed_chain.rpc)
+        ),
         clone_with_state!(evm_rpc_canister),
     );
 
@@ -277,28 +281,12 @@ async fn _deposit(
     let tx = w3.get_tx(tx_receipt.transaction_hash.clone()).await?;
 
     // Deposit ERC20 tokens
-    let mut amount =
-        deposit_erc20(&tx_receipt, &caller_eth, &allowed_chain.erc20_contracts).await?;
+    let erc20 = deposit_erc20(&tx_receipt, &caller_eth, &allowed_chain.erc20_contracts).await?;
 
-    let value_usd = if clone_with_state!(mock) {
-        tx.value
-    } else {
-        let xrc_data = _get_xrc_data(
-            format!("{}/USD", allowed_chain.coin_symbol),
-            false,
-            None,
-            None,
-        )
-        .await?;
+    // Deposit native coint
+    let eth = deposit_coin(&tx, &allowed_chain.coin_symbol).await?;
 
-        let AssetData::DefaultPriceFeed { rate, .. } = xrc_data.data else {
-            unreachable!("xrc data should be default price feed");
-        };
-
-        rate.into()
-    };
-
-    amount += value_usd; // Deposit native coint
+    let amount = erc20 + eth;
 
     if !Balances::contains(&caller) {
         Balances::add(&caller)?;
@@ -311,9 +299,48 @@ async fn _deposit(
         Allowances::grant(grantee, caller.clone())?;
     }
 
-    log!("[BALANCES] address {}, deposited {} tokens", caller, amount);
+    log!("[BALANCES] address {}, deposited {} usd", caller, amount);
 
     Ok(())
+}
+
+/// Check whether the transaction contains transfer of allowed ERC20 tokens
+#[inline(always)]
+async fn deposit_coin(tx: &Transaction, coin_symbol: &str) -> Result<U256, DepositError> {
+    if tx.to.is_none()
+        || tx.to.unwrap() != address::to_h160(&get_cfg().balances_cfg.treasure_address)?
+    {
+        return Ok(0.into());
+    }
+
+    let value_usd = if clone_with_state!(mock) || tx.value.is_zero() {
+        tx.value
+    } else {
+        let xrc_data = _get_xrc_data(format!("{}/USD", coin_symbol), false, None, None).await?;
+
+        let AssetData::DefaultPriceFeed { rate, decimals, .. } = xrc_data.data else {
+            unreachable!("xrc data should be default price feed");
+        };
+
+        let mut usd = tx.value * Into::<U256>::into(rate);
+        let mut decimals = decimals + ETH_DECIMALS;
+
+        if decimals > DECIMALS {
+            while decimals > DECIMALS {
+                usd /= 10;
+                decimals -= 1;
+            }
+        } else {
+            while decimals < DECIMALS {
+                usd *= 10;
+                decimals += 1;
+            }
+        }
+
+        usd
+    };
+
+    Ok(value_usd)
 }
 
 /// Check whether the transaction contains transfer of allowed ERC20 tokens
@@ -339,59 +366,82 @@ async fn deposit_erc20(
 
     let receiver = address::from_h160(&to)?;
 
-    let erc20_contract = contracts
-        .iter()
-        .find(|c| c.erc20_contract == receiver)
-        .ok_or(DepositError::ERC20NotAllowed)?;
-
-    let (event_from, event_to, value) = get_transfer_log(&tx_receipt.logs)?;
-    validate_transfer_log(&event_from, &event_to, &caller)?;
-
-    let value_usd = if clone_with_state!(mock) {
-        value
-    } else {
-        let xrc_data = _get_xrc_data(
-            format!("{}/USD", erc20_contract.token_symbol),
-            false,
-            None,
-            None,
-        )
-        .await?;
-
-        let AssetData::DefaultPriceFeed { rate, .. } = xrc_data.data else {
-            unreachable!("xrc data should be default price feed");
-        };
-
-        rate.into()
+    let Some(erc20_contract) = contracts.iter().find(|c| c.erc20_contract == receiver) else {
+        return Ok(0.into());
     };
+
+    let mut value_usd = U256::zero();
+
+    for (event_from, event_to, value) in get_transfer_log(&tx_receipt.logs)? {
+        validate_transfer_logs(&event_from, &event_to, &caller)?;
+
+        value_usd += if clone_with_state!(mock) {
+            value
+        } else {
+            let xrc_data = _get_xrc_data(
+                format!("{}/USD", erc20_contract.token_symbol),
+                false,
+                None,
+                None,
+            )
+            .await?;
+
+            let AssetData::DefaultPriceFeed { rate, decimals, .. } = xrc_data.data else {
+                unreachable!("xrc data should be default price feed");
+            };
+
+            let mut usd = value * Into::<U256>::into(rate);
+            let mut decimals = erc20_contract.decimals + decimals;
+
+            if decimals > DECIMALS {
+                while decimals > DECIMALS {
+                    usd /= 10;
+                    decimals -= 1;
+                }
+            } else {
+                while decimals < DECIMALS {
+                    usd *= 10;
+                    decimals += 1;
+                }
+            }
+
+            usd
+        };
+    }
 
     Ok(value_usd)
 }
 
 #[inline(always)]
-fn get_transfer_log(logs: &[TxLog]) -> Result<(H160, H160, U256), DepositError> {
-    let log = logs
+fn get_transfer_log(logs: &[TxLog]) -> Result<Vec<(H160, H160, U256)>, DepositError> {
+    let transfer_logs: Vec<_> = logs
         .iter()
-        .find(|log| {
+        .filter(|log| {
             log.topics
                 .iter()
                 .any(|topic| topic == &*TRANSFER_EVENT_SIGNATURE)
         })
-        .ok_or(DepositError::TxWithoutTransferEvent)?;
+        .collect();
 
-    if log.topics.len() != 3 {
-        return Err(DepositError::InvalidTransferEvent);
+    let mut res = Vec::with_capacity(transfer_logs.len());
+
+    for log in transfer_logs {
+        if log.topics.len() != 3 {
+            return Err(DepositError::InvalidTransferEvent);
+        }
+
+        let from = H160::from_slice(&log.topics[1].0[12..]);
+        let to = H160::from_slice(&log.topics[2].0[12..]);
+        let value = U256::from_big_endian(&log.data.0);
+
+        res.push((from, to, value));
     }
 
-    let from = H160::from_slice(&log.topics[1].0[12..]);
-    let to = H160::from_slice(&log.topics[2].0[12..]);
-    let value = U256::from_big_endian(&log.data.0);
-
-    Ok((from, to, value))
+    Ok(res)
 }
 
 #[inline(always)]
-fn validate_transfer_log(from: &H160, to: &H160, caller: &H160) -> Result<(), DepositError> {
+fn validate_transfer_logs(from: &H160, to: &H160, caller: &H160) -> Result<(), DepositError> {
     if from != caller {
         return Err(DepositError::CallerIsNotTransferSender);
     }

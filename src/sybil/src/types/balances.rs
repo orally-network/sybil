@@ -34,6 +34,7 @@ pub struct BalancesCfg {
 pub struct ERC20Contract {
     pub erc20_contract: String,
     pub token_symbol: String,
+    pub decimals: u64,
 }
 
 #[derive(CandidType, Deserialize, Serialize, Default, Clone, Debug)]

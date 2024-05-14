@@ -69,6 +69,7 @@ type CreateDefaultFeedRequest = record {
 type ERC20Contract = record {
     erc20_contract : text;
     token_symbol : text;
+    decimals : nat64;
 };
 
 type AllowedChain = record {

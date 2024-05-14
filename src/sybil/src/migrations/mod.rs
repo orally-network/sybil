@@ -13,7 +13,7 @@ use crate::{
     types::{
         allowances::Allowances,
         api_keys::APIKeys,
-        balances::{AllowedChain, Balances, BalancesCfg},
+        balances::{AllowedChain, Balances, BalancesCfg, ERC20Contract},
         cache::{HttpCache, RateCache, SignaturesCache},
         chains_rpc::ChainsRPC,
         feeds::{Feed, FeedStatus, FeedStorage, FeedType},
@@ -148,6 +148,23 @@ pub struct OldBalancesCfg {
     pub allowed_chains: Option<HashMap<u64, AllowedChain>>,
     // Vec of addresses that won't be charged for anything
     pub whitelist: Option<HashSet<String>>,
+}
+
+#[derive(CandidType, Deserialize, Serialize, Default, Clone, Debug)]
+pub struct OldAllowedChain {
+    pub rpc: String,
+    pub coin_symbol: String,
+    pub erc20_contracts: Option<HashSet<ERC20Contract>>,
+}
+
+impl From<OldAllowedChain> for AllowedChain {
+    fn from(old: OldAllowedChain) -> Self {
+        Self {
+            rpc: old.rpc,
+            coin_symbol: old.coin_symbol,
+            erc20_contracts: old.erc20_contracts.unwrap_or_default(),
+        }
+    }
 }
 
 impl From<OldBalancesCfg> for BalancesCfg {
