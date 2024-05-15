@@ -87,6 +87,7 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
         meta: GetXRCDataMetadata {
             id: params.id.clone(),
             timestamp: in_seconds(),
+            fee: 0.into(),
         },
         signature: None,
     };

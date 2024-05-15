@@ -1,4 +1,4 @@
-use candid::CandidType;
+use candid::{CandidType, Nat};
 use ic_web3_rs::{
     ethabi::{encode, Token},
     signing::keccak256,
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     log,
     types::cache::{SignaturesCache, SignaturesCacheError},
-    utils::encoding::encode_packed,
+    utils::{encoding::encode_packed, nat},
 };
 
 use super::rate_data::AssetData;
@@ -17,6 +17,7 @@ use super::rate_data::AssetData;
 pub struct GetMultipleAssetDataMetadata {
     pub ids: Vec<String>,
     pub timestamp: u64,
+    pub fee: Nat,
 }
 
 impl GetMultipleAssetDataMetadata {
@@ -24,6 +25,7 @@ impl GetMultipleAssetDataMetadata {
         vec![
             Token::Array(self.ids.clone().into_iter().map(Token::String).collect()),
             Token::Uint(self.timestamp.into()),
+            Token::Uint(nat::to_u256(&self.fee)),
         ]
     }
 

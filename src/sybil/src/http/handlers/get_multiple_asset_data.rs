@@ -98,6 +98,7 @@ async fn _get_multiple_assets_data_request(
         meta: GetMultipleAssetDataMetadata {
             ids,
             timestamp: in_seconds(),
+            fee: 0.into(),
         },
         signature: None,
     };

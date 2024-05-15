@@ -90,6 +90,7 @@ async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Resu
         meta: GetAssetDataMetadata {
             id: params.id.clone(),
             timestamp: in_seconds(),
+            fee: 0.into(),
         },
         signature: None,
     };

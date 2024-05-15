@@ -152,6 +152,7 @@ pub async fn _read_logs(
                 topics3: topics3.unwrap_or_default(),
                 addresses: addresses.unwrap_or_default(),
                 timestamp: in_seconds(),
+                fee: base_fee.clone(),
             },
             signature: None,
         };

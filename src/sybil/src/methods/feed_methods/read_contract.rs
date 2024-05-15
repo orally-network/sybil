@@ -14,7 +14,7 @@ use crate::{
         feed_types::read_contract::{ReadContractMetadata, ReadContractResult, SolidityToken},
         state,
     },
-    utils::{address, canister, encoding::parse_tokens, siwe, time::in_seconds, web3},
+    utils::{address, canister, encoding::parse_tokens, nat, siwe, time::in_seconds, web3},
 };
 
 #[update]
@@ -156,6 +156,7 @@ pub async fn _read_contract(
                 method,
                 params,
                 timestamp: in_seconds(),
+                fee: base_fee.clone(),
             },
             signature: None,
         };
