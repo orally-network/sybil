@@ -4,7 +4,13 @@ use validator::Validate;
 
 use crate::{
     http::{response, utils::resolve_payer, HTTP_SERVICE},
-    types::http::{HttpRequest, HttpResponse},
+    types::{
+        feed_types::get_multiple_asset_data::{
+            GetMultipleAssetDataMetadata, GetMultipleAssetDataResult,
+        },
+        http::{HttpRequest, HttpResponse},
+    },
+    utils::time::in_seconds,
 };
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
@@ -77,15 +83,28 @@ async fn _get_multiple_assets_data_request(
         return Err(anyhow::anyhow!("No payer provided"));
     }
 
-    let ids = params.ids.split(",").map(|s| s.to_string()).collect();
+    let ids: Vec<_> = params.ids.split(",").map(|s| s.to_string()).collect();
 
     let rate = crate::methods::feed_methods::get_multiple_asset_data::_get_multiple_assets_data(
-        ids,
-        with_signature,
+        ids.clone(),
+        false,
         None,
         params.cache_ttl,
     )
     .await?;
+
+    let mut rate = GetMultipleAssetDataResult {
+        data: rate.data,
+        meta: GetMultipleAssetDataMetadata {
+            ids,
+            timestamp: in_seconds(),
+        },
+        signature: None,
+    };
+
+    if with_signature {
+        rate.sign().await?;
+    }
 
     if let Some(_bytes @ true) = params.bytes {
         let data = format!("0x{}", hex::encode(&rate.encode()));

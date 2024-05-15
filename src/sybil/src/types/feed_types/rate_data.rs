@@ -82,6 +82,14 @@ impl AssetData {
             }
         }
     }
+
+    pub fn get_token(self) -> Token {
+        Token::Tuple(self.get_tokens())
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        encode(&self.clone().get_tokens())
+    }
 }
 
 impl Default for AssetData {
