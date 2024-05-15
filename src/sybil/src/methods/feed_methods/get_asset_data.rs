@@ -3,12 +3,12 @@ use sybil_utils::cycles_count;
 
 use crate::log;
 
+use crate::types::feed_types::rate_data::AssetDataResult;
 use crate::{
     metrics, stringify_func_call,
     types::{
         cache::Cache,
         feeds::{FeedError, FeedStorage},
-        rate_data::AssetDataResult,
     },
     utils::siwe,
 };

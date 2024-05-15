@@ -11,7 +11,7 @@ use crate::{
         balances::{BalanceError, Balances},
         cache::Cache,
         chains_rpc::ChainsRPC,
-        read_contract::{ReadContractMetadata, ReadContractResult, SolidityToken},
+        feed_types::read_contract::{ReadContractMetadata, ReadContractResult, SolidityToken},
         state,
     },
     utils::{address, canister, encoding::parse_tokens, siwe, time::in_seconds, web3},

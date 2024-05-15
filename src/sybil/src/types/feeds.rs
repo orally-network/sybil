@@ -10,7 +10,7 @@ use super::{
     balances::{BalanceError, Balances},
     cache::CacheError,
     exchange_rate::{Asset, AssetClass, ExchangeRate, ExchangeRateError, GetExchangeRateRequest},
-    rate_data::{AssetData, AssetDataResult, RateDataError},
+    feed_types::rate_data::{AssetData, AssetDataResult, RateDataError},
     source::{HttpSource, Source, SourceError},
     state, Address, Seconds, Timestamp,
 };

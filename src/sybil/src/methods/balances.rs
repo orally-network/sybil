@@ -18,7 +18,7 @@ use crate::{
     types::{
         allowances::Allowances,
         balances::{AllowedChain, BalanceError, Balances, DepositError, ERC20Contract},
-        rate_data::AssetData,
+        feed_types::rate_data::AssetData,
         state::{self, get_cfg},
         whitelist::{Whitelist, WhitelistError},
     },

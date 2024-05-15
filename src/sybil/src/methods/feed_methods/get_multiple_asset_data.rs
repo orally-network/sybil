@@ -5,7 +5,7 @@ use sybil_utils::cycles_count;
 
 use crate::{
     stringify_func_call,
-    types::{cache::Cache, feeds::FeedError, rate_data::MultipleAssetsDataResult},
+    types::{cache::Cache, feed_types::rate_data::MultipleAssetsDataResult, feeds::FeedError},
     utils::siwe,
 };
 

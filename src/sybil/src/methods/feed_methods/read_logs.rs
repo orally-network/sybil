@@ -13,7 +13,7 @@ use crate::{
         balances::{BalanceError, Balances},
         cache::Cache,
         chains_rpc::ChainsRPC,
-        read_logs::{ReadLogsData, ReadLogsMetadata, ReadLogsResult},
+        feed_types::read_logs::{ReadLogsData, ReadLogsMetadata, ReadLogsResult},
         state,
     },
     utils::{address, canister, siwe, time::in_seconds, web3},

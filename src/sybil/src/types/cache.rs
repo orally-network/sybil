@@ -29,7 +29,7 @@ use crate::{
 };
 use crate::{HTTP_CACHE, SIGNATURES_CACHE, UNIVERSAL_CACHE};
 
-use super::rate_data::AssetDataResult;
+use super::feed_types::rate_data::AssetDataResult;
 use super::{Seconds, Timestamp};
 
 const HTTP_WAITING_DELAY_SECS: u64 = 3;

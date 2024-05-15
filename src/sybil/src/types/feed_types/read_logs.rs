@@ -6,9 +6,11 @@ use ic_web3_rs::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{log, types::cache::SignaturesCache, utils::encoding::encode_packed};
-
-use super::cache::SignaturesCacheError;
+use crate::{
+    log,
+    types::cache::{SignaturesCache, SignaturesCacheError},
+    utils::encoding::encode_packed,
+};
 
 #[derive(CandidType, Serialize, Deserialize, Debug)]
 pub struct ReadLogsMetadata {

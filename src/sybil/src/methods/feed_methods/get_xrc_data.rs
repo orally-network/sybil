@@ -5,8 +5,8 @@ use crate::{
     log, stringify_func_call,
     types::{
         cache::Cache,
+        feed_types::rate_data::AssetDataResult,
         feeds::{Feed, FeedError, FeedStorage, DEFAULT_UPDATE_FREQ},
-        rate_data::AssetDataResult,
     },
     utils::siwe,
 };

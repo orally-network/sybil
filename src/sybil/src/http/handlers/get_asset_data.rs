@@ -4,7 +4,11 @@ use validator::Validate;
 
 use crate::{
     http::{response, utils::resolve_payer, HTTP_SERVICE},
-    types::http::{HttpRequest, HttpResponse},
+    types::{
+        feed_types::get_asset_data::{GetAssetDataMetadata, GetAssetDataResult},
+        http::{HttpRequest, HttpResponse},
+    },
+    utils::time::in_seconds,
 };
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
@@ -74,12 +78,25 @@ async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Resu
     }
 
     let rate = crate::methods::feed_methods::get_asset_data::_get_asset_data(
-        params.id,
-        with_signature,
+        params.id.clone(),
+        false,
         None,
         params.cache_ttl,
     )
     .await?;
+
+    let mut rate = GetAssetDataResult {
+        data: rate.data,
+        meta: GetAssetDataMetadata {
+            id: params.id.clone(),
+            timestamp: in_seconds(),
+        },
+        signature: None,
+    };
+
+    if with_signature {
+        rate.sign().await?;
+    }
 
     if let Some(_bytes @ true) = params.bytes {
         let data = format!("0x{}", hex::encode(&rate.encode()));
