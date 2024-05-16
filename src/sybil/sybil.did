@@ -179,6 +179,7 @@ type ReadContractMetadata = record {
     params: text;
     timestamp: nat64;
     fee: nat; 
+    fee_symbol: nat;
 };
 
 type SolidityToken = variant {
@@ -211,11 +212,32 @@ type ReadLogsMetadata = record {
     addresses : opt vec text;
     timestamp : nat64;
     fee: nat; 
+    fee_symbol : nat;
 };
 
 type ReadLogsResult = record {
     data : vec ReadLogsData;
     meta : ReadLogsMetadata;
+    signature : opt text;
+};
+
+type GetXRCData = record { 
+        symbol: text;
+        rate: nat64;
+        decimals: nat64;
+        timestamp: nat64;
+};
+
+type GetXRCDataMetadata = record { 
+    id : text;
+    timestamp : nat64;
+    fee : nat;
+    fee_symbol : text;
+};
+
+type GetXRCDataResult = record { 
+    data : GetXRCData;
+    meta : GetXRCDataMetadata;
     signature : opt text;
 };
 
@@ -271,6 +293,7 @@ type GetCfgResponse = variant { Ok : Cfg; Err: text };
 type GetWhitelistResponse = variant { Ok : vec text; Err: text };
 type ReadContractResponse = variant { Ok : ReadContractResult; Err: text };
 type ReadLogsResponse = variant { Ok : ReadLogsResult; Err: text };
+type GetXRCDataResponse = variant { Ok : GetXRCDataResult; Err: text };
 type GetChainsRPCResponse = variant { Ok : vec text; Err: text };
 type GetAllChainsRPCResponse = variant { Ok : vec record {nat64; vec text}; Err: text };
 type GetUserAPIKeysResponse = variant { Ok : opt vec text; Err: text };
@@ -292,7 +315,7 @@ service : {
     // assets 
     get_asset_data_with_proof : (id : text, msg : opt text, sig : opt text) -> (GetAssetDataWithProofResponse);
     get_asset_data : (id : text, msg : opt text, sig : opt text) -> (GetAssetDataResponse);
-    get_xrc_data : (id : text, msg : opt text, sig : opt text) -> (GetAssetDataResponse);
+    get_xrc_data : (id : text, msg : opt text, sig : opt text) -> (GetXRCDataResponse);
     get_xrc_data_with_proof : (id : text, msg : opt text, sig : opt text) -> (GetAssetDataResponse);
     get_multiple_assets_data_with_proof : (ids : vec text, msg : opt text, sig : opt text) -> (GetMultipleAssetsDataResponse);
     get_multiple_assets_data : (ids : vec text, msg : opt text, sig : opt text) -> (GetMultipleAssetsDataResponse);

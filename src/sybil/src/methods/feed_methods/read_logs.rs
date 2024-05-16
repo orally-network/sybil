@@ -153,6 +153,7 @@ pub async fn _read_logs(
                 addresses: addresses.unwrap_or_default(),
                 timestamp: in_seconds(),
                 fee: 0.into(),
+                fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
             },
             signature: None,
         };

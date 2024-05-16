@@ -1,17 +1,14 @@
-use std::result;
-
 use ic_cdk::update;
 use sybil_utils::cycles_count;
 
 use crate::log;
 
-use crate::methods::{balances, eth_address};
+use crate::methods::balances;
 use crate::types::balances::Balances;
 use crate::types::feed_types::get_asset_data::{GetAssetDataMetadata, GetAssetDataResult};
-use crate::types::feed_types::rate_data::{AssetData, AssetDataResult};
-use crate::types::feeds::{Feed, DEFAULT_UPDATE_FREQ};
+use crate::types::feed_types::rate_data::AssetDataResult;
 use crate::utils::canister;
-use crate::utils::convertion::{convert_to_eth_weis, convert_usd_to_eth};
+use crate::utils::convertion::convert_usd_to_eth;
 use crate::utils::time::in_seconds;
 use crate::{
     metrics, stringify_func_call,
@@ -119,6 +116,7 @@ pub async fn _get_asset_data_result(
                 id: id.clone(),
                 timestamp: in_seconds(),
                 fee: 0.into(),
+                fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
             },
             signature: None,
         };

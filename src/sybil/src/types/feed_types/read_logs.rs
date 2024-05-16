@@ -25,6 +25,7 @@ pub struct ReadLogsMetadata {
     pub timestamp: u64,
     #[serde(with = "super::big_num_serde")]
     pub fee: Nat,
+    pub fee_symbol: String,
 }
 
 impl ReadLogsMetadata {

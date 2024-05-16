@@ -97,6 +97,7 @@ pub async fn _get_xrc_data(
                 id: id.clone(),
                 timestamp: in_seconds(),
                 fee: 0.into(),
+                fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
             },
             signature: None,
         };
