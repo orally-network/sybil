@@ -11,8 +11,6 @@ use anyhow::Result;
 use ic_cdk::api::time;
 use time_rs::OffsetDateTime;
 
-const MAX_FREE_REQUESTS: u128 = 100;
-
 pub async fn resolve_payer(
     req: &HttpRequest,
     method: String,
@@ -32,7 +30,7 @@ pub async fn resolve_payer(
         return Ok((None, false));
     };
 
-    let requests_per_domain = HTTP_REQUESTS.with(|c| {
+    let _requests_per_domain = HTTP_REQUESTS.with(|c| {
         let mut c = c.borrow_mut();
         let api_request = c.entry(domain.clone()).or_insert(APIRequest {
             count: 0,
@@ -60,10 +58,6 @@ pub async fn resolve_payer(
 
         api_request.count - 1
     });
-
-    if requests_per_domain < MAX_FREE_REQUESTS {
-        return Ok((None, true));
-    }
 
     let caller = match (msg, sig, api_key) {
         (Some(msg), Some(sig), _) => crate::utils::siwe::recover(&msg, &sig).await?,
