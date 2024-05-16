@@ -4,13 +4,7 @@ use validator::Validate;
 
 use crate::{
     http::{response, utils::resolve_payer, HTTP_SERVICE},
-    types::{
-        feed_types::get_multiple_asset_data::{
-            GetMultipleAssetDataMetadata, GetMultipleAssetDataResult,
-        },
-        http::{HttpRequest, HttpResponse},
-    },
-    utils::time::in_seconds,
+    types::http::{HttpRequest, HttpResponse},
 };
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
@@ -79,32 +73,19 @@ async fn _get_multiple_assets_data_request(
     )
     .await?;
 
-    if payer.is_none() && !is_free {
-        return Err(anyhow::anyhow!("No payer provided"));
-    }
-
     let ids: Vec<_> = params.ids.split(",").map(|s| s.to_string()).collect();
 
-    let rate = crate::methods::feed_methods::get_multiple_asset_data::_get_multiple_assets_data(
-        ids.clone(),
-        false,
-        None,
-        params.cache_ttl,
-    )
-    .await?;
+    let mut rate =
+        crate::methods::feed_methods::get_multiple_asset_data::_get_multiple_assets_data_result(
+            ids.clone(),
+            with_signature,
+            if is_free { None } else { payer },
+            params.cache_ttl,
+        )
+        .await?;
 
-    let mut rate = GetMultipleAssetDataResult {
-        data: rate.data,
-        meta: GetMultipleAssetDataMetadata {
-            ids,
-            timestamp: in_seconds(),
-            fee: 0.into(),
-        },
-        signature: None,
-    };
-
-    if with_signature {
-        rate.sign().await?;
+    if is_free {
+        rate.meta.fee = 0.into();
     }
 
     if let Some(_bytes @ true) = params.bytes {

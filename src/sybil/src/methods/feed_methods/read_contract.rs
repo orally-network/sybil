@@ -5,7 +5,7 @@ use sybil_utils::cycles_count;
 
 use crate::{
     clone_with_state, log,
-    methods::custom_feeds::CustomFeedError,
+    methods::{balances, custom_feeds::CustomFeedError},
     stringify_func_call,
     types::{
         balances::{BalanceError, Balances},
@@ -14,7 +14,10 @@ use crate::{
         feed_types::read_contract::{ReadContractMetadata, ReadContractResult, SolidityToken},
         state,
     },
-    utils::{address, canister, encoding::parse_tokens, nat, siwe, time::in_seconds, web3},
+    utils::{
+        address, canister, convertion::convert_usd_to_eth, encoding::parse_tokens, siwe,
+        time::in_seconds, web3,
+    },
 };
 
 #[update]
@@ -156,7 +159,7 @@ pub async fn _read_contract(
                 method,
                 params,
                 timestamp: in_seconds(),
-                fee: base_fee.clone(),
+                fee: 0.into(),
             },
             signature: None,
         };
@@ -168,6 +171,9 @@ pub async fn _read_contract(
         if let Some(payer) = payer {
             Balances::reduce_amount(&payer, &base_fee)?;
             Balances::add_amount(&canister::eth_address().await?, &base_fee)?;
+        } else {
+            let fee = convert_usd_to_eth(base_fee, balances::DECIMALS).await?;
+            result.meta.fee = fee;
         }
 
         Ok(result)

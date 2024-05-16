@@ -77,6 +77,12 @@ type AllowedChain = record {
     erc20_contracts : vec ERC20Contract;
 };
 
+type UpdateBalancesCfg = record {
+    treasure_address : opt text;
+    fee_per_byte : opt nat;
+    base_fee : opt nat;
+};
+
 type BalancesCfg = record {
     rpc : text;
     chain_id : nat;
@@ -105,7 +111,7 @@ type UpdateCfg = record {
     rpc_wrapper : opt text; 
     mock : opt bool;
     key_name : opt text;
-    balances_cfg : opt BalancesCfg;
+    balances_cfg : opt UpdateBalancesCfg;
 };
 
 
@@ -172,6 +178,7 @@ type ReadContractMetadata = record {
     method: text;
     params: text;
     timestamp: nat64;
+    fee: nat; 
 };
 
 type SolidityToken = variant {
@@ -203,6 +210,7 @@ type ReadLogsMetadata = record {
     topics3 : opt vec text;
     addresses : opt vec text;
     timestamp : nat64;
+    fee: nat; 
 };
 
 type ReadLogsResult = record {

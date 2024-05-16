@@ -23,6 +23,7 @@ pub struct ReadLogsMetadata {
     pub topics3: Vec<String>,
     pub addresses: Vec<String>,
     pub timestamp: u64,
+    #[serde(with = "super::big_num_serde")]
     pub fee: Nat,
 }
 

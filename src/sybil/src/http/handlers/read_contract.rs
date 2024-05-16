@@ -70,21 +70,21 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
     )
     .await?;
 
-    if payer.is_none() && !is_free {
-        return Err(anyhow::anyhow!("No payer provided"));
-    }
-
-    let result = crate::methods::feed_methods::read_contract::_read_contract(
+    let mut result = crate::methods::feed_methods::read_contract::_read_contract(
         params.chain_id,
         params.function_signature,
         params.contract_addr,
         params.method,
         params.params,
-        None,
+        if is_free { None } else { payer },
         with_signature,
         params.cache_ttl,
     )
     .await?;
+
+    if is_free {
+        result.meta.fee = 0.into();
+    }
 
     if let Some(_bytes @ true) = params.bytes {
         let data = format!("0x{}", hex::encode(&result.encode()));

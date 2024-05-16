@@ -73,11 +73,7 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
     )
     .await?;
 
-    if payer.is_none() && !is_free {
-        return Err(anyhow::anyhow!("No payer provided"));
-    }
-
-    let result = crate::methods::feed_methods::read_logs::_read_logs(
+    let mut result = crate::methods::feed_methods::read_logs::_read_logs(
         params.chain_id,
         params.block_from,
         params.block_to,
@@ -96,11 +92,15 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
         params
             .addresses
             .map(|s| s.split(",").map(|s| s.to_string()).collect()),
-        None,
+        payer,
         with_signature,
         params.cache_ttl,
     )
     .await?;
+
+    if is_free {
+        result.meta.fee = 0.into();
+    }
 
     if let Some(_bytes @ true) = params.bytes {
         let data = format!("0x{}", hex::encode(&result.encode()));

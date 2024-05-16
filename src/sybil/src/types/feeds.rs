@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use super::{
     balances::{BalanceError, Balances},
-    cache::CacheError,
+    cache::{CacheError, SignaturesCacheError},
     exchange_rate::{Asset, AssetClass, ExchangeRate, ExchangeRateError, GetExchangeRateRequest},
     feed_types::rate_data::{AssetData, AssetDataResult, RateDataError},
     source::{HttpSource, Source, SourceError},
@@ -57,6 +57,8 @@ pub enum FeedError {
     SourceError(Vec<SourceError>),
     #[error("Cache error: {0}")]
     CacheError(#[from] CacheError),
+    #[error("Signatures error: {0}")]
+    SignaturesError(#[from] SignaturesCacheError),
 }
 
 pub struct RateResult {
@@ -192,12 +194,13 @@ impl FeedStorage {
         })
     }
 
+    // Return cost and rate
     pub async fn rate(
         id: &str,
         with_signature: bool,
         payer: Option<String>,
-    ) -> Result<AssetDataResult, FeedError> {
-        let mut rate = match Self::get(id) {
+    ) -> Result<(Nat, AssetDataResult), FeedError> {
+        let (cost, mut rate) = match Self::get(id) {
             Some(feed) => match feed.feed_type.clone() {
                 FeedType::Default => {
                     log!("[FEEDS] default feed requested: feed ID: {}", id);
@@ -230,13 +233,13 @@ impl FeedStorage {
 
         log!("[FEEDS] requested rate: {:#?}", rate);
 
-        Ok(rate)
+        Ok((cost, rate))
     }
 
     pub async fn get_default_rate(
         feed: &Feed,
         payer: Option<String>,
-    ) -> Result<AssetDataResult, FeedError> {
+    ) -> Result<(Nat, AssetDataResult), FeedError> {
         let base_fee = state::get_cfg().balances_cfg.base_fee;
 
         if let Some(ref payer) = payer {
@@ -247,7 +250,7 @@ impl FeedStorage {
 
         if let Some(cache) = CACHE.with(|cache| cache.borrow_mut().get_entry(&feed.id)) {
             log!("[FEEDS] get_default_rate found feed in cache");
-            return Ok(cache);
+            return Ok((Nat::from(0), cache));
         }
 
         let (base_asset, quote_asset) =
@@ -294,11 +297,6 @@ impl FeedStorage {
 
         let canister_addr = canister::eth_address().await?;
 
-        if let Some(payer) = payer {
-            Balances::reduce_amount(&payer, &base_fee)?;
-            Balances::add_amount(&canister_addr, &base_fee)?;
-        }
-
         let rate_data = AssetDataResult {
             data: AssetData::DefaultPriceFeed {
                 symbol: feed.id.clone(),
@@ -315,7 +313,7 @@ impl FeedStorage {
                 .add_entry(feed.id.clone(), rate_data.clone(), feed.update_freq);
         });
 
-        Ok(rate_data)
+        Ok((base_fee, rate_data))
     }
 
     async fn call_xrc_with_attempts(
@@ -380,7 +378,7 @@ impl FeedStorage {
         feed: &Feed,
         sources: &[Source],
         payer: Option<String>,
-    ) -> Result<AssetDataResult, FeedError> {
+    ) -> Result<(Nat, AssetDataResult), FeedError> {
         let balances_cfg = state::get_cfg().balances_cfg;
         let fee_per_byte = balances_cfg.fee_per_byte;
         let base_fee = balances_cfg.base_fee;
@@ -439,12 +437,6 @@ impl FeedStorage {
             .into_iter()
             .map(|res| (res.rate, res.cached_at))
             .unzip();
-
-        Balances::reduce_amount(&feed.owner, &fee)?;
-        if let Some(ref payer) = payer {
-            Balances::reduce_amount(&payer, &fee)?;
-        }
-        Balances::add_amount(&canister_addr, &(fee * Nat::from(2)))?;
 
         let asset_data_result = match feed.feed_type {
             FeedType::CustomNumber => {
@@ -551,7 +543,7 @@ impl FeedStorage {
             }
         };
 
-        Ok(asset_data_result)
+        Ok((fee, asset_data_result))
     }
 
     pub fn get(id: &str) -> Option<Feed> {

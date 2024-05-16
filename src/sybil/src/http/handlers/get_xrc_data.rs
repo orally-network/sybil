@@ -4,11 +4,7 @@ use validator::Validate;
 
 use crate::{
     http::{response, utils::resolve_payer, HTTP_SERVICE},
-    types::{
-        feed_types::get_xrc_data::{GetXRCDataMetadata, GetXRCDataResult},
-        http::{HttpRequest, HttpResponse},
-    },
-    utils::time::in_seconds,
+    types::http::{HttpRequest, HttpResponse},
 };
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
@@ -70,30 +66,16 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     )
     .await?;
 
-    if payer.is_none() && !is_free {
-        return Err(anyhow::anyhow!("No payer provided"));
-    }
-
-    let rate = crate::methods::feed_methods::get_xrc_data::_get_xrc_data(
+    let mut rate = crate::methods::feed_methods::get_xrc_data::_get_xrc_data(
         params.id.clone(),
-        false,
-        None,
+        with_signature,
+        if is_free { None } else { payer },
         params.cache_ttl,
     )
     .await?;
 
-    let mut rate = GetXRCDataResult {
-        data: rate.data,
-        meta: GetXRCDataMetadata {
-            id: params.id.clone(),
-            timestamp: in_seconds(),
-            fee: 0.into(),
-        },
-        signature: None,
-    };
-
-    if with_signature {
-        rate.sign().await?;
+    if is_free {
+        rate.meta.fee = 0.into();
     }
 
     if let Some(_bytes @ true) = params.bytes {

@@ -10,15 +10,15 @@ use lazy_static::lazy_static;
 use sybil_utils::cycles_count;
 use thiserror::Error;
 
-const DECIMALS: u64 = 6;
-const ETH_DECIMALS: u64 = 18;
+pub const DECIMALS: u64 = 6;
+pub const ETH_DECIMALS: u64 = 18;
 
 use crate::{
     clone_with_state, log,
     types::{
         allowances::Allowances,
         balances::{AllowedChain, BalanceError, Balances, DepositError, ERC20Contract},
-        feed_types::rate_data::AssetData,
+        feed_types::get_xrc_data::GetXRCData,
         state::{self, get_cfg},
         whitelist::{Whitelist, WhitelistError},
     },
@@ -317,9 +317,7 @@ async fn deposit_coin(tx: &Transaction, coin_symbol: &str) -> Result<U256, Depos
     } else {
         let xrc_data = _get_xrc_data(format!("{}/USD", coin_symbol), false, None, None).await?;
 
-        let AssetData::DefaultPriceFeed { rate, decimals, .. } = xrc_data.data else {
-            unreachable!("xrc data should be default price feed");
-        };
+        let GetXRCData { rate, decimals, .. } = xrc_data.data;
 
         let mut usd = tx.value * Into::<U256>::into(rate);
         let mut decimals = decimals + ETH_DECIMALS;
@@ -385,9 +383,7 @@ async fn deposit_erc20(
             )
             .await?;
 
-            let AssetData::DefaultPriceFeed { rate, decimals, .. } = xrc_data.data else {
-                unreachable!("xrc data should be default price feed");
-            };
+            let GetXRCData { rate, decimals, .. } = xrc_data.data;
 
             let mut usd = value * Into::<U256>::into(rate);
             let mut decimals = erc20_contract.decimals + decimals;

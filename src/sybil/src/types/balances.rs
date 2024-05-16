@@ -17,6 +17,7 @@ use crate::{
 pub struct BalancesCfg {
     #[deprecated]
     pub rpc: String,
+    #[deprecated]
     pub chain_id: Nat,
     #[deprecated]
     pub erc20_contract: Address,
@@ -28,6 +29,29 @@ pub struct BalancesCfg {
     // Vec of addresses that won't be charged for anything
     #[serde(default)]
     pub whitelist: HashSet<String>,
+}
+
+#[derive(CandidType, Deserialize, Serialize, Default, Clone, Debug)]
+pub struct UpdateBalancesCfg {
+    pub treasure_address: Option<Address>,
+    pub fee_per_byte: Option<Nat>,
+    pub base_fee: Option<Nat>,
+}
+
+impl BalancesCfg {
+    pub fn update(&mut self, cfg: &UpdateBalancesCfg) {
+        if let Some(treasure_address) = &cfg.treasure_address {
+            self.treasure_address = treasure_address.clone();
+        }
+
+        if let Some(fee_per_byte) = &cfg.fee_per_byte {
+            self.fee_per_byte = fee_per_byte.clone();
+        }
+
+        if let Some(base_fee) = &cfg.base_fee {
+            self.base_fee = base_fee.clone();
+        }
+    }
 }
 
 #[derive(CandidType, Deserialize, Serialize, Default, Clone, Debug, Eq, PartialEq, Hash)]
@@ -228,6 +252,10 @@ impl Balances {
                 .0
                 .get_mut(address)
                 .ok_or(BalanceError::BalanceDoesNotExist)?;
+
+            if balance.amount < amount.clone() {
+                return Err(BalanceError::InsufficientBalance);
+            }
 
             balance.amount -= amount.clone();
 

@@ -17,6 +17,7 @@ use super::rate_data::AssetData;
 pub struct GetAssetDataMetadata {
     pub id: String,
     pub timestamp: u64,
+    #[serde(with = "super::big_num_serde")]
     pub fee: Nat,
 }
 
