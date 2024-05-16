@@ -3,12 +3,20 @@ use std::cmp::{max, min};
 use candid::Nat;
 use ic_web3_rs::types::U256;
 
-use crate::types::{
-    feed_types::rate_data::AssetData,
-    feeds::{Feed, FeedError, FeedStorage, DEFAULT_UPDATE_FREQ},
+use crate::{
+    stringify_func_call,
+    types::{
+        cache::Cache,
+        feed_types::rate_data::AssetData,
+        feeds::{Feed, FeedError, FeedStorage, DEFAULT_UPDATE_FREQ},
+    },
 };
 
 use super::nat;
+
+// COEFFICIENT for the conversion fee, in percentage
+const CONVERTION_FEE_PERCENT: u64 = 50;
+const CACHE_TTL_SEC_FOR_CONVERTION: u64 = 60 * 60 * 3; // 3 hours
 
 #[inline(always)]
 pub fn u64_to_i64(num: u64) -> i64 {
@@ -19,7 +27,7 @@ pub fn u64_to_i64(num: u64) -> i64 {
     }
 }
 
-// Converts USD (nat with 6 decimals) to ETH (Nat with 18 decimals) with default rate
+// Converts USD (nat with 6 decimals) to ETH (Nat with 18 decimals) with default rate and additional fee for the conversion
 pub async fn convert_usd_to_eth(value_usd: Nat, value_decimals: u64) -> Result<Nat, FeedError> {
     let rate = Feed {
         id: "ETH/USD".to_string(),
@@ -27,15 +35,21 @@ pub async fn convert_usd_to_eth(value_usd: Nat, value_decimals: u64) -> Result<N
         ..Default::default()
     };
 
-    let (cost, rate) = FeedStorage::get_default_rate(&rate, None).await?;
+    //Using _get_xrc_data is just slightly beter because it will use the same cache as the regular get_xrc_data
+    let func_signature = stringify_func_call!(_get_xrc_data(rate.id, false));
+    let (_, rate) = Cache::with(
+        func_signature,
+        FeedStorage::get_default_rate(&rate, None),
+        |_| {},
+        Some(CACHE_TTL_SEC_FOR_CONVERTION),
+    )
+    .await?;
 
-    let rate = rate.data;
-
-    let AssetData::DefaultPriceFeed { rate, decimals, .. } = rate else {
+    let AssetData::DefaultPriceFeed { rate, decimals, .. } = rate.data else {
         unreachable!("xrc data should be default price feed");
     };
 
-    let value_usd = value_usd + cost;
+    let value_usd = value_usd.clone() + (value_usd * CONVERTION_FEE_PERCENT / 100);
 
     Ok(convert_to_eth_weis(
         value_usd,

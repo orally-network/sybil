@@ -85,7 +85,7 @@ macro_rules! retry_until_success {
 }
 
 #[cfg(test)]
-mod tests {
+mod macros_tests {
 
     #[test]
     fn stringify_func_call_test() {
@@ -104,11 +104,11 @@ mod tests {
             _field1: 3,
             _field2: "3".to_string(),
         };
-        let func = stringify_func_call!(another_func(arg1, arg2, arg3));
+        let func = stringify_func_call!(another_func(arg1, arg2, arg3, false, 123));
 
         assert_eq!(
             func,
-            "another_func(1, \"2\", Arg3 { _field1: 3, _field2: \"3\" })"
+            "another_func(1, \"2\", Arg3 { _field1: 3, _field2: \"3\" }, false, 123)"
         );
     }
 }
