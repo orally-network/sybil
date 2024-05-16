@@ -172,5 +172,13 @@ pub async fn _read_logs(
         Ok(result)
     };
 
-    Cache::with(func_signature, func_body, cache_ttl).await
+    Cache::with(
+        func_signature,
+        func_body,
+        |r| {
+            r.meta.fee = 0.into();
+        },
+        cache_ttl,
+    )
+    .await
 }

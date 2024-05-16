@@ -378,11 +378,18 @@ impl Cache {
     /// Get data from cache by key.
     /// If data is not found or expired, then call `func`` to get data and store it in cache with `cache_ttl` time to live.
     /// If `cache_ttl` is not specified, then use default value.
-    pub async fn with<T, E, Fut>(key: String, func: Fut, cache_ttl: Option<u64>) -> Result<T, E>
+    /// If data has been found in cache, then update it with `on_found` function if one is given and return data.
+    pub async fn with<T, E, Fut, OnFound>(
+        key: String,
+        func: Fut,
+        on_found: OnFound,
+        cache_ttl: Option<u64>,
+    ) -> Result<T, E>
     where
         T: Serialize + DeserializeOwned,
         E: std::error::Error + std::convert::From<CacheError>,
         Fut: Future<Output = Result<T, E>>,
+        OnFound: Fn(&mut T),
     {
         let cache_ttl = cache_ttl.unwrap_or(CACHE_TTL_SEC);
 
@@ -409,7 +416,10 @@ impl Cache {
         });
 
         if let Some(data) = cache {
-            return Ok(data?);
+            let mut found_data = data?;
+            on_found(&mut found_data);
+
+            return Ok(found_data);
         }
 
         let data = func

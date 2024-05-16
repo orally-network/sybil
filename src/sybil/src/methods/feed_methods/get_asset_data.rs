@@ -68,32 +68,31 @@ pub async fn _get_asset_data(
     payer: Option<String>,
     cache_ttl: Option<u64>,
 ) -> Result<AssetDataResult, FeedError> {
-    if with_signature {
-        metrics!(inc GET_ASSET_DATA_WITH_PROOF_CALLS, id);
-    } else {
-        metrics!(inc GET_ASSET_DATA_CALLS, id);
-    }
-
     let func_signature = stringify_func_call!(_get_asset_data(id, with_signature));
 
-    let (cost, rate) = Cache::with(
-        func_signature,
-        FeedStorage::rate(&id, with_signature, payer.clone()),
-        cache_ttl,
-    )
-    .await?;
+    let func_body = async move {
+        if with_signature {
+            metrics!(inc GET_ASSET_DATA_WITH_PROOF_CALLS, id);
+        } else {
+            metrics!(inc GET_ASSET_DATA_CALLS, id);
+        }
 
-    if let Some(payer) = payer {
-        Balances::reduce_amount(&payer, &cost)?;
-        Balances::add_amount(&canister::eth_address().await?, &cost)?;
-    }
+        let (cost, rate) = FeedStorage::rate(&id, with_signature, payer.clone()).await?;
 
-    if with_signature {
-        metrics!(inc SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS, id);
-    } else {
-        metrics!(inc SUCCESSFUL_GET_ASSET_DATA_CALLS, id);
-    }
-    Ok(rate)
+        if let Some(payer) = payer {
+            Balances::reduce_amount(&payer, &cost)?;
+            Balances::add_amount(&canister::eth_address().await?, &cost)?;
+        }
+
+        if with_signature {
+            metrics!(inc SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS, id);
+        } else {
+            metrics!(inc SUCCESSFUL_GET_ASSET_DATA_CALLS, id);
+        }
+        Ok(rate)
+    };
+
+    Cache::with(func_signature, func_body, |_| {}, cache_ttl).await
 }
 
 #[cycles_count]
@@ -103,48 +102,55 @@ pub async fn _get_asset_data_result(
     payer: Option<String>,
     cache_ttl: Option<u64>,
 ) -> Result<GetAssetDataResult, FeedError> {
-    if with_signature {
-        metrics!(inc GET_ASSET_DATA_WITH_PROOF_CALLS, id);
-    } else {
-        metrics!(inc GET_ASSET_DATA_CALLS, id);
-    }
+    let func_signature = stringify_func_call!(_get_asset_data_result(id, with_signature));
 
-    let func_signature = stringify_func_call!(_get_asset_data(id, with_signature));
+    let func_body = async move {
+        if with_signature {
+            metrics!(inc GET_ASSET_DATA_WITH_PROOF_CALLS, id);
+        } else {
+            metrics!(inc GET_ASSET_DATA_CALLS, id);
+        }
 
-    let (cost, rate) = Cache::with(
-        func_signature,
-        FeedStorage::rate(&id, with_signature, payer.clone()),
-        cache_ttl,
-    )
-    .await?;
+        let (cost, rate) = FeedStorage::rate(&id, with_signature, payer.clone()).await?;
 
-    let mut result = GetAssetDataResult {
-        data: rate.data,
-        meta: GetAssetDataMetadata {
-            id: id.clone(),
-            timestamp: in_seconds(),
-            fee: 0.into(),
-        },
-        signature: None,
+        let mut result = GetAssetDataResult {
+            data: rate.data,
+            meta: GetAssetDataMetadata {
+                id: id.clone(),
+                timestamp: in_seconds(),
+                fee: 0.into(),
+            },
+            signature: None,
+        };
+
+        if with_signature {
+            result.sign().await?;
+        }
+
+        if let Some(payer) = payer {
+            Balances::reduce_amount(&payer, &cost)?;
+            Balances::add_amount(&canister::eth_address().await?, &cost)?;
+        } else {
+            let fee = convert_usd_to_eth(cost, balances::DECIMALS).await?;
+            result.meta.fee = fee;
+        }
+
+        if with_signature {
+            metrics!(inc SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS, id);
+        } else {
+            metrics!(inc SUCCESSFUL_GET_ASSET_DATA_CALLS, id);
+        }
+
+        Ok(result)
     };
 
-    if with_signature {
-        result.sign().await?;
-    }
-
-    if let Some(payer) = payer {
-        Balances::reduce_amount(&payer, &cost)?;
-        Balances::add_amount(&canister::eth_address().await?, &cost)?;
-    } else {
-        let fee = convert_usd_to_eth(cost, balances::DECIMALS).await?;
-        result.meta.fee = fee;
-    }
-
-    if with_signature {
-        metrics!(inc SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS, id);
-    } else {
-        metrics!(inc SUCCESSFUL_GET_ASSET_DATA_CALLS, id);
-    }
-
-    Ok(result)
+    Cache::with(
+        func_signature,
+        func_body,
+        |r| {
+            r.meta.fee = 0.into();
+        },
+        cache_ttl,
+    )
+    .await
 }

@@ -102,7 +102,7 @@ pub async fn _get_multiple_assets_data(
         Ok(rates)
     };
 
-    Cache::with(func_signature, func_body, cache_ttl).await
+    Cache::with(func_signature, func_body, |_| {}, cache_ttl).await
 }
 
 #[cycles_count]
@@ -112,7 +112,8 @@ pub async fn _get_multiple_assets_data_result(
     payer: Option<String>,
     cache_ttl: Option<u64>,
 ) -> Result<GetMultipleAssetDataResult, FeedError> {
-    let func_signature = stringify_func_call!(_get_multiple_assets_data(ids, with_signature));
+    let func_signature =
+        stringify_func_call!(_get_multiple_assets_data_result(ids, with_signature));
 
     let func_body = async move {
         let mut data = Vec::with_capacity(ids.len());
@@ -155,5 +156,13 @@ pub async fn _get_multiple_assets_data_result(
         Ok(result)
     };
 
-    Cache::with(func_signature, func_body, cache_ttl).await
+    Cache::with(
+        func_signature,
+        func_body,
+        |r| {
+            r.meta.fee = 0.into();
+        },
+        cache_ttl,
+    )
+    .await
 }
