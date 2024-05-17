@@ -22,7 +22,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 const MAX_CYCLES: u128 = 60_000_000_000;
-const DEFAULT_MAX_RESPONSE_BYTES: u64 = 100000;
+const DEFAULT_MAX_RESPONSE_BYTES: u64 = 10_000;
 
 /// ICEthRpc deals with the JSON-RPC canister nametd "ic-eth-rpc" which is deployed on the IC.
 #[derive(Clone, Debug)]
@@ -346,15 +346,6 @@ impl Transport for EVMCanisterTransport {
                     };
 
                     Box::pin(async move { eth_get_logs(ic_eth_rpc, services, None, args).await })
-                    // Box::pin(async move {
-                    //     execute_canister_call(
-                    //         ic_eth_rpc,
-                    //         service,
-                    //         json_rpc_payload,
-                    //         max_response_bytes,
-                    //     )
-                    //     .await
-                    // })
                 }
                 _ => Box::pin(async move {
                     execute_canister_call(ic_eth_rpc, service, json_rpc_payload, max_response_bytes)

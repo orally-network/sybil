@@ -179,7 +179,7 @@ type ReadContractMetadata = record {
     params: text;
     timestamp: nat64;
     fee: nat; 
-    fee_symbol: nat;
+    fee_symbol: text;
 };
 
 type SolidityToken = variant {
@@ -189,7 +189,7 @@ type SolidityToken = variant {
     Int : text;
     Uint : text;
     Bool : bool;
-    text : text;
+    String : text;
     FixedArray : vec SolidityToken;
     Array : vec SolidityToken;
     Tuple : vec SolidityToken;
@@ -212,7 +212,7 @@ type ReadLogsMetadata = record {
     addresses : opt vec text;
     timestamp : nat64;
     fee: nat; 
-    fee_symbol : nat;
+    fee_symbol : text;
 };
 
 type ReadLogsResult = record {
