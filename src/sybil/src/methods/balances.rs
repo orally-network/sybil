@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use candid::Nat;
 use ic_cdk::{query, update};
@@ -80,6 +80,16 @@ pub enum BalancesError {
     AllowedChainNotFound,
     #[error("Allowed chain already exists")]
     AllowedChainAlreadyExists,
+}
+
+#[query]
+pub async fn get_allowed_chains() -> HashMap<u64, AllowedChain> {
+    state::get_cfg().balances_cfg.allowed_chains
+}
+
+#[query]
+pub async fn get_treasure_address() -> String {
+    state::get_cfg().balances_cfg.treasure_address.clone()
 }
 
 #[update]

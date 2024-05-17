@@ -129,8 +129,3 @@ pub async fn eth_address() -> Result<String, String> {
         .await
         .map_err(|e| format!("failed to get eth address: {}", e))
 }
-
-#[query]
-pub async fn treasure_address() -> String {
-    state::get_cfg().balances_cfg.treasure_address.clone()
-}

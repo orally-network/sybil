@@ -100,10 +100,6 @@ pub enum DepositError {
     CallerIsNotTxSender,
     #[error("tx without receiver")]
     TxWithoutReceiver,
-    #[error("tx was not sent to the erc20 contract")]
-    TxNotSentToErc20Contract,
-    #[error("tx without transfer event")]
-    TxWithoutTransferEvent,
     #[error("transfer log has invalid format: {0}")]
     TransferLogInvalidFormat(#[from] EthabiError),
     #[error("caller is not the sender of the transfer")]
@@ -118,8 +114,6 @@ pub enum DepositError {
     InvalidTransferEvent,
     #[error("This chain is not allowed for deposit")]
     ChainNotAllowed,
-    #[error("This ERC20 contract is not allowed for deposit")]
-    ERC20NotAllowed,
     #[error("Feed error: {0}")]
     FeedError(#[from] FeedError),
 }

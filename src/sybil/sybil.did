@@ -73,6 +73,7 @@ type ERC20Contract = record {
 
 type AllowedChain = record {
     rpc : text;
+    coin_symbol : text;
     erc20_contracts : vec ERC20Contract;
 };
 
@@ -299,6 +300,7 @@ type GetUserAPIKeysResponse = variant { Ok : opt vec text; Err: text };
 type GetUserByKeyResponse = variant { Ok : opt APIUser; Err: text };
 type GetAPIKeysResponse = variant { Ok : SybilAPIKey; Err: text };
 type GetRequestsByDomainResponse = variant { Ok : vec record {text; APIRequest}; Err: text };
+type GetAllowedChainsResponse = vec record {nat64; AllowedChain};
 type Error = variant { Ok : null; Err : text };
 
 
@@ -360,7 +362,8 @@ service : {
     get_all_chains_rpc : () -> (GetAllChainsRPCResponse);
 
     // balances
-    treasure_address : () -> (text);
+    get_allowed_chains : () -> (GetAllowedChainsResponse);
+    get_treasure_address : () -> (text);
     add_to_balances_whitelist : (addresses : vec text) -> (Error);
     deposit : (chain_id : nat64, tx_hash : text, grantee : opt text, msg : text, sig : text) -> (Error);
     get_balance : (address : text) -> (NatResponse);
