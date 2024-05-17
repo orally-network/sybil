@@ -160,52 +160,11 @@ impl<T: Transport> Web3Instance<T> {
             filter_builder = filter_builder.address(addresses);
         }
 
-        let logs = self
-            .eth()
-            .logs(filter_builder.build(), processors::transform_ctx())
-            .await
-            .map_err(|err| Web3Error::UnableToGetLogs(err.to_string()))?;
-
-        Ok(logs)
-    }
-
-    #[deprecated(note = "Use get_logs instead")]
-    pub async fn get_logs_deplicated(
-        &self,
-        block_from: Option<u64>,
-        block_to: Option<u64>,
-        topic: Option<H256>,
-        address: Option<H160>,
-        block_hash: Option<H256>,
-    ) -> Result<Vec<Log>, Web3Error> {
-        let mut filter_builder = FilterBuilder::default();
-
-        if let Some(from) = block_from {
-            filter_builder = filter_builder.from_block(BlockNumber::Number(from.into()));
-        }
-
-        if let Some(to) = block_to {
-            filter_builder = filter_builder.from_block(BlockNumber::Number(to.into()));
-        }
-
-        if let Some(topic) = topic {
-            filter_builder = filter_builder.topic_filter(TopicFilter {
-                topic0: ic_web3_rs::ethabi::Topic::This(topic),
-                ..Default::default()
-            });
-        }
-
-        if let Some(address) = address {
-            filter_builder = filter_builder.address(vec![address]);
-        }
-
-        if let Some(block_hash) = block_hash {
-            filter_builder = filter_builder.block_hash(block_hash);
-        }
+        let filter = filter_builder.build();
 
         let logs = self
             .eth()
-            .logs(filter_builder.build(), processors::transform_ctx())
+            .logs(filter, processors::transform_ctx())
             .await
             .map_err(|err| Web3Error::UnableToGetLogs(err.to_string()))?;
 

@@ -71,7 +71,6 @@ pub struct EvmEventLogsSource {
     pub to_block: Option<u64>,
     pub address: Option<String>,
     pub topic: Option<String>,
-    pub block_hash: Option<String>,
     pub log_index: u32,
     pub event_log_field_name: String,
     pub event_name: String,
@@ -147,22 +146,15 @@ impl Source {
             None
         };
 
-        let block_hash = if let Some(block_hash) = &evm_event_logs_source.block_hash {
-            Some(
-                H256::from_str(&block_hash)
-                    .map_err(|err| SourceError::InvalidRequest(err.to_string()))?,
-            )
-        } else {
-            None
-        };
-
         let mut logs = w3
-            .get_logs_deplicated(
+            .get_logs(
                 evm_event_logs_source.from_block,
                 evm_event_logs_source.to_block,
-                topic,
-                address,
-                block_hash,
+                topic.map(|t| vec![t]),
+                None,
+                None,
+                None,
+                address.map(|a| vec![a]),
             )
             .await
             .map_err(|err| SourceError::FailedToGetLogs(err.to_string()))?;
@@ -286,12 +278,6 @@ impl Source {
                     .unwrap_or_default()
                     .trim()
                     .to_lowercase();
-                let block_hash = evm_event_logs_source
-                    .block_hash
-                    .clone()
-                    .unwrap_or_default()
-                    .trim()
-                    .to_lowercase();
 
                 let event_log_field_name = evm_event_logs_source
                     .event_log_field_name
@@ -301,7 +287,6 @@ impl Source {
                 strsim::jaro(&rpc, search) >= 0.65
                     || strsim::jaro(&address, search) >= 0.65
                     || strsim::jaro(&topic, search) >= 0.65
-                    || strsim::jaro(&block_hash, search) >= 0.65
                     || strsim::jaro(&event_log_field_name, search) >= 0.65
             }
         }

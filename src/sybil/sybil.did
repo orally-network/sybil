@@ -22,14 +22,13 @@ type EvmEventLogsSource = record {
     to_block : opt nat64;
     address : opt text;
     topic : opt text;
-    block_hash : opt text;
     log_index : nat32;
     event_log_field_name : text;
     event_name : text;
     event_abi : text;
 };
 
-type FeedType = variant { Custom : null; CustomNumber : null; Customtext : null; Default : null };
+type FeedType = variant { Custom : null; CustomNumber : null; CustomString : null; Default : null };
 
 
 type FeedStatus = record {
@@ -166,7 +165,7 @@ type AssetData = variant {
         value: nat64;
         decimals: nat64;
     };
-    Customtext: record {
+    CustomString: record {
         id: text;
         value: text;
     };

@@ -295,8 +295,6 @@ impl FeedStorage {
             }
         };
 
-        let canister_addr = canister::eth_address().await?;
-
         let rate_data = AssetDataResult {
             data: AssetData::DefaultPriceFeed {
                 symbol: feed.id.clone(),
@@ -391,8 +389,6 @@ impl FeedStorage {
                 return Err(BalanceError::InsufficientBalance)?;
             };
         }
-
-        let canister_addr = canister::eth_address().await?;
 
         let futures = sources
             .iter()

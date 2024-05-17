@@ -19,7 +19,7 @@ use crate::{
         feed_types::rate_data::AssetDataResult,
         feeds::{Feed, FeedStatus, FeedStorage, FeedType},
         http::APIRequest,
-        source::{HttpSource, Source},
+        source::{EvmEventLogsSource, HttpSource, Source},
         state::State,
         whitelist::Whitelist,
         Address, Seconds, Timestamp,
@@ -83,7 +83,12 @@ impl From<OldFeed> for Feed {
                         .collect(),
                 )
             } else {
-                old.new_sources
+                old.new_sources.map(|sources_vec| {
+                    sources_vec
+                        .into_iter()
+                        .map(|source| source.into())
+                        .collect()
+                })
             },
             decimals: old.decimals,
             status: old.status.into(),
@@ -94,12 +99,57 @@ impl From<OldFeed> for Feed {
 }
 
 #[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
+pub struct OldEvmEventLogsSource {
+    pub rpc: String,
+    pub from_block: Option<u64>,
+    pub to_block: Option<u64>,
+    pub address: Option<String>,
+    pub topic: Option<String>,
+    pub block_hash: Option<String>,
+    pub log_index: u32,
+    pub event_log_field_name: String,
+    pub event_name: String,
+    pub event_abi: String,
+}
+
+impl From<OldEvmEventLogsSource> for EvmEventLogsSource {
+    fn from(old: OldEvmEventLogsSource) -> Self {
+        Self {
+            rpc: old.rpc,
+            from_block: old.from_block,
+            to_block: old.to_block,
+            address: old.address,
+            topic: old.topic,
+            log_index: old.log_index,
+            event_log_field_name: old.event_log_field_name,
+            event_name: old.event_name,
+            event_abi: old.event_abi,
+        }
+    }
+}
+
+#[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
+pub enum OldSource {
+    HttpSource(HttpSource),
+    EvmEventLogsSource(OldEvmEventLogsSource),
+}
+
+impl From<OldSource> for Source {
+    fn from(old: OldSource) -> Self {
+        match old {
+            OldSource::HttpSource(s) => Source::HttpSource(s),
+            OldSource::EvmEventLogsSource(logs) => Source::EvmEventLogsSource(logs.into()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, CandidType, Serialize, Deserialize)]
 pub struct OldFeed {
     pub id: String,
     pub feed_type: FeedType,
     pub update_freq: Seconds,
     pub sources: Option<Vec<HttpSource>>,
-    pub new_sources: Option<Vec<Source>>,
+    pub new_sources: Option<Vec<OldSource>>,
     pub decimals: Option<u64>,
     pub status: FeedStatus,
     pub owner: Address,
