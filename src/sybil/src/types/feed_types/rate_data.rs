@@ -6,9 +6,11 @@ use ic_web3_rs::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{log, utils::encoding::encode_packed};
-
-use super::cache::{SignaturesCache, SignaturesCacheError};
+use crate::{
+    log,
+    types::cache::{SignaturesCache, SignaturesCacheError},
+    utils::encoding::encode_packed,
+};
 
 #[derive(Error, Debug)]
 pub enum RateDataError {
@@ -42,7 +44,7 @@ pub enum AssetData {
 }
 
 impl AssetData {
-    fn get_tokens(self) -> Vec<Token> {
+    pub fn get_tokens(self) -> Vec<Token> {
         match self {
             AssetData::DefaultPriceFeed {
                 symbol,
@@ -79,6 +81,14 @@ impl AssetData {
                 vec![Token::String(id), Token::String(value)]
             }
         }
+    }
+
+    pub fn get_token(self) -> Token {
+        Token::Tuple(self.get_tokens())
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        encode(&self.clone().get_tokens())
     }
 }
 

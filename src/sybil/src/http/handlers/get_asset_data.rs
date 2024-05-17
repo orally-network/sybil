@@ -69,17 +69,17 @@ async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Resu
     )
     .await?;
 
-    if payer.is_none() && !is_free {
-        return Err(anyhow::anyhow!("No payer provided"));
-    }
-
-    let rate = crate::methods::feed_methods::get_asset_data::_get_asset_data(
-        params.id,
+    let mut rate = crate::methods::feed_methods::get_asset_data::_get_asset_data_result(
+        params.id.clone(),
         with_signature,
-        None,
+        if is_free { None } else { payer },
         params.cache_ttl,
     )
     .await?;
+
+    if is_free {
+        rate.meta.fee = 0.into();
+    }
 
     if let Some(_bytes @ true) = params.bytes {
         let data = format!("0x{}", hex::encode(&rate.encode()));

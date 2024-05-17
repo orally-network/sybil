@@ -5,16 +5,19 @@ use sybil_utils::cycles_count;
 
 use crate::{
     clone_with_state, log,
-    methods::custom_feeds::CustomFeedError,
+    methods::{balances, custom_feeds::CustomFeedError},
     stringify_func_call,
     types::{
         balances::{BalanceError, Balances},
         cache::Cache,
         chains_rpc::ChainsRPC,
-        read_contract::{ReadContractMetadata, ReadContractResult, SolidityToken},
+        feed_types::read_contract::{ReadContractMetadata, ReadContractResult, SolidityToken},
         state,
     },
-    utils::{address, canister, encoding::parse_tokens, siwe, time::in_seconds, web3},
+    utils::{
+        address, canister, convertion::convert_usd_to_eth, encoding::parse_tokens, siwe,
+        time::in_seconds, web3,
+    },
 };
 
 #[update]
@@ -156,6 +159,8 @@ pub async fn _read_contract(
                 method,
                 params,
                 timestamp: in_seconds(),
+                fee: 0.into(),
+                fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
             },
             signature: None,
         };
@@ -167,10 +172,21 @@ pub async fn _read_contract(
         if let Some(payer) = payer {
             Balances::reduce_amount(&payer, &base_fee)?;
             Balances::add_amount(&canister::eth_address().await?, &base_fee)?;
+        } else {
+            let fee = convert_usd_to_eth(base_fee, balances::DECIMALS).await?;
+            result.meta.fee = fee;
         }
 
         Ok(result)
     };
 
-    Cache::with(func_signature, func_body, cache_ttl).await
+    Cache::with(
+        func_signature,
+        func_body,
+        |r| {
+            r.meta.fee = 0.into();
+        },
+        cache_ttl,
+    )
+    .await
 }

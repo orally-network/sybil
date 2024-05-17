@@ -73,19 +73,20 @@ async fn _get_multiple_assets_data_request(
     )
     .await?;
 
-    if payer.is_none() && !is_free {
-        return Err(anyhow::anyhow!("No payer provided"));
+    let ids: Vec<_> = params.ids.split(",").map(|s| s.to_string()).collect();
+
+    let mut rate =
+        crate::methods::feed_methods::get_multiple_asset_data::_get_multiple_assets_data_result(
+            ids.clone(),
+            with_signature,
+            if is_free { None } else { payer },
+            params.cache_ttl,
+        )
+        .await?;
+
+    if is_free {
+        rate.meta.fee = 0.into();
     }
-
-    let ids = params.ids.split(",").map(|s| s.to_string()).collect();
-
-    let rate = crate::methods::feed_methods::get_multiple_asset_data::_get_multiple_assets_data(
-        ids,
-        with_signature,
-        None,
-        params.cache_ttl,
-    )
-    .await?;
 
     if let Some(_bytes @ true) = params.bytes {
         let data = format!("0x{}", hex::encode(&rate.encode()));

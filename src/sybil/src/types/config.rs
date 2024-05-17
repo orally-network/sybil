@@ -3,6 +3,7 @@ use candid::Principal;
 use serde::{Deserialize, Serialize};
 
 use super::balances::BalancesCfg;
+use super::balances::UpdateBalancesCfg;
 
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
 pub struct Cfg {
@@ -23,5 +24,5 @@ pub struct UpdateCfg {
     pub rpc_wrapper: Option<String>,
     pub mock: Option<bool>,
     pub key_name: Option<String>,
-    pub balances_cfg: Option<BalancesCfg>,
+    pub balances_cfg: Option<UpdateBalancesCfg>,
 }

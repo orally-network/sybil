@@ -66,17 +66,17 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     )
     .await?;
 
-    if payer.is_none() && !is_free {
-        return Err(anyhow::anyhow!("No payer provided"));
-    }
-
-    let rate = crate::methods::feed_methods::get_xrc_data::_get_xrc_data(
-        params.id,
+    let mut rate = crate::methods::feed_methods::get_xrc_data::_get_xrc_data(
+        params.id.clone(),
         with_signature,
-        None,
+        if is_free { None } else { payer },
         params.cache_ttl,
     )
     .await?;
+
+    if is_free {
+        rate.meta.fee = 0.into();
+    }
 
     if let Some(_bytes @ true) = params.bytes {
         let data = format!("0x{}", hex::encode(&rate.encode()));

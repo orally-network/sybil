@@ -1,11 +1,23 @@
-use crate::log;
+use crate::{
+    log,
+    methods::balances,
+    types::{
+        balances::Balances,
+        feed_types::get_multiple_asset_data::{
+            GetMultipleAssetDataMetadata, GetMultipleAssetDataResult,
+        },
+        feeds::FeedStorage,
+    },
+    utils::{canister, convertion::convert_usd_to_eth, time::in_seconds},
+};
+use candid::Nat;
 use futures::future::join_all;
 use ic_cdk::update;
 use sybil_utils::cycles_count;
 
 use crate::{
     stringify_func_call,
-    types::{cache::Cache, feeds::FeedError, rate_data::MultipleAssetsDataResult},
+    types::{cache::Cache, feed_types::rate_data::MultipleAssetsDataResult, feeds::FeedError},
     utils::siwe,
 };
 
@@ -90,5 +102,68 @@ pub async fn _get_multiple_assets_data(
         Ok(rates)
     };
 
-    Cache::with(func_signature, func_body, cache_ttl).await
+    Cache::with(func_signature, func_body, |_| {}, cache_ttl).await
+}
+
+#[cycles_count]
+pub async fn _get_multiple_assets_data_result(
+    ids: Vec<String>,
+    with_signature: bool,
+    payer: Option<String>,
+    cache_ttl: Option<u64>,
+) -> Result<GetMultipleAssetDataResult, FeedError> {
+    let func_signature =
+        stringify_func_call!(_get_multiple_assets_data_result(ids, with_signature));
+
+    let func_body = async move {
+        let mut data = Vec::with_capacity(ids.len());
+
+        let futures = ids
+            .iter()
+            .map(|id| FeedStorage::rate(&id, false, None))
+            .collect::<Vec<_>>();
+
+        let mut cost = Nat::from(0);
+
+        for result in join_all(futures).await {
+            let result = result?;
+            data.push(result.1.data);
+            cost += result.0
+        }
+
+        let mut result = GetMultipleAssetDataResult {
+            data,
+            meta: GetMultipleAssetDataMetadata {
+                ids,
+                timestamp: in_seconds(),
+                fee: 0.into(),
+                fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
+            },
+            signature: None,
+        };
+
+        if with_signature {
+            result.sign().await?;
+        }
+
+        if let Some(payer) = payer {
+            Balances::reduce_amount(&payer, &cost)?;
+            Balances::add_amount(&canister::eth_address().await?, &cost)?;
+        } else {
+            let fee = convert_usd_to_eth(cost, balances::DECIMALS).await?;
+            result.meta.fee = fee;
+        }
+
+        Ok(result)
+    };
+
+    Cache::with(
+        func_signature,
+        func_body,
+        |r| {
+            r.meta.fee = 0.into();
+        },
+        cache_ttl,
+    )
+    .await
 }

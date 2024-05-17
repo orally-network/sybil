@@ -92,7 +92,7 @@ pub fn update(cfg: &UpdateCfg) {
             state.key_name = key_name.clone();
         }
         if let Some(balances_cfg) = &cfg.balances_cfg {
-            state.balances_cfg = balances_cfg.clone();
+            state.balances_cfg.update(balances_cfg);
         }
     });
 }

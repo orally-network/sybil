@@ -1,4 +1,4 @@
-use candid::CandidType;
+use candid::{CandidType, Nat};
 use ic_web3_rs::{
     ethabi::{encode, Token},
     signing::keccak256,
@@ -6,9 +6,11 @@ use ic_web3_rs::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{log, types::cache::SignaturesCache, utils::encoding::encode_packed};
-
-use super::cache::SignaturesCacheError;
+use crate::{
+    log,
+    types::cache::{SignaturesCache, SignaturesCacheError},
+    utils::{encoding::encode_packed, nat},
+};
 
 #[derive(CandidType, Serialize, Deserialize, Debug)]
 pub struct ReadContractMetadata {
@@ -17,6 +19,9 @@ pub struct ReadContractMetadata {
     pub method: String,
     pub params: String,
     pub timestamp: u64,
+    #[serde(with = "super::big_num_serde")]
+    pub fee: Nat,
+    pub fee_symbol: String,
 }
 
 impl ReadContractMetadata {
@@ -27,6 +32,7 @@ impl ReadContractMetadata {
             Token::String(self.method.clone()),
             Token::String(self.params.clone()),
             Token::Uint(self.timestamp.into()),
+            Token::Uint(nat::to_u256(&self.fee)),
         ]
     }
 
