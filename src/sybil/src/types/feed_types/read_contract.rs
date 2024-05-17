@@ -18,6 +18,7 @@ pub struct ReadContractMetadata {
     pub contract_address: String,
     pub method: String,
     pub params: String,
+    pub block_number: u64,
     pub timestamp: u64,
     #[serde(with = "super::big_num_serde")]
     pub fee: Nat,

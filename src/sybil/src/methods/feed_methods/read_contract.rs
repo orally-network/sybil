@@ -27,6 +27,7 @@ pub async fn read_contract_with_proof(
     contract_address: String,
     method: String,
     params: String,
+    block_number: Option<u64>,
     msg: Option<String>,
     sig: Option<String>,
 ) -> Result<ReadContractResult, String> {
@@ -44,6 +45,7 @@ pub async fn read_contract_with_proof(
         contract_address,
         method,
         params,
+        block_number,
         None,
         true,
         None,
@@ -59,6 +61,7 @@ pub async fn read_contract(
     contract_address: String,
     method: String,
     params: String,
+    block_number: Option<u64>,
     msg: Option<String>,
     sig: Option<String>,
 ) -> Result<ReadContractResult, String> {
@@ -76,6 +79,7 @@ pub async fn read_contract(
         contract_address,
         method,
         params,
+        block_number,
         None,
         false,
         None,
@@ -92,6 +96,7 @@ pub async fn _read_contract(
     contract_addr: String,
     method: String,
     params: String,
+    block_number: Option<u64>,
     payer: Option<String>,
     with_signature: bool,
     cache_ttl: Option<u64>,
@@ -147,7 +152,7 @@ pub async fn _read_contract(
                 &tokens,
                 address::to_h160(&from)?,
                 Some(contract_address),
-                None, // tx_hash.block_number,
+                block_number.map(|u| u.into()),
             )
             .await?;
 
@@ -158,6 +163,7 @@ pub async fn _read_contract(
                 contract_address: contract_addr,
                 method,
                 params,
+                block_number: block_number.unwrap_or_default(),
                 timestamp: in_seconds(),
                 fee: 0.into(),
                 fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
