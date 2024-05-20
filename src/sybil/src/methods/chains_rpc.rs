@@ -66,6 +66,5 @@ pub fn get_all_chains_rpc() -> Result<Vec<(u64, Vec<String>)>, String> {
 
 #[inline(always)]
 pub fn _get_all_chains_rpc() -> Result<Vec<(u64, Vec<String>)>, ChainsRPCError> {
-    validate_caller()?;
     Ok(ChainsRPC::get_all_chains_rpc().into_iter().collect())
 }

@@ -6,7 +6,7 @@ use thiserror::Error;
 use candid::{CandidType, Nat};
 use ic_web3_rs::ethabi::Error as EthabiError;
 
-use super::{feeds::FeedError, whitelist::WhitelistError, Address};
+use super::{chains_rpc::RPCUrl, feeds::FeedError, whitelist::WhitelistError, Address};
 use crate::{
     clone_with_state,
     utils::{address::AddressError, canister::CanisterError, siwe::SiweError, web3::Web3Error},
@@ -63,9 +63,26 @@ pub struct ERC20Contract {
 
 #[derive(CandidType, Deserialize, Serialize, Default, Clone, Debug)]
 pub struct AllowedChain {
+    pub rpc: RPCUrl,
+    pub coin_symbol: String,
+    pub erc20_contracts: HashSet<ERC20Contract>,
+}
+
+#[derive(CandidType, Deserialize, Serialize, Default, Clone, Debug)]
+pub struct SaveAllowedChain {
     pub rpc: String,
     pub coin_symbol: String,
     pub erc20_contracts: HashSet<ERC20Contract>,
+}
+
+impl From<AllowedChain> for SaveAllowedChain {
+    fn from(allowed_chain: AllowedChain) -> Self {
+        Self {
+            rpc: allowed_chain.rpc.to_string_with_access(),
+            coin_symbol: allowed_chain.coin_symbol.clone(),
+            erc20_contracts: allowed_chain.erc20_contracts.clone(),
+        }
+    }
 }
 
 #[derive(Error, Debug)]

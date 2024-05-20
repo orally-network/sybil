@@ -15,7 +15,7 @@ use crate::{
         api_keys::APIKeys,
         balances::{AllowedChain, Balances, BalancesCfg, ERC20Contract},
         cache::{HttpCache, RateCache, SignaturesCache},
-        chains_rpc::ChainsRPC,
+        chains_rpc::{ChainsRPC, RPCUrl},
         feed_types::rate_data::AssetDataResult,
         feeds::{Feed, FeedStatus, FeedStorage, FeedType},
         http::APIRequest,
@@ -202,7 +202,7 @@ pub struct OldBalancesCfg {
 
 #[derive(CandidType, Deserialize, Serialize, Default, Clone, Debug)]
 pub struct OldAllowedChain {
-    pub rpc: String,
+    pub rpc: RPCUrl,
     pub coin_symbol: String,
     pub erc20_contracts: Option<HashSet<ERC20Contract>>,
 }

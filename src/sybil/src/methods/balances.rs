@@ -17,7 +17,10 @@ use crate::{
     clone_with_state, log,
     types::{
         allowances::Allowances,
-        balances::{AllowedChain, BalanceError, Balances, DepositError, ERC20Contract},
+        balances::{
+            AllowedChain, BalanceError, Balances, DepositError, ERC20Contract, SaveAllowedChain,
+        },
+        chains_rpc::RPCUrl,
         feed_types::get_xrc_data::GetXRCData,
         state::{self, get_cfg},
         whitelist::{Whitelist, WhitelistError},
@@ -83,8 +86,13 @@ pub enum BalancesError {
 }
 
 #[query]
-pub async fn get_allowed_chains() -> HashMap<u64, AllowedChain> {
-    state::get_cfg().balances_cfg.allowed_chains
+pub async fn get_allowed_chains() -> HashMap<u64, SaveAllowedChain> {
+    state::get_cfg()
+        .balances_cfg
+        .allowed_chains
+        .iter()
+        .map(|(chain_id, allowed_chain)| (chain_id.clone(), allowed_chain.clone().into()))
+        .collect()
 }
 
 #[query]
@@ -185,8 +193,9 @@ pub async fn add_allowed_chain(
     chain_id: u64,
     rpc: String,
     coin_symbol: String,
+    rpc_secret: Option<String>,
 ) -> Result<(), String> {
-    _add_allowed_chain(chain_id, rpc, coin_symbol)
+    _add_allowed_chain(chain_id, rpc, coin_symbol, rpc_secret)
         .await
         .map_err(|e| format!("failed to add allowed chain: {}", e))
 }
@@ -196,6 +205,7 @@ async fn _add_allowed_chain(
     chain_id: u64,
     rpc: String,
     coin_symbol: String,
+    rpc_secret: Option<String>,
 ) -> Result<(), BalancesError> {
     validate_caller()?;
 
@@ -209,7 +219,10 @@ async fn _add_allowed_chain(
         state.balances_cfg.allowed_chains.insert(
             chain_id,
             AllowedChain {
-                rpc,
+                rpc: RPCUrl {
+                    url: rpc,
+                    secret: rpc_secret,
+                },
                 coin_symbol,
                 erc20_contracts: HashSet::new(),
             },
@@ -233,8 +246,8 @@ async fn _remove_allowed_chain(chain_id: u64) -> Result<(), BalancesError> {
     STATE.with(|state| {
         let mut state = state.borrow_mut();
 
-        if state.balances_cfg.allowed_chains.contains_key(&chain_id) {
-            return Err(BalancesError::AllowedChainAlreadyExists);
+        if !state.balances_cfg.allowed_chains.contains_key(&chain_id) {
+            return Err(BalancesError::AllowedChainNotFound);
         }
 
         state.balances_cfg.allowed_chains.remove(&chain_id);
@@ -280,7 +293,7 @@ async fn _deposit(
         format!(
             "{}{}",
             clone_with_state!(rpc_wrapper),
-            urlencoding::encode(&allowed_chain.rpc)
+            urlencoding::encode(&allowed_chain.rpc.get_url())
         ),
         clone_with_state!(evm_rpc_canister),
     );

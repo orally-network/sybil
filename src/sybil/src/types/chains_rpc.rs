@@ -26,7 +26,7 @@ impl RPCUrl {
 }
 
 impl RPCUrl {
-    fn to_string_with_access(&self) -> String {
+    pub fn to_string_with_access(&self) -> String {
         if validate_caller().is_ok() {
             self.get_url()
         } else {

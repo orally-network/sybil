@@ -71,7 +71,8 @@ type ERC20Contract = record {
     decimals : nat64;
 };
 
-type AllowedChain = record {
+
+type SaveAllowedChain = record {
     rpc : text;
     coin_symbol : text;
     erc20_contracts : vec ERC20Contract;
@@ -90,7 +91,7 @@ type BalancesCfg = record {
     treasure_address : text;
     fee_per_byte : nat;
     base_fee : nat;
-    allowed_chains : vec record {nat64 ; AllowedChain};
+    allowed_chains : vec record {nat64 ; SaveAllowedChain};
     whitelist : vec text;
 };
 
@@ -300,7 +301,7 @@ type GetUserAPIKeysResponse = variant { Ok : opt vec text; Err: text };
 type GetUserByKeyResponse = variant { Ok : opt APIUser; Err: text };
 type GetAPIKeysResponse = variant { Ok : SybilAPIKey; Err: text };
 type GetRequestsByDomainResponse = variant { Ok : vec record {text; APIRequest}; Err: text };
-type GetAllowedChainsResponse = vec record {nat64; AllowedChain};
+type GetSaveAllowedChainsResponse = vec record {nat64; SaveAllowedChain};
 type Error = variant { Ok : null; Err : text };
 
 
@@ -362,14 +363,14 @@ service : {
     get_all_chains_rpc : () -> (GetAllChainsRPCResponse);
 
     // balances
-    get_allowed_chains : () -> (GetAllowedChainsResponse);
+    get_allowed_chains : () -> (GetSaveAllowedChainsResponse);
     get_treasure_address : () -> (text);
     add_to_balances_whitelist : (addresses : vec text) -> (Error);
     deposit : (chain_id : nat64, tx_hash : text, grantee : opt text, msg : text, sig : text) -> (Error);
     get_balance : (address : text) -> (NatResponse);
     //withdraw : (amount : nat, to : text, msg : text, sig : text) -> (TextResponse);
     //withdraw_fees : (to : text) -> (TextResponse);
-    add_allowed_chain : (chain_id : nat64, rpc : text, coin_symbol : text) -> (Error);
+    add_allowed_chain : (chain_id : nat64, rpc : text, coin_symbol : text, rpc_secret: opt text) -> (Error);
     remove_allowed_chain : (chain_id : nat64) -> (Error);
     add_allowed_erc20_tokens : (chain_id : nat64, tokens : vec ERC20Contract) -> (Error);
     remove_allowed_erc20_tokens : (chain_id : nat64, tokens : vec text) -> (Error);
