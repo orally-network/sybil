@@ -20,11 +20,9 @@ use ic_utils::{
 };
 
 use crate::{
-    log,
     types::{
         feeds::{Feed, FeedError, FeedStorage, GetFeedsFilter},
         pagination::{Pagination, PaginationResult},
-        state,
     },
     utils::{canister, siwe},
 };

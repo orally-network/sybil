@@ -22,14 +22,14 @@ async fn _get_api_key(msg: String, sig: String) -> Result<String, APIKeysError> 
 }
 
 #[query]
-pub async fn get_user_api_keys(address: String) -> Result<Option<Vec<String>>, String> {
+pub async fn get_user_api_keys(address: String) -> Result<Vec<String>, String> {
     _get_user_api_keys(address)
         .await
         .map_err(|e| format!("cannot get user api keys: {}", e))
 }
 
 #[inline(always)]
-async fn _get_user_api_keys(address: String) -> Result<Option<Vec<String>>, APIKeysError> {
+async fn _get_user_api_keys(address: String) -> Result<Vec<String>, APIKeysError> {
     validate_caller()?;
     Ok(APIKeys::get_user_api_keys(&address)?)
 }
@@ -44,7 +44,7 @@ pub async fn get_user_by_key(key: String) -> Result<Option<User>, String> {
 #[inline(always)]
 async fn _get_user_by_key(key: String) -> Result<Option<User>, APIKeysError> {
     validate_caller()?;
-    Ok(APIKeys::get_user_by_key(&key)?)
+    Ok(APIKeys::get_user_by_key(&key))
 }
 
 #[update]
@@ -138,14 +138,37 @@ pub async fn _update_free_request_limit(new_limit: u64) -> Result<(), APIKeysErr
 }
 
 #[query]
-pub async fn get_api_keys() -> Result<APIKeys, String> {
-    _get_api_keys()
+pub async fn get_api_keys(msg: String, sig: String) -> Result<HashMap<String, User>, String> {
+    _get_api_keys(msg, sig)
         .await
         .map_err(|e| format!("cannot get api keys: {}", e))
 }
 
 #[inline(always)]
-async fn _get_api_keys() -> Result<APIKeys, APIKeysError> {
+async fn _get_api_keys(msg: String, sig: String) -> Result<HashMap<String, User>, APIKeysError> {
+    let caller = siwe::recover(&msg, &sig).await?;
+    let api_keys = APIKeys::get_user_api_keys(&caller)?;
+
+    Ok(api_keys
+        .into_iter()
+        .map(|key| {
+            (
+                key.clone(),
+                APIKeys::get_user_by_key(&key).expect("key should be present"),
+            )
+        })
+        .collect())
+}
+
+#[query]
+pub async fn get_all_api_keys() -> Result<APIKeys, String> {
+    _get_all_api_keys()
+        .await
+        .map_err(|e| format!("cannot get api keys: {}", e))
+}
+
+#[inline(always)]
+async fn _get_all_api_keys() -> Result<APIKeys, APIKeysError> {
     validate_caller()?;
     Ok(APIKeys::get_api_keys())
 }

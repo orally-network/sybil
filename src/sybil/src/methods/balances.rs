@@ -318,7 +318,7 @@ async fn _deposit(
     Balances::add_amount(&caller, &nat::from_u256(&amount))?;
 
     if let Some(grantee) = grantee {
-        Allowances::grant(grantee, caller.clone())?;
+        Allowances::grant(grantee, caller.clone());
     }
 
     log!("[BALANCES] address {}, deposited {} usd", caller, amount);
@@ -479,6 +479,16 @@ pub fn get_balance(addr: String) -> Result<Nat, String> {
 #[inline(always)]
 fn _get_balance(addr: String) -> Result<Nat, BalancesError> {
     Ok(Balances::get_amount(&address::from_str(&addr)?).unwrap_or_default())
+}
+
+#[query]
+pub fn get_base_fee() -> Nat {
+    state::get_cfg().balances_cfg.base_fee
+}
+
+#[query]
+pub fn get_fee_per_byte() -> Nat {
+    state::get_cfg().balances_cfg.fee_per_byte
 }
 
 // TODO: delete

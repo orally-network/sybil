@@ -228,28 +228,30 @@ impl APIKeys {
         })
     }
 
-    pub fn get_user_api_keys(address: &str) -> Result<Option<Vec<String>>, APIKeysError> {
+    pub fn get_user_api_keys(address: &str) -> Result<Vec<String>, APIKeysError> {
         let address = address::from_str(address)?;
 
         Ok(STATE.with(|state| {
-            let state = state.borrow();
+            let mut state = state.borrow_mut();
             state
                 .api_keys
                 .user_to_keys
-                .get(&address)
-                .cloned()
-                .map(|keys| keys.into_iter().collect())
+                .entry(address.clone())
+                .or_default()
+                .clone()
+                .into_iter()
+                .collect()
         }))
     }
 
-    pub fn get_user_by_key(key: &str) -> Result<Option<User>, APIKeysError> {
-        Ok(STATE.with(|state| {
+    pub fn get_user_by_key(key: &str) -> Option<User> {
+        STATE.with(|state| {
             let state = state.borrow();
             state.api_keys.keys_to_user.get(key).cloned().map(|mut u| {
                 u.update_request_count();
                 u
             })
-        }))
+        })
     }
 
     pub fn revoke_keys(address: &str) -> Result<(), APIKeysError> {
@@ -259,7 +261,7 @@ impl APIKeys {
             let mut state = state.borrow_mut();
             if let Some(keys) = state.api_keys.user_to_keys.remove(&address) {
                 for key in keys {
-                    state.api_keys.keys_to_user.remove(&key);
+                    Self::revoke_key(key);
                 }
             }
         });
@@ -270,7 +272,13 @@ impl APIKeys {
     pub fn revoke_key(key: String) {
         STATE.with(|state| {
             let mut state = state.borrow_mut();
-            state.api_keys.keys_to_user.remove(&key)
+            let usr = state.api_keys.keys_to_user.remove(&key);
+            state
+                .api_keys
+                .user_to_keys
+                .get_mut(&usr.unwrap().address)
+                .unwrap()
+                .remove(&key);
         });
     }
 

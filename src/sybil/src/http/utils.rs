@@ -59,17 +59,27 @@ pub async fn resolve_payer(
         api_request.count - 1
     });
 
-    let caller = match (msg, sig, api_key) {
-        (Some(msg), Some(sig), _) => crate::utils::siwe::recover(&msg, &sig).await?,
+    match (msg, sig, api_key) {
+        (Some(msg), Some(sig), _) => {
+            let payer = crate::utils::siwe::recover(&msg, &sig).await?;
+            return Ok((Some(payer), false));
+        }
         (_, _, Some(api_key)) => {
             let (address, is_free) = APIKeys::auth_key(api_key, method, Some(domain.clone()))?;
 
             return Ok((Some(address), is_free));
         }
-        _ => return Ok((None, false)),
-    };
+        _ => {
+            let payer = Allowances::get_allowed_user(&domain);
 
-    let payer = Allowances::get_allowed_user(&domain)?.unwrap_or(caller);
+            if payer.is_some() {
+                Allowances::update(domain, method.clone())
+                    .expect("update fails only if domain is not exist, but here it is exist");
 
-    Ok((Some(payer), false))
+                Ok((payer, false))
+            } else {
+                Ok((None, false))
+            }
+        }
+    }
 }

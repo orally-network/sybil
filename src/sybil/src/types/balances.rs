@@ -6,7 +6,10 @@ use thiserror::Error;
 use candid::{CandidType, Nat};
 use ic_web3_rs::ethabi::Error as EthabiError;
 
-use super::{chains_rpc::RPCUrl, feeds::FeedError, whitelist::WhitelistError, Address};
+use super::{
+    allowances::AllowancesError, chains_rpc::RPCUrl, feeds::FeedError, whitelist::WhitelistError,
+    Address,
+};
 use crate::{
     clone_with_state,
     utils::{address::AddressError, canister::CanisterError, siwe::SiweError, web3::Web3Error},
@@ -99,8 +102,8 @@ pub enum BalanceError {
 
 #[derive(Error, Debug)]
 pub enum DepositError {
-    #[error("Failed to parse domain: {0}")]
-    FailedToParseDomain(#[from] url::ParseError),
+    #[error("Allowances error: {0}")]
+    AllowancesError(#[from] AllowancesError),
     #[error("balance error: {0}")]
     BalanceError(#[from] BalanceError),
     #[error("web3 error: {0}")]
