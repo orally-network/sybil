@@ -78,13 +78,13 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
         params.method,
         params.params,
         params.block_number,
-        if is_free { None } else { payer },
+        if is_free { None } else { payer.clone() },
         with_signature,
         params.cache_ttl,
     )
     .await?;
 
-    if is_free {
+    if is_free || payer.is_some() {
         result.meta.fee = 0.into();
     }
 

@@ -69,12 +69,12 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     let mut rate = crate::methods::feed_methods::get_xrc_data::_get_xrc_data(
         params.id.clone(),
         with_signature,
-        if is_free { None } else { payer },
+        if is_free { None } else { payer.clone() },
         params.cache_ttl,
     )
     .await?;
 
-    if is_free {
+    if is_free || payer.is_some() {
         rate.meta.fee = 0.into();
     }
 

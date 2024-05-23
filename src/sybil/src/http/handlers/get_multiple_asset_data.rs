@@ -79,12 +79,12 @@ async fn _get_multiple_assets_data_request(
         crate::methods::feed_methods::get_multiple_asset_data::_get_multiple_assets_data_result(
             ids.clone(),
             with_signature,
-            if is_free { None } else { payer },
+            if is_free { None } else { payer.clone() },
             params.cache_ttl,
         )
         .await?;
 
-    if is_free {
+    if is_free || payer.is_some() {
         rate.meta.fee = 0.into();
     }
 

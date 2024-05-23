@@ -92,13 +92,13 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
         params
             .addresses
             .map(|s| s.split(",").map(|s| s.to_string()).collect()),
-        payer,
+        if is_free { None } else { payer.clone() },
         with_signature,
         params.cache_ttl,
     )
     .await?;
 
-    if is_free {
+    if is_free || payer.is_some() {
         result.meta.fee = 0.into();
     }
 

@@ -52,7 +52,7 @@ TX_HASH="{Enter tx hash here, where you sent some tokens to the sybil address}"
 ## Usage
 
 ```sh
-dfx canister call sybil add_allowed_chain "(11155111, \"https://ethereum-sepolia-rpc.publicnode.com\", \"SepoilaETH\", null)"
+dfx canister call sybil add_allowed_chain "(11155111, \"https://ethereum-sepolia-rpc.publicnode.{KEY}\", \"SepoilaETH\", opt \"com\")"
 dfx canister call sybil get_allowed_chains 
 dfx canister call sybil update_treasure_address "(\"${CALLER}\")"
 dfx canister call sybil add_allowed_erc20_tokens "(${CHAIN_ID}:nat64, vec {record { erc20_contract = \"0xD6CdFF58Dd98528730549c6E5EEdF1be397A723f\"; token_symbol = \"SHR\"; decimals = 6:nat64}})"
@@ -62,9 +62,15 @@ dfx canister call sybil eth_address
 dfx canister call sybil deposit "(${CHAIN_ID}, \"${TX_HASH}\", null, \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil get_balance "(\"${CALLER}\")"
 
+# allowances
+dfx canister call sybil get_allowed_domains "(\"${SIWE_MSG}\", \"${SIWE_SIG}\")"
+dfx canister call sybil grant "(\"test\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
+dfx canister call sybil restrict "(\"test\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
+
 # api keys
 dfx canister call sybil get_requests_by_domain
-dfx canister call sybil get_api_keys 
+dfx canister call sybil get_all_api_keys 
+dfx canister call sybil get_api_keys "(\"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil get_api_key "(\"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil revoke_key "(\"${API_KEY}\")"
 dfx canister call sybil get_user_by_key "(\"${API_KEY}\")"

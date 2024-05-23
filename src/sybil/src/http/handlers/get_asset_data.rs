@@ -72,12 +72,12 @@ async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Resu
     let mut rate = crate::methods::feed_methods::get_asset_data::_get_asset_data_result(
         params.id.clone(),
         with_signature,
-        if is_free { None } else { payer },
+        if is_free { None } else { payer.clone() },
         params.cache_ttl,
     )
     .await?;
 
-    if is_free {
+    if is_free || payer.is_some() {
         rate.meta.fee = 0.into();
     }
 

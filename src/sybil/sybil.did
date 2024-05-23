@@ -71,6 +71,17 @@ type ERC20Contract = record {
     decimals : nat64;
 };
 
+type RPCUrl = record {
+    url : text;
+    secret : opt text;
+};
+
+type AllowedChain = record {
+    rpc : RPCUrl;
+    coin_symbol : text;
+    erc20_contracts : vec ERC20Contract;
+};
+
 
 type SaveAllowedChain = record {
     rpc : text;
@@ -88,10 +99,10 @@ type BalancesCfg = record {
     rpc : text;
     chain_id : nat;
     erc20_contract : text;
+    allowed_chains : vec record {nat64 ; AllowedChain};
     treasure_address : text;
     fee_per_byte : nat;
     base_fee : nat;
-    allowed_chains : vec record {nat64 ; SaveAllowedChain};
     whitelist : vec text;
 };
 
@@ -269,7 +280,15 @@ type APIUser = record {
     request_limit : nat64;
 };
 
-type SybilAPIKey = record {
+type Allowance = record {
+    grantor_address : text;
+    request_count : nat64;
+    request_count_per_method : vec record {text; nat64};
+    request_count_per_domain : vec record {text; nat64};
+    last_request : nat64;
+};
+
+type SybilAPIKeys = record {
     keys_to_user : vec record {text; APIUser};
     user_to_keys : vec record {text; vec text};
     free_request_limit : nat64;
@@ -297,11 +316,13 @@ type ReadLogsResponse = variant { Ok : ReadLogsResult; Err: text };
 type GetXRCDataResponse = variant { Ok : GetXRCDataResult; Err: text };
 type GetChainsRPCResponse = variant { Ok : vec text; Err: text };
 type GetAllChainsRPCResponse = variant { Ok : vec record {nat64; vec text}; Err: text };
-type GetUserAPIKeysResponse = variant { Ok : opt vec text; Err: text };
+type GetUserAPIKeysResponse = variant { Ok : vec text; Err: text };
 type GetUserByKeyResponse = variant { Ok : opt APIUser; Err: text };
-type GetAPIKeysResponse = variant { Ok : SybilAPIKey; Err: text };
+type GetAPIKeysResponse = variant { Ok : vec record {text; APIUser}; Err: text };
+type GetAllAPIKeysResponse = variant { Ok : SybilAPIKeys; Err: text };
 type GetRequestsByDomainResponse = variant { Ok : vec record {text; APIRequest}; Err: text };
 type GetSaveAllowedChainsResponse = vec record {nat64; SaveAllowedChain};
+type GetAllowedDomainsResponse = variant { Ok : vec record { text; Allowance }; Err: text };
 type Error = variant { Ok : null; Err : text };
 
 
@@ -328,6 +349,7 @@ service : {
     get_feed : (id: text, msg: opt text, sig: opt text) -> (GetFeedResponse);
 
     // allowances
+    get_allowed_domains : (msg : text, sig : text) -> (GetAllowedDomainsResponse);
     grant : (grantee : text, msg : text, sig : text) -> (Error);
     restrict : (grantee : text, msg : text, sig : text) -> (Error);
 
@@ -341,7 +363,8 @@ service : {
     update_free_request_limit : (new_limit : nat64) -> (Error);
     update_request_limit : (key : text, new_limit : nat64, msg : text, sig : text) -> (Error);
     update_request_limit_by_domain : (key : text, new_limit : nat64, msg : text, sig : text) -> (Error);
-    get_api_keys : () -> (GetAPIKeysResponse);
+    get_api_keys : (msg : text, sig : text) -> (GetAPIKeysResponse);
+    get_all_api_keys : () -> (GetAllAPIKeysResponse);
     ban_domain : (key : text, domain : text, msg : text, sig : text) -> (Error);
     allow_domain : (key : text, domain : text, msg : text, sig : text) -> (Error);
     change_public_status : (key : text, is_public : bool, msg : text, sig : text) -> (Error);
@@ -363,6 +386,8 @@ service : {
     get_all_chains_rpc : () -> (GetAllChainsRPCResponse);
 
     // balances
+    get_base_fee : () -> (nat);
+    get_fee_per_byte : () -> (nat);
     get_allowed_chains : () -> (GetSaveAllowedChainsResponse);
     get_treasure_address : () -> (text);
     add_to_balances_whitelist : (addresses : vec text) -> (Error);
