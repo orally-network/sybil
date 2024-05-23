@@ -355,11 +355,11 @@ service : {
 
     // api keys
     get_requests_by_domain : () -> (GetRequestsByDomainResponse);
-    get_api_key : (msg : text, sig : text) -> (TextResponse);
+    generate_api_key : (msg : text, sig : text) -> (TextResponse);
     get_user_api_keys : (address : text) -> (GetUserAPIKeysResponse);
     get_user_by_key : (key : text) -> (GetUserByKeyResponse);
     revoke_keys : (address : text) -> (Error);
-    revoke_key : (key : text) -> ();
+    revoke_key : (key : text, msg : text, sig : text) -> ();
     update_free_request_limit : (new_limit : nat64) -> (Error);
     update_request_limit : (key : text, new_limit : nat64, msg : text, sig : text) -> (Error);
     update_request_limit_by_domain : (key : text, new_limit : nat64, msg : text, sig : text) -> (Error);

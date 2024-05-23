@@ -8,14 +8,14 @@ use crate::utils::{siwe, validate_caller};
 use crate::HTTP_REQUESTS;
 
 #[update]
-pub async fn get_api_key(msg: String, sig: String) -> Result<String, String> {
-    _get_api_key(msg, sig)
+pub async fn generate_api_key(msg: String, sig: String) -> Result<String, String> {
+    _generate_api_key(msg, sig)
         .await
         .map_err(|e| format!("cannot get api key: {}", e))
 }
 
 #[inline(always)]
-async fn _get_api_key(msg: String, sig: String) -> Result<String, APIKeysError> {
+async fn _generate_api_key(msg: String, sig: String) -> Result<String, APIKeysError> {
     let caller = siwe::recover(&msg, &sig).await?;
 
     Ok(APIKeys::generate_new(caller).await?)
@@ -61,15 +61,20 @@ async fn _revoke_keys(address: String) -> Result<(), APIKeysError> {
 }
 
 #[update]
-pub async fn revoke_key(key: String) -> Result<(), String> {
-    _revoke_keys(key)
+pub async fn revoke_key(key: String, msg: String, sig: String) -> Result<(), String> {
+    _revoke_key(key, msg, sig)
         .await
         .map_err(|e| format!("cannot revoke key: {}", e))
 }
 
 #[inline]
-pub async fn _revoke_key(key: String) -> Result<(), APIKeysError> {
-    validate_caller()?;
+pub async fn _revoke_key(key: String, msg: String, sig: String) -> Result<(), APIKeysError> {
+    let caller = siwe::recover(&msg, &sig).await?;
+    let user = APIKeys::get_user_by_key(&key).ok_or(APIKeysError::InvalidKey)?;
+    if user.address != caller {
+        return Err(APIKeysError::InvalidOwner);
+    }
+
     APIKeys::revoke_key(key);
     Ok(())
 }

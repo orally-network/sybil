@@ -71,7 +71,7 @@ dfx canister call sybil restrict "(\"test\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil get_requests_by_domain
 dfx canister call sybil get_all_api_keys 
 dfx canister call sybil get_api_keys "(\"${SIWE_MSG}\", \"${SIWE_SIG}\")"
-dfx canister call sybil get_api_key "(\"${SIWE_MSG}\", \"${SIWE_SIG}\")"
+dfx canister call sybil generate_api_key "(\"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil revoke_key "(\"${API_KEY}\")"
 dfx canister call sybil get_user_by_key "(\"${API_KEY}\")"
 dfx canister call sybil update_request_limit "(\"${API_KEY}\", 10000, \"${SIWE_MSG}\", \"${SIWE_SIG}\")"

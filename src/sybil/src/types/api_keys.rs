@@ -38,16 +38,16 @@ pub enum APIKeysError {
 
 #[derive(Default, Serialize, Deserialize, CandidType, Debug, Clone)]
 pub struct User {
-    address: String,
-    request_count: u64,
-    request_count_per_method: HashMap<String, u64>,
-    request_count_per_domain: HashMap<String, u64>,
-    banned_domains: HashSet<String>,
-    allowed_domains: HashSet<String>,
-    is_public: bool, // if true, everyone except banned domains can use this key, if false, only allowed domains can use this key
-    last_request: u64, // timestamp of the last request
-    request_limit_by_domain: u64,
-    request_limit: u64,
+    pub address: String,
+    pub request_count: u64,
+    pub request_count_per_method: HashMap<String, u64>,
+    pub request_count_per_domain: HashMap<String, u64>,
+    pub banned_domains: HashSet<String>,
+    pub allowed_domains: HashSet<String>,
+    pub is_public: bool, // if true, everyone except banned domains can use this key, if false, only allowed domains can use this key
+    pub last_request: u64, // timestamp of the last request
+    pub request_limit_by_domain: u64,
+    pub request_limit: u64,
 }
 
 impl User {
