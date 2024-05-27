@@ -320,7 +320,7 @@ async fn _deposit(
     Balances::add_amount(&caller, &nat::from_u256(&amount))?;
 
     if let Some(grantee) = grantee {
-        Allowances::grant(grantee, caller.clone());
+        Allowances::grant(grantee, caller.clone(), None);
     }
 
     log!("[BALANCES] address {}, deposited {} usd", caller, amount);

@@ -350,7 +350,7 @@ service : {
 
     // allowances
     get_allowed_domains : (msg : text, sig : text) -> (GetAllowedDomainsResponse);
-    grant : (grantee : text, msg : text, sig : text) -> (Error);
+    grant : (grantee : text, request_limit: opt nat64, msg : text, sig : text) -> (Error);
     restrict : (grantee : text, msg : text, sig : text) -> (Error);
 
     // api keys

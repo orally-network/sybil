@@ -15,6 +15,7 @@ use anyhow::Result;
 /// # Arguments
 ///
 /// * `grantee` - Origin or Referer http header who is about to be granted
+/// * `request_limit` - Limit
 /// * `msg` - SIWE message, For more information, refer to the [SIWE message specification](https://eips.ethereum.org/EIPS/eip-4361)
 /// * `sig` - SIWE signature, For more information, refer to the [SIWE message specification](https://eips.ethereum.org/EIPS/eip-4361)
 ///
@@ -23,10 +24,15 @@ use anyhow::Result;
 /// Returns a result that can contain an error message
 
 #[update]
-pub async fn grant(grantee: String, msg: String, sig: String) -> Result<(), String> {
+pub async fn grant(
+    grantee: String,
+    request_limit: Option<u64>,
+    msg: String,
+    sig: String,
+) -> Result<(), String> {
     let user = siwe::recover(&msg, &sig).await.map_err(|e| e.to_string())?;
 
-    Allowances::grant(grantee.clone(), user.clone());
+    Allowances::grant(grantee.clone(), user.clone(), request_limit);
 
     log!("[ALLOWANCE] {user} allowed {grantee} to use his balance");
     Ok(())

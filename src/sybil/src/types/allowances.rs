@@ -9,8 +9,12 @@ use crate::utils::time::in_seconds;
 use crate::utils::{address, CallerError};
 use crate::STATE;
 
+const DEFAULT_REQUEST_LIMIT: u64 = 10;
+
 #[derive(Error, Debug)]
 pub enum AllowancesError {
+    #[error("Limit exceeded")]
+    LimitExceeded,
     #[error("SIWE error: {0}")]
     SiweError(#[from] SiweError),
     #[error("Address error: {0}")]
@@ -27,6 +31,7 @@ pub struct Allowance {
     pub request_count: u64,
     pub request_count_per_method: HashMap<String, u64>,
     pub request_count_per_domain: HashMap<String, u64>,
+    pub request_limit: u64,
     pub last_request: u64, // timestamp of the last request
 }
 
@@ -47,6 +52,14 @@ impl Allowance {
             .entry(domain.to_string())
             .or_default() += 1;
         self.last_request = in_seconds();
+    }
+
+    pub fn check_restrictions(&self) -> Result<(), AllowancesError> {
+        if self.request_count >= self.request_limit {
+            return Err(AllowancesError::LimitExceeded);
+        }
+
+        Ok(())
     }
 }
 
@@ -76,6 +89,8 @@ impl Allowances {
             let Some(allowance) = state.allowances.domains_to_allowances.get_mut(&domain) else {
                 return Err(AllowancesError::InvalidKey);
             };
+
+            allowance.check_restrictions()?;
 
             allowance.increment_request_count_by_method(&method);
             allowance.increment_request_count_by_domain(&domain);
@@ -147,13 +162,14 @@ impl Allowances {
         });
     }
 
-    pub fn grant(domain: String, grantor: String) {
+    pub fn grant(domain: String, grantor: String, request_limit: Option<u64>) {
         STATE.with(|state| {
             let mut state = state.borrow_mut();
             let old_allowance = state.allowances.domains_to_allowances.insert(
                 domain.clone(),
                 Allowance {
                     grantor_address: grantor.clone(),
+                    request_limit: request_limit.unwrap_or(DEFAULT_REQUEST_LIMIT),
                     ..Default::default()
                 },
             );
