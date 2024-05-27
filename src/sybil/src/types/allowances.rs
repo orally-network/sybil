@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use candid::CandidType;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use time_rs::OffsetDateTime;
 
 use crate::utils::siwe::SiweError;
 use crate::utils::time::in_seconds;
@@ -29,6 +30,7 @@ pub enum AllowancesError {
 pub struct Allowance {
     pub grantor_address: String,
     pub request_count: u64,
+    pub request_count_today: u64,
     pub request_count_per_method: HashMap<String, u64>,
     pub request_count_per_domain: HashMap<String, u64>,
     pub request_limit: u64,
@@ -37,21 +39,22 @@ pub struct Allowance {
 
 impl Allowance {
     pub fn increment_request_count_by_method(&mut self, method: &str) {
-        self.request_count += 1;
         *self
             .request_count_per_method
             .entry(method.to_string())
             .or_default() += 1;
-        self.last_request = in_seconds();
     }
 
     pub fn increment_request_count_by_domain(&mut self, domain: &str) {
-        self.request_count += 1;
         *self
             .request_count_per_domain
             .entry(domain.to_string())
             .or_default() += 1;
-        self.last_request = in_seconds();
+    }
+
+    pub fn increment_request_count(&mut self) {
+        self.request_count += 1;
+        self.request_count_today += 1;
     }
 
     pub fn check_restrictions(&self) -> Result<(), AllowancesError> {
@@ -60,6 +63,22 @@ impl Allowance {
         }
 
         Ok(())
+    }
+
+    pub fn update_request_count_today(&mut self) {
+        let now = OffsetDateTime::from_unix_timestamp(in_seconds() as i64)
+            .unwrap()
+            .date();
+
+        let previous_date = OffsetDateTime::from_unix_timestamp(self.last_request as i64)
+            .unwrap_or_else(|_| {
+                OffsetDateTime::from_unix_timestamp_nanos(self.last_request as i128).unwrap()
+            })
+            .date();
+
+        if now != previous_date {
+            self.request_count_today = 0;
+        }
     }
 }
 
@@ -91,7 +110,9 @@ impl Allowances {
             };
 
             allowance.check_restrictions()?;
+            allowance.update_request_count_today();
 
+            allowance.increment_request_count();
             allowance.increment_request_count_by_method(&method);
             allowance.increment_request_count_by_domain(&domain);
             allowance.last_request = in_seconds();

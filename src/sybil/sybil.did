@@ -283,6 +283,7 @@ type APIUser = record {
 type Allowance = record {
     grantor_address : text;
     request_count : nat64;
+    request_count_today : nat64;
     request_count_per_method : vec record {text; nat64};
     request_count_per_domain : vec record {text; nat64};
     last_request : nat64;
