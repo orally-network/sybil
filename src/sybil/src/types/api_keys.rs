@@ -2,12 +2,12 @@ use std::collections::{HashMap, HashSet};
 
 use candid::CandidType;
 use ic_cdk::api::management_canister::main::raw_rand;
-use ic_cdk::api::time;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use time_rs::OffsetDateTime;
 
 use crate::utils::siwe::SiweError;
+use crate::utils::time::in_seconds;
 use crate::utils::{address, CallerError};
 use crate::STATE;
 
@@ -51,22 +51,25 @@ pub struct User {
 }
 
 impl User {
-    pub fn increment_request_count_by_method(&mut self, method: &str) {
+    pub fn increment_request_count(&mut self) {
         self.request_count += 1;
+        self.last_request = in_seconds();
+    }
+
+    pub fn increment_request_count_by_method(&mut self, method: &str) {
         *self
             .request_count_per_method
             .entry(method.to_string())
             .or_default() += 1;
-        self.last_request = time();
+        self.last_request = in_seconds();
     }
 
     pub fn increment_request_count_by_domain(&mut self, domain: &str) {
-        self.request_count += 1;
         *self
             .request_count_per_domain
             .entry(domain.to_string())
             .or_default() += 1;
-        self.last_request = time();
+        self.last_request = in_seconds();
     }
 
     pub fn get_request_count_by_method(&self, method: &str) -> u64 {
@@ -112,12 +115,14 @@ impl User {
     }
 
     pub fn update_request_count(&mut self) {
-        let now = OffsetDateTime::from_unix_timestamp_nanos(ic_cdk::api::time() as i128)
+        let now = OffsetDateTime::from_unix_timestamp(in_seconds() as i64)
             .unwrap()
             .date();
 
-        let previous_date = OffsetDateTime::from_unix_timestamp_nanos(self.last_request as i128)
-            .unwrap()
+        let previous_date = OffsetDateTime::from_unix_timestamp(self.last_request as i64)
+            .unwrap_or_else(|_| {
+                OffsetDateTime::from_unix_timestamp_nanos(self.last_request as i128).unwrap()
+            })
             .date();
 
         if now != previous_date {
@@ -216,6 +221,7 @@ impl APIKeys {
 
             user.check_restrictions(domain.as_deref())?;
 
+            user.increment_request_count();
             user.increment_request_count_by_method(&method);
             if let Some(domain) = domain {
                 user.increment_request_count_by_domain(&domain);

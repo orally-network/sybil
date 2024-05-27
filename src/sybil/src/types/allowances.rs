@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
 use candid::CandidType;
-use ic_cdk::api::time;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -9,11 +8,6 @@ use crate::utils::siwe::SiweError;
 use crate::utils::time::in_seconds;
 use crate::utils::{address, CallerError};
 use crate::STATE;
-
-const HEX_API_KEYS_LEN: usize = 32;
-const DEFAULT_REQUEST_LIMIT: u64 = 100_000;
-const DEFAULT_REQUEST_BY_DOMAIN_LIMIT: u64 = 10_000;
-const DEFAULT_FREE_REQUEST_LIMIT: u64 = 0;
 
 #[derive(Error, Debug)]
 pub enum AllowancesError {
@@ -43,7 +37,7 @@ impl Allowance {
             .request_count_per_method
             .entry(method.to_string())
             .or_default() += 1;
-        self.last_request = time();
+        self.last_request = in_seconds();
     }
 
     pub fn increment_request_count_by_domain(&mut self, domain: &str) {
@@ -52,7 +46,7 @@ impl Allowance {
             .request_count_per_domain
             .entry(domain.to_string())
             .or_default() += 1;
-        self.last_request = time();
+        self.last_request = in_seconds();
     }
 }
 

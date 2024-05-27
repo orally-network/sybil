@@ -163,23 +163,6 @@ impl MultipleAssetsDataResult {
         encode_packed(&tokens).expect("tokens should be valid")
     }
 
-    pub fn encode(&self) -> Vec<u8> {
-        let mut tokens = self
-            .data
-            .iter()
-            .map(|d| d.clone().get_tokens())
-            .flatten()
-            .collect::<Vec<Token>>();
-
-        tokens.push(if let Some(signature) = &self.signature {
-            Token::String(signature.clone())
-        } else {
-            Token::String("".to_string())
-        });
-
-        encode(&tokens)
-    }
-
     pub async fn sign(&mut self) -> Result<(), RateDataError> {
         let sign_data = self.encode_packed();
 

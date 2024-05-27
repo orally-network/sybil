@@ -37,7 +37,7 @@ local_deploy_sybil: local_deploy_xrc local_deploy_evm_rpc
 							decimals = 6:nat64; \
 						}}; \
 						coin_symbol = \"Eth\"; \
-						rpc = \"${RPC_URL}\"; \
+						rpc = record { url = \"${RPC_URL}\"; secret=null }; \
 					} \
 				}}; \
 				treasure_address=\"${ADDRESS}\"; \

@@ -4,11 +4,11 @@ use crate::{
         api_keys::APIKeys,
         http::{APIRequest, HttpRequest},
     },
+    utils::time::in_seconds,
     HTTP_REQUESTS,
 };
 
 use anyhow::Result;
-use ic_cdk::api::time;
 use time_rs::OffsetDateTime;
 
 pub async fn resolve_payer(
@@ -35,26 +35,27 @@ pub async fn resolve_payer(
         let api_request = c.entry(domain.clone()).or_insert(APIRequest {
             count: 0,
             method: method.clone(),
-            last_request: time(),
+            last_request: in_seconds(),
         });
 
         api_request.count += 1;
         api_request.method = method.clone();
 
-        let now = OffsetDateTime::from_unix_timestamp_nanos(ic_cdk::api::time() as i128)
+        let now = OffsetDateTime::from_unix_timestamp(in_seconds() as i64)
             .unwrap()
             .date();
 
-        let previous_date =
-            OffsetDateTime::from_unix_timestamp_nanos(api_request.last_request as i128)
-                .unwrap()
-                .date();
+        let previous_date = OffsetDateTime::from_unix_timestamp(api_request.last_request as i64)
+            .unwrap_or_else(|_| {
+                OffsetDateTime::from_unix_timestamp_nanos(api_request.last_request as i128).unwrap()
+            })
+            .date();
 
         if now != previous_date {
             api_request.count = 1;
         }
 
-        api_request.last_request = time();
+        api_request.last_request = in_seconds();
 
         api_request.count - 1
     });
