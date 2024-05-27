@@ -12,14 +12,16 @@ use thiserror::Error;
 
 pub const DECIMALS: u64 = 6;
 pub const ETH_DECIMALS: u64 = 18;
+const DEPOSIT_CACHE_TTL: u64 = 3 * 60 * 60; // 3 hours
 
 use crate::{
-    clone_with_state, log,
+    clone_with_state, log, stringify_func_call,
     types::{
         allowances::Allowances,
         balances::{
             AllowedChain, BalanceError, Balances, DepositError, ERC20Contract, SaveAllowedChain,
         },
+        cache::Cache,
         chains_rpc::RPCUrl,
         feed_types::get_xrc_data::GetXRCData,
         state::{self, get_cfg},
@@ -338,7 +340,15 @@ async fn deposit_coin(tx: &Transaction, coin_symbol: &str) -> Result<U256, Depos
     let value_usd = if clone_with_state!(mock) || tx.value.is_zero() {
         tx.value
     } else {
-        let xrc_data = _get_xrc_data(format!("{}/USD", coin_symbol), false, None, None).await?;
+        let id = format!("{}/USD", coin_symbol);
+        let func_signature = stringify_func_call!(_get_xrc_data(id, false));
+        let xrc_data = Cache::with(
+            func_signature,
+            _get_xrc_data(id, false, None),
+            |_| {},
+            Some(DEPOSIT_CACHE_TTL),
+        )
+        .await?;
 
         let GetXRCData { rate, decimals, .. } = xrc_data.data;
 
@@ -398,11 +408,13 @@ async fn deposit_erc20(
         value_usd += if clone_with_state!(mock) {
             value
         } else {
-            let xrc_data = _get_xrc_data(
-                format!("{}/USD", erc20_contract.token_symbol),
-                false,
-                None,
-                None,
+            let id = format!("{}/USD", erc20_contract.token_symbol);
+            let func_signature = stringify_func_call!(_get_xrc_data(id, false));
+            let xrc_data = Cache::with(
+                func_signature,
+                _get_xrc_data(id, false, None),
+                |_| {},
+                Some(DEPOSIT_CACHE_TTL),
             )
             .await?;
 

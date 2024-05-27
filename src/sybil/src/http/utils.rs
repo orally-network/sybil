@@ -1,4 +1,5 @@
 use crate::{
+    log,
     types::{
         allowances::Allowances,
         api_keys::APIKeys,
@@ -11,22 +12,25 @@ use crate::{
 use anyhow::Result;
 use time_rs::OffsetDateTime;
 
-pub async fn resolve_payer(
-    req: &HttpRequest,
-    method: String,
-    msg: Option<String>,
-    sig: Option<String>,
-    api_key: Option<String>,
-) -> Result<(Option<String>, bool)> {
-    let Some(domain) = req
-        .headers
+pub fn get_domain(req: &HttpRequest) -> Option<String> {
+    log!("HEADERS: {:?}", req.headers);
+    req.headers
         .iter()
         .find(|(k, _)| {
             k == "referer" || k == "origin" || k == "x-real-ip" || k == "x-forwarded-for"
         })
         .map(|(_, v)| v)
         .cloned()
-    else {
+}
+
+pub async fn resolve_payer(
+    domain: Option<String>,
+    method: String,
+    msg: Option<String>,
+    sig: Option<String>,
+    api_key: Option<String>,
+) -> Result<(Option<String>, bool)> {
+    let Some(domain) = domain else {
         return Ok((None, false));
     };
 

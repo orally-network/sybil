@@ -39,15 +39,31 @@ pub async fn read_contract_with_proof(
         ic_cdk::caller().to_string()
     };
 
-    _read_contract(
+    let func_signature = stringify_func_call!(_read_contract(
         chain_id,
         function_signature,
         contract_address,
         method,
         params,
         block_number,
-        None,
-        true,
+        true
+    ));
+
+    Cache::with(
+        func_signature,
+        _read_contract(
+            chain_id,
+            function_signature,
+            contract_address,
+            method,
+            params,
+            block_number,
+            None,
+            true,
+        ),
+        |r| {
+            r.meta.fee = 0.into();
+        },
         None,
     )
     .await
@@ -73,15 +89,31 @@ pub async fn read_contract(
         ic_cdk::caller().to_string()
     };
 
-    _read_contract(
+    let func_signature = stringify_func_call!(_read_contract(
         chain_id,
         function_signature,
         contract_address,
         method,
         params,
         block_number,
-        None,
-        false,
+        false
+    ));
+
+    Cache::with(
+        func_signature,
+        _read_contract(
+            chain_id,
+            function_signature,
+            contract_address,
+            method,
+            params,
+            block_number,
+            None,
+            false,
+        ),
+        |r| {
+            r.meta.fee = 0.into();
+        },
         None,
     )
     .await
@@ -99,100 +131,80 @@ pub async fn _read_contract(
     block_number: Option<u64>,
     payer: Option<String>,
     with_signature: bool,
-    cache_ttl: Option<u64>,
 ) -> Result<ReadContractResult, CustomFeedError> {
-    let func_signature = stringify_func_call!(_read_contract(
-        chain_id,
-        function_signature,
-        contract_addr,
-        method,
-        params,
-        with_signature
-    ));
+    let base_fee = state::get_cfg().balances_cfg.base_fee;
 
-    let func_body = async move {
-        let base_fee = state::get_cfg().balances_cfg.base_fee;
-
-        if let Some(ref payer) = payer {
-            if !Balances::is_sufficient(payer, &base_fee)? {
-                return Err(BalanceError::InsufficientBalance)?;
-            };
-        }
-
-        let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
-
-        let w3 = web3::instance(chain_rpc, clone_with_state!(evm_rpc_canister));
-
-        let contract_address = address::to_h160(&contract_addr)?;
-
-        let ethabi_contract = ethers_core::abi::parse_abi_str(&function_signature)
-            .map_err(|err| CustomFeedError::FailedToParseABI(err.to_string()))?;
-
-        let contract = Contract::new(w3.eth(), contract_address, ethabi_contract);
-
-        let function = contract
-            .abi()
-            .function(&method)
-            .map_err(|_| CustomFeedError::AbiDoesntContainMethod(method.clone()))?;
-
-        let inputs = function
-            .inputs
-            .iter()
-            .map(|p| p.kind.clone())
-            .collect::<Vec<_>>();
-
-        let tokens = parse_tokens(&inputs, params[1..params.len() - 1].to_string())?;
-
-        let from = canister::eth_address().await?.to_string();
-
-        let call_result = w3
-            .get_call_result(
-                &contract,
-                &method,
-                &tokens,
-                address::to_h160(&from)?,
-                Some(contract_address),
-                block_number.map(|u| u.into()),
-            )
-            .await?;
-
-        let mut result = ReadContractResult {
-            data: call_result.into_iter().map(SolidityToken::from).collect(),
-            meta: ReadContractMetadata {
-                chain_id,
-                contract_address: contract_addr,
-                method,
-                params,
-                block_number: block_number.unwrap_or_default(),
-                timestamp: in_seconds(),
-                fee: 0.into(),
-                fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
-            },
-            signature: None,
+    if let Some(ref payer) = payer {
+        if !Balances::is_sufficient(payer, &base_fee)? {
+            return Err(BalanceError::InsufficientBalance)?;
         };
+    }
 
-        if with_signature {
-            result.sign().await?;
-        }
+    let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
 
-        if let Some(payer) = payer {
-            Balances::reduce_amount(&payer, &base_fee)?;
-            Balances::add_amount(&canister::eth_address().await?, &base_fee)?;
-        } else {
-            let fee = convert_usd_to_eth(base_fee, balances::DECIMALS).await?;
-            result.meta.fee = fee;
-        }
+    let w3 = web3::instance(chain_rpc, clone_with_state!(evm_rpc_canister));
 
-        Ok(result)
+    let contract_address = address::to_h160(&contract_addr)?;
+
+    let ethabi_contract = ethers_core::abi::parse_abi_str(&function_signature)
+        .map_err(|err| CustomFeedError::FailedToParseABI(err.to_string()))?;
+
+    let contract = Contract::new(w3.eth(), contract_address, ethabi_contract);
+
+    let function = contract
+        .abi()
+        .function(&method)
+        .map_err(|_| CustomFeedError::AbiDoesntContainMethod(method.clone()))?;
+
+    let inputs = function
+        .inputs
+        .iter()
+        .map(|p| p.kind.clone())
+        .collect::<Vec<_>>();
+
+    let tokens = parse_tokens(&inputs, params[1..params.len() - 1].to_string())?;
+
+    let from = canister::eth_address().await?.to_string();
+
+    let call_result = w3
+        .get_call_result(
+            &contract,
+            &method,
+            &tokens,
+            address::to_h160(&from)?,
+            Some(contract_address),
+            block_number.map(|u| u.into()),
+        )
+        .await?;
+
+    let mut result = ReadContractResult {
+        data: call_result.into_iter().map(SolidityToken::from).collect(),
+        meta: ReadContractMetadata {
+            chain_id,
+            contract_address: contract_addr,
+            method,
+            params,
+            block_number: block_number.unwrap_or_default(),
+            timestamp: in_seconds(),
+            fee: 0.into(),
+            fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
+        },
+        signature: None,
     };
 
-    Cache::with(
-        func_signature,
-        func_body,
-        |r| {
-            r.meta.fee = 0.into();
-        },
-        cache_ttl,
-    )
-    .await
+    if payer.is_none() {
+        let fee = convert_usd_to_eth(base_fee.clone(), balances::DECIMALS).await?;
+        result.meta.fee = fee;
+    }
+
+    if with_signature {
+        result.sign().await?;
+    }
+
+    if let Some(payer) = payer {
+        Balances::reduce_amount(&payer, &base_fee)?;
+        Balances::add_amount(&canister::eth_address().await?, &base_fee)?;
+    }
+
+    Ok(result)
 }

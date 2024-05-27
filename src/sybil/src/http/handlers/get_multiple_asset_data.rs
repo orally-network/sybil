@@ -3,8 +3,17 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 use crate::{
-    http::{response, utils::resolve_payer, HTTP_SERVICE},
-    types::http::{HttpRequest, HttpResponse},
+    http::{
+        response,
+        utils::{get_domain, resolve_payer},
+        HTTP_SERVICE,
+    },
+    stringify_func_call,
+    types::{
+        api_keys::APIKeys,
+        cache::Cache,
+        http::{HttpRequest, HttpResponse},
+    },
 };
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
@@ -64,25 +73,43 @@ async fn _get_multiple_assets_data_request(
     let params = GetMultipleAssetsDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
+    let domain = get_domain(&req);
+
     let (payer, is_free) = resolve_payer(
-        &req,
+        domain.clone(),
         "get_multiple_assets_data".to_string(),
         params.msg,
         params.sig,
-        params.api_key,
+        params.api_key.clone(),
     )
     .await?;
 
     let ids: Vec<_> = params.ids.split(",").map(|s| s.to_string()).collect();
 
-    let mut rate =
+    let func_signature =
+        stringify_func_call!(_get_multiple_assets_data_result(ids, with_signature));
+    let mut rate = Cache::with(
+        func_signature,
         crate::methods::feed_methods::get_multiple_asset_data::_get_multiple_assets_data_result(
             ids.clone(),
             with_signature,
             if is_free { None } else { payer.clone() },
-            params.cache_ttl,
-        )
-        .await?;
+        ),
+        |r| {
+            r.meta.fee = 0.into();
+
+            if let Some(api_key) = params.api_key {
+                APIKeys::decrease_request_count(
+                    api_key,
+                    "get_multiple_assets_data".to_string(),
+                    domain,
+                )
+                .unwrap();
+            }
+        },
+        params.cache_ttl,
+    )
+    .await?;
 
     if is_free || payer.is_some() {
         rate.meta.fee = 0.into();

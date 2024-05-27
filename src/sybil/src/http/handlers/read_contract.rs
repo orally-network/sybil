@@ -3,8 +3,17 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 use crate::{
-    http::{response, utils::resolve_payer, HTTP_SERVICE},
-    types::http::{HttpRequest, HttpResponse},
+    http::{
+        response,
+        utils::{get_domain, resolve_payer},
+        HTTP_SERVICE,
+    },
+    stringify_func_call,
+    types::{
+        api_keys::APIKeys,
+        cache::Cache,
+        http::{HttpRequest, HttpResponse},
+    },
 };
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
@@ -62,24 +71,46 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
     let params = ReadContractQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
+    let domain = get_domain(&req);
+
     let (payer, is_free) = resolve_payer(
-        &req,
+        domain.clone(),
         "read_contract".to_string(),
         params.msg,
         params.sig,
-        params.api_key,
+        params.api_key.clone(),
     )
     .await?;
 
-    let mut result = crate::methods::feed_methods::read_contract::_read_contract(
+    let func_signature = stringify_func_call!(_read_contract(
         params.chain_id,
         params.function_signature,
         params.contract_addr,
         params.method,
         params.params,
         params.block_number,
-        if is_free { None } else { payer.clone() },
-        with_signature,
+        with_signature
+    ));
+
+    let mut result = Cache::with(
+        func_signature,
+        crate::methods::feed_methods::read_contract::_read_contract(
+            params.chain_id,
+            params.function_signature,
+            params.contract_addr,
+            params.method,
+            params.params,
+            params.block_number,
+            if is_free { None } else { payer.clone() },
+            with_signature,
+        ),
+        |r| {
+            r.meta.fee = 0.into();
+            if let Some(api_key) = params.api_key {
+                APIKeys::decrease_request_count(api_key, "read_contract".to_string(), domain)
+                    .unwrap();
+            }
+        },
         params.cache_ttl,
     )
     .await?;

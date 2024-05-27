@@ -31,9 +31,17 @@ pub async fn get_xrc_data(
         ic_cdk::caller().to_string()
     };
 
-    _get_xrc_data(id, false, None, None)
-        .await
-        .map_err(|e| format!("failed to get asset data: {}", e))
+    let func_signature = stringify_func_call!(_get_xrc_data(id, false));
+    Cache::with(
+        func_signature,
+        _get_xrc_data(id, false, Some(payer)),
+        |r| {
+            r.meta.fee = 0.into();
+        },
+        None,
+    )
+    .await
+    .map_err(|e| format!("failed to get asset data: {}", e))
 }
 
 #[update]
@@ -50,9 +58,17 @@ pub async fn get_xrc_data_with_proof(
         ic_cdk::caller().to_string()
     };
 
-    _get_xrc_data(id, true, Some(payer), None)
-        .await
-        .map_err(|e| format!("failed to get asset data: {}", e))
+    let func_signature = stringify_func_call!(_get_xrc_data(id, true));
+    Cache::with(
+        func_signature,
+        _get_xrc_data(id, true, Some(payer)),
+        |r| {
+            r.meta.fee = 0.into();
+        },
+        None,
+    )
+    .await
+    .map_err(|e| format!("failed to get asset data: {}", e))
 }
 
 #[inline]
@@ -61,69 +77,56 @@ pub async fn _get_xrc_data(
     id: String,
     with_signature: bool,
     payer: Option<String>,
-    cache_ttl: Option<u64>,
 ) -> Result<GetXRCDataResult, FeedError> {
-    let func_signature = stringify_func_call!(_get_xrc_data(id, with_signature));
+    let rate = Feed {
+        id: id.clone(),
+        update_freq: DEFAULT_UPDATE_FREQ,
+        ..Default::default()
+    };
 
-    let func_body = async move {
-        let rate = Feed {
-            id: id.clone(),
-            update_freq: DEFAULT_UPDATE_FREQ,
-            ..Default::default()
-        };
+    let (cost, rate) = FeedStorage::get_default_rate(&rate, None).await?;
 
-        let (cost, rate) = FeedStorage::get_default_rate(&rate, None).await?;
+    let rate = rate.data;
 
-        let rate = rate.data;
+    let AssetData::DefaultPriceFeed {
+        symbol,
+        rate,
+        decimals,
+        timestamp,
+    } = rate
+    else {
+        unreachable!("xrc data should be default price feed");
+    };
 
-        let AssetData::DefaultPriceFeed {
+    let mut result = GetXRCDataResult {
+        data: GetXRCData {
             symbol,
             rate,
             decimals,
             timestamp,
-        } = rate
-        else {
-            unreachable!("xrc data should be default price feed");
-        };
-
-        let mut result = GetXRCDataResult {
-            data: GetXRCData {
-                symbol,
-                rate,
-                decimals,
-                timestamp,
-            },
-            meta: GetXRCDataMetadata {
-                id: id.clone(),
-                timestamp: in_seconds(),
-                fee: 0.into(),
-                fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
-            },
-            signature: None,
-        };
-
-        if with_signature {
-            result.sign().await?;
-        }
-
-        if let Some(payer) = payer {
-            Balances::reduce_amount(&payer, &cost)?;
-            Balances::add_amount(&canister::eth_address().await?, &cost)?;
-        } else {
-            let fee = convert_usd_to_eth(cost, balances::DECIMALS).await?;
-            result.meta.fee = fee;
-        }
-
-        Ok(result)
+        },
+        meta: GetXRCDataMetadata {
+            id: id.clone(),
+            timestamp: in_seconds(),
+            fee: 0.into(),
+            fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
+        },
+        signature: None,
     };
 
-    Cache::with(
-        func_signature,
-        func_body,
-        |r| {
-            r.meta.fee = 0.into();
-        },
-        cache_ttl,
-    )
-    .await
+    if payer.is_none() {
+        let fee = convert_usd_to_eth(cost.clone(), balances::DECIMALS).await?;
+        result.meta.fee = fee;
+    }
+
+    if with_signature {
+        result.sign().await?;
+    }
+
+    if let Some(payer) = payer {
+        Balances::reduce_amount(&payer, &cost)?;
+        Balances::add_amount(&canister::eth_address().await?, &cost)?;
+    }
+
+    Ok(result)
 }

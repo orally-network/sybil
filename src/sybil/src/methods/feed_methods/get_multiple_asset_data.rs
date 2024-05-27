@@ -110,60 +110,46 @@ pub async fn _get_multiple_assets_data_result(
     ids: Vec<String>,
     with_signature: bool,
     payer: Option<String>,
-    cache_ttl: Option<u64>,
 ) -> Result<GetMultipleAssetDataResult, FeedError> {
-    let func_signature =
-        stringify_func_call!(_get_multiple_assets_data_result(ids, with_signature));
+    let mut data = Vec::with_capacity(ids.len());
 
-    let func_body = async move {
-        let mut data = Vec::with_capacity(ids.len());
+    let futures = ids
+        .iter()
+        .map(|id| FeedStorage::rate(&id, false, None))
+        .collect::<Vec<_>>();
 
-        let futures = ids
-            .iter()
-            .map(|id| FeedStorage::rate(&id, false, None))
-            .collect::<Vec<_>>();
+    let mut cost = Nat::from(0);
 
-        let mut cost = Nat::from(0);
+    for result in join_all(futures).await {
+        let result = result?;
+        data.push(result.1.data);
+        cost += result.0
+    }
 
-        for result in join_all(futures).await {
-            let result = result?;
-            data.push(result.1.data);
-            cost += result.0
-        }
-
-        let mut result = GetMultipleAssetDataResult {
-            data,
-            meta: GetMultipleAssetDataMetadata {
-                ids,
-                timestamp: in_seconds(),
-                fee: 0.into(),
-                fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
-            },
-            signature: None,
-        };
-
-        if with_signature {
-            result.sign().await?;
-        }
-
-        if let Some(payer) = payer {
-            Balances::reduce_amount(&payer, &cost)?;
-            Balances::add_amount(&canister::eth_address().await?, &cost)?;
-        } else {
-            let fee = convert_usd_to_eth(cost, balances::DECIMALS).await?;
-            result.meta.fee = fee;
-        }
-
-        Ok(result)
+    let mut result = GetMultipleAssetDataResult {
+        data,
+        meta: GetMultipleAssetDataMetadata {
+            ids,
+            timestamp: in_seconds(),
+            fee: 0.into(),
+            fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
+        },
+        signature: None,
     };
 
-    Cache::with(
-        func_signature,
-        func_body,
-        |r| {
-            r.meta.fee = 0.into();
-        },
-        cache_ttl,
-    )
-    .await
+    if payer.is_none() {
+        let fee = convert_usd_to_eth(cost.clone(), balances::DECIMALS).await?;
+        result.meta.fee = fee;
+    }
+
+    if with_signature {
+        result.sign().await?;
+    }
+
+    if let Some(payer) = payer {
+        Balances::reduce_amount(&payer, &cost)?;
+        Balances::add_amount(&canister::eth_address().await?, &cost)?;
+    }
+
+    Ok(result)
 }

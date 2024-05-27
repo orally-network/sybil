@@ -3,8 +3,17 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 use crate::{
-    http::{response, utils::resolve_payer, HTTP_SERVICE},
-    types::http::{HttpRequest, HttpResponse},
+    http::{
+        response,
+        utils::{get_domain, resolve_payer},
+        HTTP_SERVICE,
+    },
+    stringify_func_call,
+    types::{
+        api_keys::APIKeys,
+        cache::Cache,
+        http::{HttpRequest, HttpResponse},
+    },
 };
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
@@ -64,36 +73,69 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
     let params = ReadLogsQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
+    let domain = get_domain(&req);
+
     let (payer, is_free) = resolve_payer(
-        &req,
+        domain.clone(),
         "read_logs".to_string(),
         params.msg,
         params.sig,
-        params.api_key,
+        params.api_key.clone(),
     )
     .await?;
 
-    let mut result = crate::methods::feed_methods::read_logs::_read_logs(
+    let topics0 = params
+        .topics0
+        .map(|s| s.split(",").map(|s| s.to_string()).collect());
+
+    let topics1 = params
+        .topics1
+        .map(|s| s.split(",").map(|s| s.to_string()).collect());
+
+    let topics2 = params
+        .topics2
+        .map(|s| s.split(",").map(|s| s.to_string()).collect());
+
+    let topics3 = params
+        .topics3
+        .map(|s| s.split(",").map(|s| s.to_string()).collect());
+
+    let addresses = params
+        .addresses
+        .map(|s| s.split(",").map(|s| s.to_string()).collect());
+
+    let func_signature = stringify_func_call!(_read_logs(
         params.chain_id,
         params.block_from,
         params.block_to,
-        params
-            .topics0
-            .map(|s| s.split(",").map(|s| s.to_string()).collect()),
-        params
-            .topics1
-            .map(|s| s.split(",").map(|s| s.to_string()).collect()),
-        params
-            .topics2
-            .map(|s| s.split(",").map(|s| s.to_string()).collect()),
-        params
-            .topics3
-            .map(|s| s.split(",").map(|s| s.to_string()).collect()),
-        params
-            .addresses
-            .map(|s| s.split(",").map(|s| s.to_string()).collect()),
-        if is_free { None } else { payer.clone() },
-        with_signature,
+        topics0,
+        topics1,
+        topics2,
+        topics3,
+        addresses,
+        with_signature
+    ));
+
+    let mut result = Cache::with(
+        func_signature,
+        crate::methods::feed_methods::read_logs::_read_logs(
+            params.chain_id,
+            params.block_from,
+            params.block_to,
+            topics0,
+            topics1,
+            topics2,
+            topics3,
+            addresses,
+            if is_free { None } else { payer.clone() },
+            with_signature,
+        ),
+        |result| {
+            result.meta.fee = 0.into();
+            if let Some(api_key) = params.api_key {
+                APIKeys::decrease_request_count(api_key, "read_logs".to_string(), domain).unwrap();
+            }
+        },
         params.cache_ttl,
     )
     .await?;

@@ -7,7 +7,6 @@ use crate::{
     log,
     types::allowances::{Allowance, Allowances, AllowancesError},
     utils::siwe,
-    STATE,
 };
 use anyhow::Result;
 

@@ -389,7 +389,7 @@ impl Cache {
         T: Serialize + DeserializeOwned,
         E: std::error::Error + std::convert::From<CacheError>,
         Fut: Future<Output = Result<T, E>>,
-        OnFound: Fn(&mut T),
+        OnFound: FnOnce(&mut T),
     {
         let cache_ttl = cache_ttl.unwrap_or(CACHE_TTL_SEC);
 

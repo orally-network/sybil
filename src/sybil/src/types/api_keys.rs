@@ -56,6 +56,11 @@ impl User {
         self.last_request = in_seconds();
     }
 
+    pub fn decrease_request_count(&mut self) {
+        self.request_count -= 1;
+        self.last_request = in_seconds();
+    }
+
     pub fn increment_request_count_by_method(&mut self, method: &str) {
         *self
             .request_count_per_method
@@ -64,11 +69,27 @@ impl User {
         self.last_request = in_seconds();
     }
 
+    pub fn decrease_request_count_by_method(&mut self, method: &str) {
+        *self
+            .request_count_per_method
+            .entry(method.to_string())
+            .or_default() -= 1;
+        self.last_request = in_seconds();
+    }
+
     pub fn increment_request_count_by_domain(&mut self, domain: &str) {
         *self
             .request_count_per_domain
             .entry(domain.to_string())
             .or_default() += 1;
+        self.last_request = in_seconds();
+    }
+
+    pub fn decrease_request_count_by_domain(&mut self, domain: &str) {
+        *self
+            .request_count_per_domain
+            .entry(domain.to_string())
+            .or_default() -= 1;
         self.last_request = in_seconds();
     }
 
@@ -231,6 +252,58 @@ impl APIKeys {
                 user.address.clone(),
                 user.get_request_count() <= state.api_keys.free_request_limit,
             ))
+        })
+    }
+
+    pub fn increment_request_count(
+        key: String,
+        method: String,
+        domain: Option<String>,
+    ) -> Result<(), APIKeysError> {
+        STATE.with(|state| {
+            let mut state = state.borrow_mut();
+
+            let Some(user) = state.api_keys.keys_to_user.get_mut(&key) else {
+                return Err(APIKeysError::InvalidKey);
+            };
+
+            user.update_request_count();
+
+            user.check_restrictions(domain.as_deref())?;
+
+            user.increment_request_count();
+            user.increment_request_count_by_method(&method);
+            if let Some(domain) = domain {
+                user.increment_request_count_by_domain(&domain);
+            }
+
+            Ok(())
+        })
+    }
+
+    pub fn decrease_request_count(
+        key: String,
+        method: String,
+        domain: Option<String>,
+    ) -> Result<(), APIKeysError> {
+        STATE.with(|state| {
+            let mut state = state.borrow_mut();
+
+            let Some(user) = state.api_keys.keys_to_user.get_mut(&key) else {
+                return Err(APIKeysError::InvalidKey);
+            };
+
+            user.update_request_count();
+
+            user.check_restrictions(domain.as_deref())?;
+
+            user.decrease_request_count();
+            user.decrease_request_count_by_method(&method);
+            if let Some(domain) = domain {
+                user.decrease_request_count_by_domain(&domain);
+            }
+
+            Ok(())
         })
     }
 

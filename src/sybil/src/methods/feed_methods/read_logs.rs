@@ -40,8 +40,19 @@ pub async fn read_logs(
         ic_cdk::caller().to_string()
     };
 
-    _read_logs(
-        chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, None, false,
+    let func_signature = stringify_func_call!(_read_logs(
+        chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, false
+    ));
+
+    Cache::with(
+        func_signature,
+        _read_logs(
+            chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, None,
+            false,
+        ),
+        |r| {
+            r.meta.fee = 0.into();
+        },
         None,
     )
     .await
@@ -69,8 +80,19 @@ pub async fn read_logs_with_proof(
         ic_cdk::caller().to_string()
     };
 
-    _read_logs(
-        chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, None, true,
+    let func_signature = stringify_func_call!(_read_logs(
+        chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, true
+    ));
+
+    Cache::with(
+        func_signature,
+        _read_logs(
+            chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, None,
+            true,
+        ),
+        |r| {
+            r.meta.fee = 0.into();
+        },
         None,
     )
     .await
@@ -90,96 +112,73 @@ pub async fn _read_logs(
     addresses: Option<Vec<String>>,
     payer: Option<String>,
     with_signature: bool,
-    cache_ttl: Option<u64>,
 ) -> Result<ReadLogsResult, CustomFeedError> {
-    let func_signature = stringify_func_call!(_read_logs(
-        chain_id,
-        block_from,
-        block_to,
-        topics0,
-        topics1,
-        topics2,
-        topics3,
-        addresses,
-        with_signature
-    ));
-
-    let func_body = async {
-        let base_fee = state::get_cfg().balances_cfg.base_fee;
-        if let Some(ref payer) = payer {
-            if !Balances::is_sufficient(payer, &base_fee)? {
-                return Err(BalanceError::InsufficientBalance)?;
-            };
-        }
-
-        let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
-
-        let w3 = web3::instance(chain_rpc, clone_with_state!(evm_rpc_canister));
-
-        let logs = w3
-            .get_logs(
-                block_from,
-                block_to,
-                topics0
-                    .clone()
-                    .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
-                topics1
-                    .clone()
-                    .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
-                topics2
-                    .clone()
-                    .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
-                topics3
-                    .clone()
-                    .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
-                addresses.clone().map(|v| {
-                    v.into_iter()
-                        .map(|t| address::to_h160(&t).unwrap())
-                        .collect()
-                }),
-            )
-            .await?;
-
-        let mut result = ReadLogsResult {
-            data: logs.into_iter().map(ReadLogsData::from).collect(),
-            meta: ReadLogsMetadata {
-                chain_id,
-                block_from: block_from.unwrap_or_default(),
-                block_to: block_to.unwrap_or_default(),
-                topics0: topics0.unwrap_or_default(),
-                topics1: topics1.unwrap_or_default(),
-                topics2: topics2.unwrap_or_default(),
-                topics3: topics3.unwrap_or_default(),
-                addresses: addresses.unwrap_or_default(),
-                timestamp: in_seconds(),
-                fee: 0.into(),
-                fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
-            },
-            signature: None,
+    let base_fee = state::get_cfg().balances_cfg.base_fee;
+    if let Some(ref payer) = payer {
+        if !Balances::is_sufficient(payer, &base_fee)? {
+            return Err(BalanceError::InsufficientBalance)?;
         };
+    }
 
-        if with_signature {
-            result.sign().await?;
-        }
+    let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
 
-        if let Some(payer) = payer {
-            Balances::reduce_amount(&payer, &base_fee)?;
-            Balances::add_amount(&canister::eth_address().await?, &base_fee)?;
-        } else {
-            let fee = convert_usd_to_eth(base_fee, balances::DECIMALS).await?;
-            result.meta.fee = fee;
-        }
+    let w3 = web3::instance(chain_rpc, clone_with_state!(evm_rpc_canister));
 
-        Ok(result)
+    let logs = w3
+        .get_logs(
+            block_from,
+            block_to,
+            topics0
+                .clone()
+                .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
+            topics1
+                .clone()
+                .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
+            topics2
+                .clone()
+                .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
+            topics3
+                .clone()
+                .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
+            addresses.clone().map(|v| {
+                v.into_iter()
+                    .map(|t| address::to_h160(&t).unwrap())
+                    .collect()
+            }),
+        )
+        .await?;
+
+    let mut result = ReadLogsResult {
+        data: logs.into_iter().map(ReadLogsData::from).collect(),
+        meta: ReadLogsMetadata {
+            chain_id,
+            block_from: block_from.unwrap_or_default(),
+            block_to: block_to.unwrap_or_default(),
+            topics0: topics0.unwrap_or_default(),
+            topics1: topics1.unwrap_or_default(),
+            topics2: topics2.unwrap_or_default(),
+            topics3: topics3.unwrap_or_default(),
+            addresses: addresses.unwrap_or_default(),
+            timestamp: in_seconds(),
+            fee: 0.into(),
+            fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
+        },
+        signature: None,
     };
 
-    Cache::with(
-        func_signature,
-        func_body,
-        |r| {
-            r.meta.fee = 0.into();
-        },
-        cache_ttl,
-    )
-    .await
+    if payer.is_none() {
+        let fee = convert_usd_to_eth(base_fee.clone(), balances::DECIMALS).await?;
+        result.meta.fee = fee;
+    }
+
+    if with_signature {
+        result.sign().await?;
+    }
+
+    if let Some(payer) = payer {
+        Balances::reduce_amount(&payer, &base_fee)?;
+        Balances::add_amount(&canister::eth_address().await?, &base_fee)?;
+    }
+
+    Ok(result)
 }

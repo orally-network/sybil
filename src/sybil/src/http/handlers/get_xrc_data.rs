@@ -3,8 +3,17 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 use crate::{
-    http::{response, utils::resolve_payer, HTTP_SERVICE},
-    types::http::{HttpRequest, HttpResponse},
+    http::{
+        response,
+        utils::{get_domain, resolve_payer},
+        HTTP_SERVICE,
+    },
+    stringify_func_call,
+    types::{
+        api_keys::APIKeys,
+        cache::Cache,
+        http::{HttpRequest, HttpResponse},
+    },
 };
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
@@ -57,19 +66,34 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     let params = GetXRCDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
+    let domain = get_domain(&req);
+
     let (payer, is_free) = resolve_payer(
-        &req,
+        domain.clone(),
         "get_xrc_data".to_string(),
         params.msg,
         params.sig,
-        params.api_key,
+        params.api_key.clone(),
     )
     .await?;
 
-    let mut rate = crate::methods::feed_methods::get_xrc_data::_get_xrc_data(
-        params.id.clone(),
-        with_signature,
-        if is_free { None } else { payer.clone() },
+    let func_signature = stringify_func_call!(_get_xrc_data(params.id.clone(), with_signature));
+
+    let mut rate = Cache::with(
+        func_signature,
+        crate::methods::feed_methods::get_xrc_data::_get_xrc_data(
+            params.id.clone(),
+            with_signature,
+            if is_free { None } else { payer.clone() },
+        ),
+        |r| {
+            r.meta.fee = 0.into();
+
+            if let Some(api_key) = params.api_key {
+                APIKeys::decrease_request_count(api_key, "get_xrc_data".to_string(), domain)
+                    .unwrap();
+            }
+        },
         params.cache_ttl,
     )
     .await?;

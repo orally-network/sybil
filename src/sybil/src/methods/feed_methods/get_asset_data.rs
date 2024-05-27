@@ -97,58 +97,45 @@ pub async fn _get_asset_data_result(
     id: String,
     with_signature: bool,
     payer: Option<String>,
-    cache_ttl: Option<u64>,
 ) -> Result<GetAssetDataResult, FeedError> {
-    let func_signature = stringify_func_call!(_get_asset_data_result(id, with_signature));
+    if with_signature {
+        metrics!(inc GET_ASSET_DATA_WITH_PROOF_CALLS, id);
+    } else {
+        metrics!(inc GET_ASSET_DATA_CALLS, id);
+    }
 
-    let func_body = async move {
-        if with_signature {
-            metrics!(inc GET_ASSET_DATA_WITH_PROOF_CALLS, id);
-        } else {
-            metrics!(inc GET_ASSET_DATA_CALLS, id);
-        }
+    let (cost, rate) = FeedStorage::rate(&id, with_signature, payer.clone()).await?;
 
-        let (cost, rate) = FeedStorage::rate(&id, with_signature, payer.clone()).await?;
-
-        let mut result = GetAssetDataResult {
-            data: rate.data,
-            meta: GetAssetDataMetadata {
-                id: id.clone(),
-                timestamp: in_seconds(),
-                fee: 0.into(),
-                fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
-            },
-            signature: None,
-        };
-
-        if with_signature {
-            result.sign().await?;
-        }
-
-        if let Some(payer) = payer {
-            Balances::reduce_amount(&payer, &cost)?;
-            Balances::add_amount(&canister::eth_address().await?, &cost)?;
-        } else {
-            let fee = convert_usd_to_eth(cost, balances::DECIMALS).await?;
-            result.meta.fee = fee;
-        }
-
-        if with_signature {
-            metrics!(inc SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS, id);
-        } else {
-            metrics!(inc SUCCESSFUL_GET_ASSET_DATA_CALLS, id);
-        }
-
-        Ok(result)
+    let mut result = GetAssetDataResult {
+        data: rate.data,
+        meta: GetAssetDataMetadata {
+            id: id.clone(),
+            timestamp: in_seconds(),
+            fee: 0.into(),
+            fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
+        },
+        signature: None,
     };
 
-    Cache::with(
-        func_signature,
-        func_body,
-        |r| {
-            r.meta.fee = 0.into();
-        },
-        cache_ttl,
-    )
-    .await
+    if payer.is_none() {
+        let fee = convert_usd_to_eth(cost.clone(), balances::DECIMALS).await?;
+        result.meta.fee = fee;
+    }
+
+    if with_signature {
+        result.sign().await?;
+    }
+
+    if let Some(payer) = payer {
+        Balances::reduce_amount(&payer, &cost)?;
+        Balances::add_amount(&canister::eth_address().await?, &cost)?;
+    }
+
+    if with_signature {
+        metrics!(inc SUCCESSFUL_GET_ASSET_DATA_WITH_PROOF_CALLS, id);
+    } else {
+        metrics!(inc SUCCESSFUL_GET_ASSET_DATA_CALLS, id);
+    }
+
+    Ok(result)
 }
