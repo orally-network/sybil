@@ -14,13 +14,47 @@ use time_rs::OffsetDateTime;
 
 pub fn get_domain(req: &HttpRequest) -> Option<String> {
     log!("HEADERS: {:?}", req.headers);
-    req.headers
+    if let Some(origin) = req
+        .headers
         .iter()
-        .find(|(k, _)| {
-            k == "referer" || k == "origin" || k == "x-real-ip" || k == "x-forwarded-for"
-        })
+        .find(|(k, _)| k == "origin")
         .map(|(_, v)| v)
         .cloned()
+    {
+        return Some(origin);
+    }
+
+    if let Some(referer) = req
+        .headers
+        .iter()
+        .find(|(k, _)| k == "referer")
+        .map(|(_, v)| v)
+        .cloned()
+    {
+        return Some(referer);
+    }
+
+    if let Some(x_real_ip) = req
+        .headers
+        .iter()
+        .find(|(k, _)| k == "x-real-ip")
+        .map(|(_, v)| v)
+        .cloned()
+    {
+        return Some(x_real_ip);
+    }
+
+    if let Some(x_forwarded_for) = req
+        .headers
+        .iter()
+        .find(|(k, _)| k == "x-forwarded-for")
+        .map(|(_, v)| v)
+        .cloned()
+    {
+        return Some(x_forwarded_for);
+    }
+
+    None
 }
 
 pub async fn resolve_payer(
