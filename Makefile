@@ -27,7 +27,7 @@ local_deploy_sybil: local_deploy_xrc local_deploy_evm_rpc
 			key_name=\"dfx_test_key\"; \
 			balances_cfg=record { \
 				rpc=\"depricated\"; \
-				chain_id=5:nat; \
+				chain_id=11155111:nat; \
 				erc20_contract=\"depricated\"; \
 				allowed_chains = vec {record { \
 					11155111:nat64; record { \
@@ -41,8 +41,8 @@ local_deploy_sybil: local_deploy_xrc local_deploy_evm_rpc
 					} \
 				}}; \
 				treasure_address=\"${ADDRESS}\"; \
-				fee_per_byte=0:nat; \
-				base_fee=0:nat; \
+				fee_per_byte=1:nat; \
+				base_fee=1:nat; \
 				whitelist = vec {}; \
 			}\
 		})" sybil

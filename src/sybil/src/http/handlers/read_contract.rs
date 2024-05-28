@@ -13,6 +13,7 @@ use crate::{
         allowances::Allowances,
         api_keys::APIKeys,
         cache::Cache,
+        feed_types::read_contract::ReadContractResult,
         http::{HttpRequest, HttpResponse},
     },
 };
@@ -72,10 +73,10 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
     let params = ReadContractQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let domain = get_domain(&req);
+    let domain = get_domain(&req).unwrap();
 
     let (payer, is_free) = resolve_payer(
-        domain.clone(),
+        Some(domain.clone()),
         "read_contract".to_string(),
         params.msg,
         params.sig,
@@ -94,7 +95,7 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
     ));
 
     let mut cache_builder = Cache::with(
-        func_signature,
+        func_signature.clone(),
         crate::methods::feed_methods::read_contract::_read_contract(
             params.chain_id,
             params.function_signature,
@@ -107,14 +108,31 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
         ),
     );
 
-    cache_builder.with_on_found(|r| {
-        r.meta.fee = 0.into();
+    cache_builder.with_on_found(|_| {
         if let Some(api_key) = params.api_key {
-            APIKeys::decrease_request_count(api_key, "read_contract".to_string(), domain).unwrap();
-        } else {
-            Allowances::decrease_request_count(domain.unwrap(), "read_contract".to_string())
+            APIKeys::decrease_request_count(api_key, "read_contract".to_string(), Some(domain))
                 .unwrap();
+        } else {
+            if Allowances::get_allowed_user(&domain).is_some() {
+                Allowances::decrease_request_count(domain, "read_contract".to_string()).unwrap();
+            }
         }
+    });
+
+    cache_builder.with_on_save(async move {
+        ic_cdk::spawn(async move {
+            let entry =
+                Cache::get_cache::<ReadContractResult>(func_signature.clone(), params.cache_ttl);
+
+            if let Some(mut data) = entry {
+                data.meta.fee = 0.into();
+                if with_signature {
+                    data.sign().await.unwrap();
+                }
+
+                Cache::save_cache(func_signature, data, params.cache_ttl);
+            }
+        })
     });
 
     if let Some(cache_ttl) = params.cache_ttl {
@@ -123,8 +141,11 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
 
     let mut result = cache_builder.evaluate().await?;
 
-    if is_free || payer.is_some() {
+    if is_free {
         result.meta.fee = 0.into();
+        if with_signature {
+            result.sign().await?;
+        }
     }
 
     if let Some(_bytes @ true) = params.bytes {

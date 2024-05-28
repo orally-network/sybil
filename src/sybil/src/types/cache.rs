@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::pin::Pin;
 
 use candid::CandidType;
 use derivative::Derivative;
@@ -381,7 +382,10 @@ where
     Fut: Future<Output = Result<T, E>>,
 {
     cache_ttl: Option<u64>,
+    // callback function that will be called if data is found in cache
     on_found: Option<Box<dyn FnOnce(&mut T)>>,
+    // callback function that will be called after saving data to cache
+    on_save: Option<Pin<Box<dyn Future<Output = ()> + 'static>>>,
     func_signature: String,
     func: Fut,
 }
@@ -396,6 +400,7 @@ where
         Self {
             cache_ttl: None,
             on_found: None,
+            on_save: None,
             func_signature,
             func,
         }
@@ -410,6 +415,13 @@ where
         F: FnOnce(&mut T) + 'static,
     {
         self.on_found = Some(Box::new(on_found));
+    }
+
+    pub fn with_on_save<F>(&mut self, on_save: F)
+    where
+        F: Future<Output = ()> + 'static,
+    {
+        self.on_save = Some(Box::pin(on_save));
     }
 
     pub async fn evaluate(self) -> Result<T, E> {
@@ -466,6 +478,10 @@ where
             );
         });
 
+        if let Some(on_save) = self.on_save {
+            on_save.await;
+        }
+
         Ok(data)
     }
 }
@@ -482,5 +498,49 @@ impl Cache {
         Fut: Future<Output = Result<T, E>>,
     {
         CacheBuilder::new(key, func)
+    }
+
+    pub fn get_cache<T>(key: String, cache_ttl: Option<u64>) -> Option<T>
+    where
+        T: Serialize + DeserializeOwned,
+    {
+        let cache_ttl = cache_ttl.unwrap_or(CACHE_TTL_SEC);
+        UNIVERSAL_CACHE.with(|c| {
+            let mut cache = c.borrow_mut();
+            let cache_by_ttl = cache.0.entry(cache_ttl).or_default();
+
+            let entry = cache_by_ttl.get(&key);
+
+            if let Some(entry) = entry {
+                if entry.expires_at < time::in_seconds() {
+                    cache_by_ttl.remove(&key);
+                } else {
+                    return Some(serde_cbor::from_slice(&entry.data).unwrap());
+                }
+            }
+
+            None
+        })
+    }
+
+    pub fn save_cache<T>(key: String, data: T, cache_ttl: Option<u64>)
+    where
+        T: Serialize,
+    {
+        let cache_ttl = cache_ttl.unwrap_or(CACHE_TTL_SEC);
+        let data_serialized = serde_cbor::to_vec(&data).unwrap();
+
+        UNIVERSAL_CACHE.with(|c| {
+            let mut cache = c.borrow_mut();
+            let cache_by_ttl = cache.0.entry(cache_ttl).or_default();
+
+            cache_by_ttl.insert(
+                key,
+                CacheEntry {
+                    data: data_serialized,
+                    expires_at: time::in_seconds() + cache_ttl,
+                },
+            );
+        });
     }
 }

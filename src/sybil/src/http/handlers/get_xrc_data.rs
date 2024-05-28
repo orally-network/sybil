@@ -13,6 +13,7 @@ use crate::{
         allowances::Allowances,
         api_keys::APIKeys,
         cache::Cache,
+        feed_types::get_xrc_data::GetXRCDataResult,
         http::{HttpRequest, HttpResponse},
     },
 };
@@ -67,10 +68,10 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     let params = GetXRCDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let domain = get_domain(&req);
+    let domain = get_domain(&req).unwrap();
 
     let (payer, is_free) = resolve_payer(
-        domain.clone(),
+        Some(domain.clone()),
         "get_xrc_data".to_string(),
         params.msg,
         params.sig,
@@ -81,7 +82,7 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     let func_signature = stringify_func_call!(_get_xrc_data(params.id.clone(), with_signature));
 
     let mut cache_builder = Cache::with(
-        func_signature,
+        func_signature.clone(),
         crate::methods::feed_methods::get_xrc_data::_get_xrc_data(
             params.id.clone(),
             with_signature,
@@ -89,15 +90,31 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
         ),
     );
 
-    cache_builder.with_on_found(|r| {
-        r.meta.fee = 0.into();
-
+    cache_builder.with_on_found(|_| {
         if let Some(api_key) = params.api_key {
-            APIKeys::decrease_request_count(api_key, "get_xrc_data".to_string(), domain).unwrap();
-        } else {
-            Allowances::decrease_request_count(domain.unwrap(), "get_xrc_data".to_string())
+            APIKeys::decrease_request_count(api_key, "get_xrc_data".to_string(), Some(domain))
                 .unwrap();
+        } else {
+            if Allowances::get_allowed_user(&domain).is_some() {
+                Allowances::decrease_request_count(domain, "get_xrc_data".to_string()).unwrap();
+            }
         }
+    });
+
+    cache_builder.with_on_save(async move {
+        ic_cdk::spawn(async move {
+            let entry =
+                Cache::get_cache::<GetXRCDataResult>(func_signature.clone(), params.cache_ttl);
+
+            if let Some(mut data) = entry {
+                data.meta.fee = 0.into();
+                if with_signature {
+                    data.sign().await.unwrap();
+                }
+
+                Cache::save_cache(func_signature, data, params.cache_ttl);
+            }
+        })
     });
 
     if let Some(cache_ttl) = params.cache_ttl {
@@ -106,8 +123,11 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
 
     let mut rate = cache_builder.evaluate().await?;
 
-    if is_free || payer.is_some() {
+    if is_free {
         rate.meta.fee = 0.into();
+        if with_signature {
+            rate.sign().await?;
+        }
     }
 
     if let Some(_bytes @ true) = params.bytes {

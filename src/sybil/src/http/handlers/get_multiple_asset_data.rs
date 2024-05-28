@@ -13,6 +13,7 @@ use crate::{
         allowances::Allowances,
         api_keys::APIKeys,
         cache::Cache,
+        feed_types::get_multiple_asset_data::GetMultipleAssetDataResult,
         http::{HttpRequest, HttpResponse},
     },
 };
@@ -74,10 +75,10 @@ async fn _get_multiple_assets_data_request(
     let params = GetMultipleAssetsDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let domain = get_domain(&req);
+    let domain = get_domain(&req).unwrap();
 
     let (payer, is_free) = resolve_payer(
-        domain.clone(),
+        Some(domain.clone()),
         "get_multiple_assets_data".to_string(),
         params.msg,
         params.sig,
@@ -90,7 +91,7 @@ async fn _get_multiple_assets_data_request(
     let func_signature =
         stringify_func_call!(_get_multiple_assets_data_result(ids, with_signature));
     let mut cache_builder = Cache::with(
-        func_signature,
+        func_signature.clone(),
         crate::methods::feed_methods::get_multiple_asset_data::_get_multiple_assets_data_result(
             ids.clone(),
             with_signature,
@@ -98,23 +99,38 @@ async fn _get_multiple_assets_data_request(
         ),
     );
 
-    cache_builder.with_on_found(|r| {
-        r.meta.fee = 0.into();
-
+    cache_builder.with_on_found(|_| {
         if let Some(api_key) = params.api_key {
             APIKeys::decrease_request_count(
                 api_key,
                 "get_multiple_assets_data".to_string(),
-                domain,
+                Some(domain),
             )
             .unwrap();
         } else {
-            Allowances::decrease_request_count(
-                domain.unwrap(),
-                "get_multiple_assets_data".to_string(),
-            )
-            .unwrap();
+            if Allowances::get_allowed_user(&domain).is_some() {
+                Allowances::decrease_request_count(domain, "get_multiple_assets_data".to_string())
+                    .unwrap();
+            }
         }
+    });
+
+    cache_builder.with_on_save(async move {
+        ic_cdk::spawn(async move {
+            let entry = Cache::get_cache::<GetMultipleAssetDataResult>(
+                func_signature.clone(),
+                params.cache_ttl,
+            );
+
+            if let Some(mut data) = entry {
+                data.meta.fee = 0.into();
+                if with_signature {
+                    data.sign().await.unwrap();
+                }
+
+                Cache::save_cache(func_signature, data, params.cache_ttl);
+            }
+        })
     });
 
     if let Some(cache_ttl) = params.cache_ttl {
@@ -123,12 +139,11 @@ async fn _get_multiple_assets_data_request(
 
     let mut rate = cache_builder.evaluate().await?;
 
-    if is_free || payer.is_some() {
+    if is_free {
         rate.meta.fee = 0.into();
-    }
-
-    if is_free || payer.is_some() {
-        rate.meta.fee = 0.into();
+        if with_signature {
+            rate.sign().await?;
+        }
     }
 
     if let Some(_bytes @ true) = params.bytes {

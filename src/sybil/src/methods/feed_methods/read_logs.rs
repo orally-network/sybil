@@ -52,10 +52,6 @@ pub async fn read_logs(
         ),
     );
 
-    cache_builder.with_on_found(|r| {
-        r.meta.fee = 0.into();
-    });
-
     cache_builder
         .evaluate()
         .await
@@ -94,10 +90,6 @@ pub async fn read_logs_with_proof(
             true,
         ),
     );
-
-    cache_builder.with_on_found(|r| {
-        r.meta.fee = 0.into();
-    });
 
     cache_builder
         .evaluate()

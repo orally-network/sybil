@@ -49,7 +49,7 @@ pub async fn read_contract_with_proof(
         true
     ));
 
-    let mut cache_builder = Cache::with(
+    let cache_builder = Cache::with(
         func_signature,
         _read_contract(
             chain_id,
@@ -62,10 +62,6 @@ pub async fn read_contract_with_proof(
             true,
         ),
     );
-
-    cache_builder.with_on_found(|r| {
-        r.meta.fee = 0.into();
-    });
 
     cache_builder
         .evaluate()
@@ -102,7 +98,7 @@ pub async fn read_contract(
         false
     ));
 
-    let mut cache_builder = Cache::with(
+    let cache_builder = Cache::with(
         func_signature,
         _read_contract(
             chain_id,
@@ -115,10 +111,6 @@ pub async fn read_contract(
             false,
         ),
     );
-
-    cache_builder.with_on_found(|r| {
-        r.meta.fee = 0.into();
-    });
 
     cache_builder
         .evaluate()
