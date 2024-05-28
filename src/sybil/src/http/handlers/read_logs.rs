@@ -1,3 +1,5 @@
+use std::result;
+
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
@@ -116,7 +118,7 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
         with_signature
     ));
 
-    let mut result = Cache::with(
+    let mut cache_builder = Cache::with(
         func_signature,
         crate::methods::feed_methods::read_logs::_read_logs(
             params.chain_id,
@@ -130,15 +132,20 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
             if is_free { None } else { payer.clone() },
             with_signature,
         ),
-        |result| {
-            result.meta.fee = 0.into();
-            if let Some(api_key) = params.api_key {
-                APIKeys::decrease_request_count(api_key, "read_logs".to_string(), domain).unwrap();
-            }
-        },
-        params.cache_ttl,
-    )
-    .await?;
+    );
+
+    cache_builder.with_on_found(|result| {
+        result.meta.fee = 0.into();
+        if let Some(api_key) = params.api_key {
+            APIKeys::decrease_request_count(api_key, "read_logs".to_string(), domain).unwrap();
+        }
+    });
+
+    if let Some(cache_ttl) = params.cache_ttl {
+        cache_builder.with_cache_ttl(cache_ttl);
+    }
+
+    let mut result = cache_builder.evaluate().await?;
 
     if is_free || payer.is_some() {
         result.meta.fee = 0.into();

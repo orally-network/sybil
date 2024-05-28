@@ -49,7 +49,7 @@ pub async fn read_contract_with_proof(
         true
     ));
 
-    Cache::with(
+    let mut cache_builder = Cache::with(
         func_signature,
         _read_contract(
             chain_id,
@@ -61,13 +61,16 @@ pub async fn read_contract_with_proof(
             None,
             true,
         ),
-        |r| {
-            r.meta.fee = 0.into();
-        },
-        None,
-    )
-    .await
-    .map_err(|e| format!("Failed to read contract: {e}"))
+    );
+
+    cache_builder.with_on_found(|r| {
+        r.meta.fee = 0.into();
+    });
+
+    cache_builder
+        .evaluate()
+        .await
+        .map_err(|e| format!("Failed to read contract: {e}"))
 }
 
 #[update]
@@ -99,7 +102,7 @@ pub async fn read_contract(
         false
     ));
 
-    Cache::with(
+    let mut cache_builder = Cache::with(
         func_signature,
         _read_contract(
             chain_id,
@@ -111,13 +114,16 @@ pub async fn read_contract(
             None,
             false,
         ),
-        |r| {
-            r.meta.fee = 0.into();
-        },
-        None,
-    )
-    .await
-    .map_err(|e| format!("Failed to read contract: {e}"))
+    );
+
+    cache_builder.with_on_found(|r| {
+        r.meta.fee = 0.into();
+    });
+
+    cache_builder
+        .evaluate()
+        .await
+        .map_err(|e| format!("Failed to read contract: {e}"))
 }
 
 #[inline]

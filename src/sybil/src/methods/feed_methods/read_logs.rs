@@ -44,19 +44,22 @@ pub async fn read_logs(
         chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, false
     ));
 
-    Cache::with(
+    let mut cache_builder = Cache::with(
         func_signature,
         _read_logs(
             chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, None,
             false,
         ),
-        |r| {
-            r.meta.fee = 0.into();
-        },
-        None,
-    )
-    .await
-    .map_err(|e| format!("failed to read logs: {}", e))
+    );
+
+    cache_builder.with_on_found(|r| {
+        r.meta.fee = 0.into();
+    });
+
+    cache_builder
+        .evaluate()
+        .await
+        .map_err(|e| format!("failed to read logs: {}", e))
 }
 
 #[update]
@@ -84,19 +87,22 @@ pub async fn read_logs_with_proof(
         chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, true
     ));
 
-    Cache::with(
+    let mut cache_builder = Cache::with(
         func_signature,
         _read_logs(
             chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, None,
             true,
         ),
-        |r| {
-            r.meta.fee = 0.into();
-        },
-        None,
-    )
-    .await
-    .map_err(|e| format!("failed to read logs: {}", e))
+    );
+
+    cache_builder.with_on_found(|r| {
+        r.meta.fee = 0.into();
+    });
+
+    cache_builder
+        .evaluate()
+        .await
+        .map_err(|e| format!("failed to read logs: {}", e))
 }
 
 #[inline]

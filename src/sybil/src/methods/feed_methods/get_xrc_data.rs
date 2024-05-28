@@ -7,7 +7,7 @@ use crate::{
     stringify_func_call,
     types::{
         balances::Balances,
-        cache::Cache,
+        cache::{self, Cache},
         feed_types::{
             get_xrc_data::{GetXRCData, GetXRCDataMetadata, GetXRCDataResult},
             rate_data::AssetData,
@@ -32,16 +32,16 @@ pub async fn get_xrc_data(
     };
 
     let func_signature = stringify_func_call!(_get_xrc_data(id, false));
-    Cache::with(
-        func_signature,
-        _get_xrc_data(id, false, Some(payer)),
-        |r| {
-            r.meta.fee = 0.into();
-        },
-        None,
-    )
-    .await
-    .map_err(|e| format!("failed to get asset data: {}", e))
+    let mut cache_builder = Cache::with(func_signature, _get_xrc_data(id, false, Some(payer)));
+
+    cache_builder.with_on_found(|r| {
+        r.meta.fee = 0.into();
+    });
+
+    cache_builder
+        .evaluate()
+        .await
+        .map_err(|e| format!("failed to get asset data: {}", e))
 }
 
 #[update]
@@ -59,16 +59,16 @@ pub async fn get_xrc_data_with_proof(
     };
 
     let func_signature = stringify_func_call!(_get_xrc_data(id, true));
-    Cache::with(
-        func_signature,
-        _get_xrc_data(id, true, Some(payer)),
-        |r| {
-            r.meta.fee = 0.into();
-        },
-        None,
-    )
-    .await
-    .map_err(|e| format!("failed to get asset data: {}", e))
+    let mut cache_builder = Cache::with(func_signature, _get_xrc_data(id, true, Some(payer)));
+
+    cache_builder.with_on_found(|r| {
+        r.meta.fee = 0.into();
+    });
+
+    cache_builder
+        .evaluate()
+        .await
+        .map_err(|e| format!("failed to get asset data: {}", e))
 }
 
 #[inline]

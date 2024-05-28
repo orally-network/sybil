@@ -1,3 +1,5 @@
+use std::result;
+
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
@@ -11,7 +13,7 @@ use crate::{
     stringify_func_call,
     types::{
         api_keys::APIKeys,
-        cache::Cache,
+        cache::{self, Cache},
         http::{HttpRequest, HttpResponse},
     },
 };
@@ -92,7 +94,7 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
         with_signature
     ));
 
-    let mut result = Cache::with(
+    let mut cache_builder = Cache::with(
         func_signature,
         crate::methods::feed_methods::read_contract::_read_contract(
             params.chain_id,
@@ -104,16 +106,20 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
             if is_free { None } else { payer.clone() },
             with_signature,
         ),
-        |r| {
-            r.meta.fee = 0.into();
-            if let Some(api_key) = params.api_key {
-                APIKeys::decrease_request_count(api_key, "read_contract".to_string(), domain)
-                    .unwrap();
-            }
-        },
-        params.cache_ttl,
-    )
-    .await?;
+    );
+
+    cache_builder.with_on_found(|r| {
+        r.meta.fee = 0.into();
+        if let Some(api_key) = params.api_key {
+            APIKeys::decrease_request_count(api_key, "read_contract".to_string(), domain).unwrap();
+        }
+    });
+
+    if let Some(cache_ttl) = params.cache_ttl {
+        cache_builder.with_cache_ttl(cache_ttl);
+    }
+
+    let mut result = cache_builder.evaluate().await?;
 
     if is_free || payer.is_some() {
         result.meta.fee = 0.into();

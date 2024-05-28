@@ -79,24 +79,28 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
 
     let func_signature = stringify_func_call!(_get_xrc_data(params.id.clone(), with_signature));
 
-    let mut rate = Cache::with(
+    let mut cache_builder = Cache::with(
         func_signature,
         crate::methods::feed_methods::get_xrc_data::_get_xrc_data(
             params.id.clone(),
             with_signature,
             if is_free { None } else { payer.clone() },
         ),
-        |r| {
-            r.meta.fee = 0.into();
+    );
 
-            if let Some(api_key) = params.api_key {
-                APIKeys::decrease_request_count(api_key, "get_xrc_data".to_string(), domain)
-                    .unwrap();
-            }
-        },
-        params.cache_ttl,
-    )
-    .await?;
+    cache_builder.with_on_found(|r| {
+        r.meta.fee = 0.into();
+
+        if let Some(api_key) = params.api_key {
+            APIKeys::decrease_request_count(api_key, "get_xrc_data".to_string(), domain).unwrap();
+        }
+    });
+
+    if let Some(cache_ttl) = params.cache_ttl {
+        cache_builder.with_cache_ttl(cache_ttl);
+    }
+
+    let mut rate = cache_builder.evaluate().await?;
 
     if is_free || payer.is_some() {
         rate.meta.fee = 0.into();

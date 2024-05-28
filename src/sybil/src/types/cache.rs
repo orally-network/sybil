@@ -370,39 +370,60 @@ pub struct CacheEntry {
 #[derive(Debug, Clone, Default, CandidType)]
 pub struct Cache(HashMap<u64, HashMap<String, CacheEntry>>);
 
-impl Cache {
-    pub fn new() -> Self {
-        Self(HashMap::new())
+/// CacheBuilder is a builder for Cache.
+/// If data is not found or expired, then call `func`` to get data and store it in cache with `cache_ttl` time to live.
+/// If `cache_ttl` is not specified, then use default value.
+/// If data has been found in cache, then update it with `on_found` function if one is given and return data.
+pub struct CacheBuilder<T, E, Fut>
+where
+    T: Serialize + DeserializeOwned,
+    E: std::error::Error + std::convert::From<CacheError>,
+    Fut: Future<Output = Result<T, E>>,
+{
+    cache_ttl: Option<u64>,
+    on_found: Option<Box<dyn FnOnce(&mut T)>>,
+    func_signature: String,
+    func: Fut,
+}
+
+impl<T, E, Fut> CacheBuilder<T, E, Fut>
+where
+    T: Serialize + DeserializeOwned,
+    E: std::error::Error + std::convert::From<CacheError>,
+    Fut: Future<Output = Result<T, E>>,
+{
+    fn new(func_signature: String, func: Fut) -> Self {
+        Self {
+            cache_ttl: None,
+            on_found: None,
+            func_signature,
+            func,
+        }
     }
 
-    /// Get data from cache by key.
-    /// If data is not found or expired, then call `func`` to get data and store it in cache with `cache_ttl` time to live.
-    /// If `cache_ttl` is not specified, then use default value.
-    /// If data has been found in cache, then update it with `on_found` function if one is given and return data.
-    pub async fn with<T, E, Fut, OnFound>(
-        key: String,
-        func: Fut,
-        on_found: OnFound,
-        cache_ttl: Option<u64>,
-    ) -> Result<T, E>
-    where
-        T: Serialize + DeserializeOwned,
-        E: std::error::Error + std::convert::From<CacheError>,
-        Fut: Future<Output = Result<T, E>>,
-        OnFound: FnOnce(&mut T),
-    {
-        let cache_ttl = cache_ttl.unwrap_or(CACHE_TTL_SEC);
+    pub fn with_cache_ttl(&mut self, cache_ttl: u64) {
+        self.cache_ttl = Some(cache_ttl);
+    }
 
+    pub fn with_on_found<F>(&mut self, on_found: F)
+    where
+        F: FnOnce(&mut T) + 'static,
+    {
+        self.on_found = Some(Box::new(on_found));
+    }
+
+    pub async fn evaluate(self) -> Result<T, E> {
+        let cache_ttl = self.cache_ttl.unwrap_or(CACHE_TTL_SEC);
         let cache = UNIVERSAL_CACHE.with(|c| {
             let mut cache = c.borrow_mut();
             let cache_by_ttl = cache.0.entry(cache_ttl).or_default();
 
-            let entry = cache_by_ttl.get(&key);
+            let entry = cache_by_ttl.get(&self.func_signature);
 
             if let Some(entry) = entry {
                 if entry.expires_at < time::in_seconds() {
                     log!("Cache entry expired");
-                    cache_by_ttl.remove(&key);
+                    cache_by_ttl.remove(&self.func_signature);
                 } else {
                     log!("Cache entry found");
                     return Some(
@@ -417,12 +438,15 @@ impl Cache {
 
         if let Some(data) = cache {
             let mut found_data = data?;
-            on_found(&mut found_data);
+            if let Some(on_found) = self.on_found {
+                on_found(&mut found_data);
+            }
 
             return Ok(found_data);
         }
 
-        let data = func
+        let data = self
+            .func
             .await
             .map_err(|err| CacheError::GetDataError(format!("{}", err)))?;
 
@@ -434,7 +458,7 @@ impl Cache {
             let cache_by_ttl = cache.0.entry(cache_ttl).or_default();
 
             cache_by_ttl.insert(
-                key,
+                self.func_signature,
                 CacheEntry {
                     data: data_serialized,
                     expires_at: time::in_seconds() + cache_ttl,
@@ -443,5 +467,20 @@ impl Cache {
         });
 
         Ok(data)
+    }
+}
+
+impl Cache {
+    pub fn new() -> Self {
+        Self(HashMap::new())
+    }
+
+    pub fn with<T, E, Fut>(key: String, func: Fut) -> CacheBuilder<T, E, Fut>
+    where
+        T: Serialize + DeserializeOwned,
+        E: std::error::Error + std::convert::From<CacheError>,
+        Fut: Future<Output = Result<T, E>>,
+    {
+        CacheBuilder::new(key, func)
     }
 }

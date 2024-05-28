@@ -37,13 +37,12 @@ pub async fn convert_usd_to_eth(value_usd: Nat, value_decimals: u64) -> Result<N
 
     //Using _get_xrc_data is just slightly beter because it will use the same cache as the regular get_xrc_data
     let func_signature = stringify_func_call!(_get_xrc_data(rate.id, false));
-    let (_, rate) = Cache::with(
-        func_signature,
-        FeedStorage::get_default_rate(&rate, None),
-        |_| {},
-        Some(CACHE_TTL_SEC_FOR_CONVERTION),
-    )
-    .await?;
+
+    let mut cache_builder = Cache::with(func_signature, FeedStorage::get_default_rate(&rate, None));
+
+    cache_builder.with_cache_ttl(CACHE_TTL_SEC_FOR_CONVERTION);
+
+    let (_, rate) = cache_builder.evaluate().await?;
 
     let AssetData::DefaultPriceFeed { rate, decimals, .. } = rate.data else {
         unreachable!("xrc data should be default price feed");
