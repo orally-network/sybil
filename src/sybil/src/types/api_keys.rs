@@ -40,6 +40,7 @@ pub enum APIKeysError {
 pub struct User {
     pub address: String,
     pub request_count: u64,
+    pub request_count_today: u64,
     pub request_count_per_method: HashMap<String, u64>,
     pub request_count_per_domain: HashMap<String, u64>,
     pub banned_domains: HashSet<String>,
@@ -53,11 +54,13 @@ pub struct User {
 impl User {
     pub fn increment_request_count(&mut self) {
         self.request_count += 1;
+        self.request_count_today += 1;
         self.last_request = in_seconds();
     }
 
     pub fn decrease_request_count(&mut self) {
         self.request_count -= 1;
+        self.request_count_today -= 1;
         self.last_request = in_seconds();
     }
 
@@ -116,7 +119,7 @@ impl User {
     }
 
     pub fn check_restrictions(&self, domain: Option<&str>) -> Result<(), APIKeysError> {
-        if self.get_request_count() >= self.request_limit {
+        if self.request_count_today >= self.request_limit {
             return Err(APIKeysError::LimitExceeded);
         }
 
@@ -147,7 +150,7 @@ impl User {
             .date();
 
         if now != previous_date {
-            self.request_count = 0;
+            self.request_count_today = 0;
             self.request_count_per_method.clear();
             self.request_count_per_domain.clear();
         }
@@ -158,9 +161,9 @@ impl User {
 // grantee domain => grantor public key
 #[derive(Serialize, Deserialize, CandidType, Debug, Clone)]
 pub struct APIKeys {
-    keys_to_user: HashMap<String, User>,
-    user_to_keys: HashMap<String, HashSet<String>>,
-    free_request_limit: u64,
+    pub keys_to_user: HashMap<String, User>,
+    pub user_to_keys: HashMap<String, HashSet<String>>,
+    pub free_request_limit: u64,
 }
 
 impl Default for APIKeys {
@@ -202,6 +205,7 @@ impl APIKeys {
                 User {
                     address: address.clone(),
                     request_count: 0,
+                    request_count_today: 0,
                     request_count_per_method: HashMap::new(),
                     request_count_per_domain: HashMap::new(),
                     banned_domains: HashSet::new(),

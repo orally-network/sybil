@@ -12,7 +12,7 @@ use crate::{
     log, metrics,
     types::{
         allowances::Allowances,
-        api_keys::APIKeys,
+        api_keys::{APIKeys, User},
         balances::{AllowedChain, Balances, BalancesCfg, ERC20Contract},
         cache::{HttpCache, RateCache, SignaturesCache},
         chains_rpc::{ChainsRPC, RPCUrl},
@@ -232,9 +232,63 @@ impl From<OldBalancesCfg> for BalancesCfg {
     }
 }
 
+#[derive(Default, Serialize, Deserialize, CandidType, Debug, Clone)]
+pub struct OldUser {
+    pub address: String,
+    pub request_count: u64,
+    pub request_count_today: Option<u64>,
+    pub request_count_per_method: HashMap<String, u64>,
+    pub request_count_per_domain: HashMap<String, u64>,
+    pub banned_domains: HashSet<String>,
+    pub allowed_domains: HashSet<String>,
+    pub is_public: bool, // if true, everyone except banned domains can use this key, if false, only allowed domains can use this key
+    pub last_request: u64, // timestamp of the last request
+    pub request_limit_by_domain: u64,
+    pub request_limit: u64,
+}
+
+impl From<OldUser> for User {
+    fn from(old: OldUser) -> Self {
+        Self {
+            address: old.address,
+            request_count: old.request_count,
+            request_count_today: old.request_count_today.unwrap_or_default(),
+            request_count_per_method: old.request_count_per_method,
+            request_count_per_domain: old.request_count_per_domain,
+            banned_domains: old.banned_domains,
+            allowed_domains: old.allowed_domains,
+            is_public: old.is_public,
+            last_request: old.last_request,
+            request_limit_by_domain: old.request_limit_by_domain,
+            request_limit: old.request_limit,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, CandidType, Debug, Clone)]
+pub struct OldAPIKeys {
+    keys_to_user: HashMap<String, OldUser>,
+    user_to_keys: HashMap<String, HashSet<String>>,
+    free_request_limit: u64,
+}
+
+impl From<OldAPIKeys> for APIKeys {
+    fn from(old: OldAPIKeys) -> Self {
+        Self {
+            keys_to_user: old
+                .keys_to_user
+                .into_iter()
+                .map(|(key, user)| (key, user.into()))
+                .collect(),
+            user_to_keys: old.user_to_keys,
+            free_request_limit: old.free_request_limit,
+        }
+    }
+}
+
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug)]
 pub struct OldState {
-    pub api_keys: Option<APIKeys>,
+    pub api_keys: Option<OldAPIKeys>,
     pub exchange_rate_canister: Principal,
     pub fallback_xrc: Option<Principal>,
     pub evm_rpc_canister: Option<Principal>,
@@ -255,7 +309,7 @@ pub struct OldState {
 impl From<OldState> for State {
     fn from(state: OldState) -> Self {
         Self {
-            api_keys: state.api_keys.unwrap_or_default(),
+            api_keys: state.api_keys.map(|keys| keys.into()).unwrap_or_default(),
             exchange_rate_canister: state.exchange_rate_canister,
             fallback_xrc: state.fallback_xrc.unwrap_or_else(|| {
                 Principal::from_text("a3uxy-eiaaa-aaaao-a2qaa-cai").expect("Invalid principal")
