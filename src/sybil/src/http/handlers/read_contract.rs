@@ -1,5 +1,3 @@
-use std::result;
-
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
@@ -12,8 +10,9 @@ use crate::{
     },
     stringify_func_call,
     types::{
+        allowances::Allowances,
         api_keys::APIKeys,
-        cache::{self, Cache},
+        cache::Cache,
         http::{HttpRequest, HttpResponse},
     },
 };
@@ -112,6 +111,9 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
         r.meta.fee = 0.into();
         if let Some(api_key) = params.api_key {
             APIKeys::decrease_request_count(api_key, "read_contract".to_string(), domain).unwrap();
+        } else {
+            Allowances::decrease_request_count(domain.unwrap(), "read_contract".to_string())
+                .unwrap();
         }
     });
 

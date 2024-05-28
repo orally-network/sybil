@@ -10,6 +10,7 @@ use crate::{
     },
     stringify_func_call,
     types::{
+        allowances::Allowances,
         api_keys::APIKeys,
         cache::Cache,
         http::{HttpRequest, HttpResponse},
@@ -94,6 +95,9 @@ async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Resu
         r.meta.fee = 0.into();
         if let Some(api_key) = params.api_key {
             APIKeys::decrease_request_count(api_key, "get_asset_data".to_string(), domain).unwrap();
+        } else {
+            Allowances::decrease_request_count(domain.unwrap(), "get_asset_data".to_string())
+                .unwrap();
         }
     });
 

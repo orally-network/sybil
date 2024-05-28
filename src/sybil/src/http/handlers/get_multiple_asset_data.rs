@@ -10,6 +10,7 @@ use crate::{
     },
     stringify_func_call,
     types::{
+        allowances::Allowances,
         api_keys::APIKeys,
         cache::Cache,
         http::{HttpRequest, HttpResponse},
@@ -105,6 +106,12 @@ async fn _get_multiple_assets_data_request(
                 api_key,
                 "get_multiple_assets_data".to_string(),
                 domain,
+            )
+            .unwrap();
+        } else {
+            Allowances::decrease_request_count(
+                domain.unwrap(),
+                "get_multiple_assets_data".to_string(),
             )
             .unwrap();
         }

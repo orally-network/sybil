@@ -10,6 +10,7 @@ use crate::{
     },
     stringify_func_call,
     types::{
+        allowances::Allowances,
         api_keys::APIKeys,
         cache::Cache,
         http::{HttpRequest, HttpResponse},
@@ -93,6 +94,9 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
 
         if let Some(api_key) = params.api_key {
             APIKeys::decrease_request_count(api_key, "get_xrc_data".to_string(), domain).unwrap();
+        } else {
+            Allowances::decrease_request_count(domain.unwrap(), "get_xrc_data".to_string())
+                .unwrap();
         }
     });
 

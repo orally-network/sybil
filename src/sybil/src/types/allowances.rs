@@ -38,11 +38,28 @@ pub struct Allowance {
 }
 
 impl Allowance {
+    pub fn increment_request_count(&mut self) {
+        self.request_count += 1;
+        self.request_count_today += 1;
+    }
+
+    pub fn decrease_request_count(&mut self) {
+        self.request_count -= 1;
+        self.request_count_today -= 1;
+    }
+
     pub fn increment_request_count_by_method(&mut self, method: &str) {
         *self
             .request_count_per_method
             .entry(method.to_string())
             .or_default() += 1;
+    }
+
+    pub fn decrease_request_count_by_method(&mut self, method: &str) {
+        *self
+            .request_count_per_method
+            .entry(method.to_string())
+            .or_default() -= 1;
     }
 
     pub fn increment_request_count_by_domain(&mut self, domain: &str) {
@@ -52,9 +69,11 @@ impl Allowance {
             .or_default() += 1;
     }
 
-    pub fn increment_request_count(&mut self) {
-        self.request_count += 1;
-        self.request_count_today += 1;
+    pub fn decrease_request_count_by_domain(&mut self, domain: &str) {
+        *self
+            .request_count_per_domain
+            .entry(domain.to_string())
+            .or_default() -= 1;
     }
 
     pub fn check_restrictions(&self) -> Result<(), AllowancesError> {
@@ -86,8 +105,8 @@ impl Allowance {
 // grantee domain => grantor user
 #[derive(Serialize, Deserialize, CandidType, Debug, Clone)]
 pub struct Allowances {
-    domains_to_allowances: HashMap<String, Allowance>,
-    user_to_allowed_domains: HashMap<String, HashSet<String>>,
+    pub domains_to_allowances: HashMap<String, Allowance>,
+    pub user_to_allowed_domains: HashMap<String, HashSet<String>>,
 }
 
 impl Default for Allowances {
@@ -100,6 +119,25 @@ impl Default for Allowances {
 }
 
 impl Allowances {
+    pub fn decrease_request_count(domain: String, method: String) -> Result<(), AllowancesError> {
+        STATE.with(|state| {
+            let mut state = state.borrow_mut();
+
+            let Some(allowance) = state.allowances.domains_to_allowances.get_mut(&domain) else {
+                return Err(AllowancesError::InvalidKey);
+            };
+
+            allowance.update_request_count_today();
+
+            allowance.check_restrictions()?;
+
+            allowance.decrease_request_count();
+            allowance.decrease_request_count_by_method(&method);
+            allowance.decrease_request_count_by_domain(&domain);
+
+            Ok(())
+        })
+    }
     // Updates info about allowance
     pub fn update(domain: String, method: String) -> Result<(), AllowancesError> {
         STATE.with(|state| {

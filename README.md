@@ -64,7 +64,7 @@ dfx canister call sybil get_balance "(\"${CALLER}\")"
 
 # allowances
 dfx canister call sybil get_allowed_domains "(\"${SIWE_MSG}\", \"${SIWE_SIG}\")"
-dfx canister call sybil grant "(\"test\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
+dfx canister call sybil grant "(\"test\", null, \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil restrict "(\"test\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 
 # api keys

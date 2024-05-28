@@ -11,7 +11,7 @@ use crate::{
     http::HttpService,
     log, metrics,
     types::{
-        allowances::Allowances,
+        allowances::{Allowance, Allowances},
         api_keys::{APIKeys, User},
         balances::{AllowedChain, Balances, BalancesCfg, ERC20Contract},
         cache::{HttpCache, RateCache, SignaturesCache},
@@ -286,6 +286,50 @@ impl From<OldAPIKeys> for APIKeys {
     }
 }
 
+#[derive(Default, Serialize, Deserialize, CandidType, Debug, Clone)]
+pub struct OldAllowance {
+    pub grantor_address: String,
+    pub request_count: u64,
+    pub request_count_today: u64,
+    pub request_count_per_method: HashMap<String, u64>,
+    pub request_count_per_domain: HashMap<String, u64>,
+    pub request_limit: u64,
+    pub last_request: u64, // timestamp of the last request
+}
+
+impl From<OldAllowance> for Allowance {
+    fn from(value: OldAllowance) -> Self {
+        Self {
+            grantor_address: value.grantor_address,
+            request_count: value.request_count,
+            request_count_today: value.request_count_today,
+            request_count_per_method: value.request_count_per_method,
+            request_count_per_domain: value.request_count_per_domain,
+            request_limit: value.request_limit,
+            last_request: value.last_request,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, CandidType, Debug, Clone)]
+pub struct OldAllowances {
+    domains_to_allowances: HashMap<String, OldAllowance>,
+    user_to_allowed_domains: HashMap<String, HashSet<String>>,
+}
+
+impl From<OldAllowances> for Allowances {
+    fn from(value: OldAllowances) -> Self {
+        Self {
+            domains_to_allowances: value
+                .domains_to_allowances
+                .into_iter()
+                .map(|(domain, allowance)| (domain, allowance.into()))
+                .collect(),
+            user_to_allowed_domains: value.user_to_allowed_domains,
+        }
+    }
+}
+
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug)]
 pub struct OldState {
     pub api_keys: Option<OldAPIKeys>,
@@ -297,7 +341,7 @@ pub struct OldState {
     pub mock: bool,
     pub feeds: OldFeedStorage,
     pub balances: Balances,
-    pub allowances: Option<Allowances>,
+    pub allowances: Option<OldAllowances>,
     pub balances_cfg: OldBalancesCfg,
     pub chains_rpc: Option<ChainsRPC>,
     pub eth_address: Option<Address>,
@@ -322,7 +366,10 @@ impl From<OldState> for State {
             mock: state.mock,
             feeds: state.feeds.into(),
             balances: state.balances,
-            allowances: state.allowances.unwrap_or_default(),
+            allowances: state
+                .allowances
+                .map(|allowances| allowances.into())
+                .unwrap_or_default(),
             balances_cfg: state.balances_cfg.into(),
             chains_rpc: state.chains_rpc.unwrap_or_default().into(),
             eth_address: state.eth_address,
