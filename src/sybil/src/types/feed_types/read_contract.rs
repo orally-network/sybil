@@ -32,6 +32,7 @@ impl ReadContractMetadata {
             Token::Address(self.contract_address.parse().unwrap()),
             Token::String(self.method.clone()),
             Token::String(self.params.clone()),
+            Token::Uint(self.block_number.into()),
             Token::Uint(self.timestamp.into()),
             Token::Uint(nat::to_u256(&self.fee)),
             Token::String(self.fee_symbol.clone()),
