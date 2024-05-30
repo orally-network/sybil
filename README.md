@@ -104,7 +104,7 @@ dfx canister call sybil get_asset_data "(\"custom_get_logs_example\", opt \"${SI
 dfx canister call sybil remove_custom_feed "(\"custom_get_logs_example\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 
 # create default feed (feeds come from xrc)
-dfx canister call sybil create_default_feed "(record {id=\"ETH/USD\"; update_freq=360:nat; decimals=6:nat})"
+dfx canister call sybil create_default_feed "(record {id=\"BTC/USD\"; update_freq=360:nat; decimals=6:nat})"
 dfx canister call sybil get_asset_data "(\"ETH/USD\", opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 dfx canister call sybil get_asset_data_with_proof "(\"ETH/USD\", opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 dfx canister call sybil remove_default_feed "(\"ETH/USD\")"

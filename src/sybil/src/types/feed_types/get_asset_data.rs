@@ -28,6 +28,7 @@ impl GetAssetDataMetadata {
             Token::String(self.id.clone()),
             Token::Uint(self.timestamp.into()),
             Token::Uint(nat::to_u256(&self.fee)),
+            Token::String(self.fee_symbol.clone()),
         ]
     }
 

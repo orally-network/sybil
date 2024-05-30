@@ -37,7 +37,7 @@ const HTTP_WATTING_TIMEOUT_SECS: u64 = 24;
 const HTTP_OUTCALL_REQUEST_CYCLES: u128 = 400_000_000;
 const HTTP_OUTCALL_PAYLOAD_CYCLES: u128 = 100_000;
 const MAX_RESPONSE_BYTES: u128 = 2 * 1024 * 1024; // 2 MB
-const CACHE_TTL_SEC: u64 = 3 * 60; // 3 minutes
+const CACHE_TTL_SEC: u64 = 10 * 60; // 10 minutes
 
 #[derive(Debug, Clone, Default, CandidType, Serialize, Deserialize)]
 pub struct RateCache(HashMap<String, RateCacheEntry>);

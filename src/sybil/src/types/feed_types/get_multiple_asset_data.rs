@@ -28,6 +28,7 @@ impl GetMultipleAssetDataMetadata {
             Token::Array(self.ids.clone().into_iter().map(Token::String).collect()),
             Token::Uint(self.timestamp.into()),
             Token::Uint(nat::to_u256(&self.fee)),
+            Token::String(self.fee_symbol.clone()),
         ]
     }
 
