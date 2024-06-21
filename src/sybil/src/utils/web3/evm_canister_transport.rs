@@ -1,6 +1,11 @@
-#![allow(dead_code)]
-
-use std::fmt::Debug;
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
 
 use anyhow::Result;
 use candid::{CandidType, Principal};
@@ -15,11 +20,13 @@ use cketh_common::{
 use ic_cdk::api::call::call_with_payment128;
 use ic_web3_rs::{
     error::TransportError, futures::future::BoxFuture, helpers, signing::keccak256,
-    transports::ic_http::CallOptions, types::H256, RequestId, Transport,
+    transports::ic_http::CallOptions, types::H256, BatchTransport, RequestId, Transport,
 };
 use jsonrpc_core::{Call, Output, Params, Request};
-use serde::Deserialize;
+use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::Value;
+
+use crate::{log, retry_until_success};
 
 const MAX_CYCLES: u128 = 60_000_000_000;
 const DEFAULT_MAX_RESPONSE_BYTES: u64 = 10_000;
@@ -30,6 +37,7 @@ pub struct EVMCanisterTransport {
     rpcs_url: Vec<String>,
     evm_rpc_canister: Principal,
     max_response_bytes: u64,
+    id: Arc<AtomicUsize>,
 }
 
 impl EVMCanisterTransport {
@@ -39,6 +47,7 @@ impl EVMCanisterTransport {
             rpcs_url: vec![rpc_url],
             evm_rpc_canister,
             max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES,
+            id: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -47,13 +56,43 @@ impl EVMCanisterTransport {
             rpcs_url,
             evm_rpc_canister,
             max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES,
+            id: Arc::new(AtomicUsize::new(0)),
         }
     }
 
     // we return constant id because ic_eth_rpc doesn't use it
     pub fn next_id(&self) -> RequestId {
-        1
+        self.id.fetch_add(1, Ordering::AcqRel)
     }
+}
+
+async fn execute_canister_call_batch<T: DeserializeOwned>(
+    ic_eth_rpc: Principal,
+    service: RpcService,
+    json_rpc_payload: String,
+    max_response_bytes: u64,
+) -> Result<T, ic_web3_rs::Error> {
+    let (result,): (Result<String, cketh_common::eth_rpc::RpcError>,) = call_with_payment128(
+        ic_eth_rpc,
+        "request",
+        (service, json_rpc_payload, max_response_bytes),
+        MAX_CYCLES,
+    )
+    .await
+    .map_err(|(code, msg)| {
+        ic_web3_rs::Error::Transport(TransportError::Message(format!("{:?}: {}", code, msg)))
+    })?;
+
+    let result = result.map_err(|err| {
+        ic_web3_rs::Error::Transport(TransportError::Message(format!(
+            "Error in ic_eth_rpc: {:?}",
+            err
+        )))
+    })?;
+
+    let output: T = serde_json::from_str(&result).unwrap();
+
+    Ok(output)
 }
 
 async fn execute_canister_call(
@@ -215,6 +254,83 @@ async fn send_raw_tx(
     }
 }
 
+fn id_of_output(output: &Output) -> Result<RequestId, ic_web3_rs::Error> {
+    let id = match output {
+        Output::Success(success) => &success.id,
+        Output::Failure(failure) => &failure.id,
+    };
+    match id {
+        jsonrpc_core::Id::Num(num) => Ok(*num as RequestId),
+        _ => Err(ic_web3_rs::Error::InvalidResponse(
+            "response id is not u64".to_string(),
+        )),
+    }
+}
+
+// According to the jsonrpc specification batch responses can be returned in any order so we need to
+// restore the intended order.
+fn handle_batch_response(
+    ids: &[RequestId],
+    outputs: Vec<Output>,
+) -> Result<Vec<Result<Value, ic_web3_rs::Error>>, ic_web3_rs::Error> {
+    if ids.len() != outputs.len() {
+        return Err(ic_web3_rs::Error::InvalidResponse(
+            "unexpected number of responses".to_string(),
+        ));
+    }
+    let mut outputs = outputs
+        .into_iter()
+        .map(|output| {
+            Ok((
+                id_of_output(&output)?,
+                helpers::to_result_from_output(output),
+            ))
+        })
+        .collect::<Result<HashMap<_, _>>>()
+        .unwrap();
+
+    ids.iter()
+        .map(|id| {
+            outputs.remove(id).ok_or_else(|| {
+                ic_web3_rs::Error::InvalidResponse(format!("batch response is missing id {}", id))
+            })
+        })
+        .collect()
+}
+
+impl BatchTransport for EVMCanisterTransport {
+    type Batch =
+        BoxFuture<'static, Result<Vec<Result<Value, ic_web3_rs::Error>>, ic_web3_rs::Error>>;
+
+    fn send_batch<T>(&self, requests: T) -> Self::Batch
+    where
+        T: IntoIterator<Item = (RequestId, Call)>,
+    {
+        let (ids, calls): (Vec<_>, Vec<_>) = requests.into_iter().unzip();
+
+        let json_rpc_payload = serde_json::to_string(&Request::Batch(calls)).unwrap();
+
+        let service = RpcService::Custom(RpcApi {
+            url: self.rpcs_url.get(0).unwrap().clone(),
+            headers: None,
+        });
+        let evm_rpc_canister = self.evm_rpc_canister.clone();
+        let max_response_bytes = self.max_response_bytes;
+
+        Box::pin(async move {
+            let outputs: Result<Vec<Output>, ic_web3_rs::Error> =
+                retry_until_success!(execute_canister_call_batch(
+                    evm_rpc_canister,
+                    service.clone(),
+                    json_rpc_payload.clone(),
+                    max_response_bytes,
+                ));
+
+            handle_batch_response(&ids, outputs?)
+        })
+    }
+}
+
 impl Transport for EVMCanisterTransport {
     type Out = BoxFuture<'static, Result<Value, ic_web3_rs::Error>>;
 
@@ -231,6 +347,12 @@ impl Transport for EVMCanisterTransport {
         });
 
         let json_rpc_payload = serde_json::to_string(&Request::Single(call.clone())).unwrap();
+
+        log!("json_rpc_payload: {}", json_rpc_payload);
+        log!(
+            "json_rpc_payload_batch: {}",
+            serde_json::to_string(&Request::Batch(vec![call.clone()])).unwrap()
+        );
 
         let ic_eth_rpc = self.evm_rpc_canister;
         let max_response_bytes = self.max_response_bytes;

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use anyhow::Result;
 use candid::{CandidType, Nat, Principal};
 use ic_cdk::api::management_canister::http_request::{TransformContext, TransformFunc};
@@ -6,12 +7,12 @@ use ic_web3_rs::{
     contract::{tokens::Tokenizable, Contract, Options},
     ethabi::{Token, TopicFilter},
     ic::KeyInfo,
-    transports::ic_http::CallOptionsBuilder,
+    transports::{ic_http::CallOptionsBuilder, Batch},
     types::{
         BlockId, BlockNumber, Bytes, CallRequest, FilterBuilder, Log, SignedTransaction,
         Transaction, TransactionId, TransactionReceipt, H160, H256, U256, U64,
     },
-    Transport, Web3,
+    BatchTransport, Transport, Web3,
 };
 use serde::Deserialize;
 use std::{str::FromStr, time::Duration};
@@ -33,6 +34,7 @@ const TX_WAITING_TIMEOUT: u64 = 60 * 5;
 const TX_WAIT_DELAY: Duration = Duration::from_secs(3);
 
 mod evm_canister_transport;
+pub mod promises;
 
 #[derive(Error, Debug, CandidType, Deserialize)]
 pub enum Web3Error {
@@ -74,6 +76,8 @@ pub enum Web3Error {
     UnableToCallContract(String),
     #[error("Unable to create contract: {0}")]
     UnableToCreateContract(String),
+    #[error("Unable to submit batch: {0}")]
+    UnableToSubmitBatch(String),
     #[error("Utils error: {0}")]
     UtilsError(String),
     #[error("From hex error: {0}")]
@@ -93,6 +97,17 @@ pub fn instance(rpc_url: String, _evm_rpc_canister: Principal) -> Web3Instance<i
     )))
 
     // Web3Instance::new(Web3::new(ICHttp::new(&rpc_url, None).unwrap()))
+}
+
+pub fn batch_instance(
+    rpc_url: String,
+    _evm_rpc_canister: Principal,
+) -> Web3Instance<Batch<impl BatchTransport>> {
+    // Switch between EVMCanisterTransport(calls go through emv_rpc canister) and ICHttp (calls go straight to the rpc)
+
+    Web3Instance::new(Web3::new(Batch::new(
+        EVMCanisterTransport::new_with_one_rpc(rpc_url, _evm_rpc_canister),
+    )))
 }
 
 impl<T: Transport> Web3Instance<T> {
