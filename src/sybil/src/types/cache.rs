@@ -348,7 +348,7 @@ impl SignaturesCache {
     }
 }
 
-#[derive(Error, Debug, CandidType)]
+#[derive(Error, Debug, CandidType, Deserialize)]
 pub enum CacheError {
     #[error("Cannot deserialize data: {0}")]
     DeserializationError(String),

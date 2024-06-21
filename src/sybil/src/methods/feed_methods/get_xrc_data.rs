@@ -55,7 +55,7 @@ pub async fn get_xrc_data_with_proof(
     };
 
     let func_signature = stringify_func_call!(_get_xrc_data(id, true));
-    let mut cache_builder = Cache::with(func_signature, _get_xrc_data(id, true, Some(payer)));
+    let cache_builder = Cache::with(func_signature, _get_xrc_data(id, true, Some(payer)));
 
     cache_builder
         .evaluate()

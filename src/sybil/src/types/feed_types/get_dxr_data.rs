@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter};
+
 use candid::{CandidType, Nat};
 use ic_web3_rs::{
     ethabi::{encode, Token},
@@ -10,6 +12,19 @@ use crate::{
     types::cache::{SignaturesCache, SignaturesCacheError},
     utils::{encoding::encode_packed, nat},
 };
+
+#[derive(CandidType, Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
+pub enum DexType {
+    UniswapV2,
+}
+
+impl Display for DexType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DexType::UniswapV2 => write!(f, "UniswapV2"),
+        }
+    }
+}
 
 #[derive(CandidType, Serialize, Deserialize, Debug)]
 pub struct GetDXRDataMetadata {

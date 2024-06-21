@@ -18,7 +18,7 @@ use serde::Deserialize;
 use std::{str::FromStr, time::Duration};
 use thiserror::Error;
 
-use crate::retry_until_success;
+use crate::{retry_until_success, types::cache::CacheError};
 
 use self::evm_canister_transport::EVMCanisterTransport;
 
@@ -82,6 +82,8 @@ pub enum Web3Error {
     UtilsError(String),
     #[error("From hex error: {0}")]
     FromHexError(String),
+    #[error("Cache error: {0}")]
+    CacheError(#[from] CacheError),
 }
 
 pub struct Web3Instance<T: Transport> {

@@ -148,6 +148,20 @@ impl HttpService {
 
         router
             .insert(
+                "/get_dxr_data:query",
+                Box::new(|request| Box::pin(handlers::get_dxr_data(request))),
+            )
+            .expect("Failed to insert handler");
+
+        router
+            .insert(
+                "/get_dxr_data_with_proof:query",
+                Box::new(|request| Box::pin(handlers::get_dxr_data_with_proof(request))),
+            )
+            .expect("Failed to insert handler");
+
+        router
+            .insert(
                 "/read_contract:query",
                 Box::new(|request| Box::pin(handlers::read_contract(request))),
             )

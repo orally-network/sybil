@@ -1,13 +1,8 @@
-use std::{
-    cmp::max,
-    fmt::{Display, Formatter},
-};
+use std::cmp::max;
 
-use candid::CandidType;
 use ethers_core::abi::Token;
 use ic_cdk::update;
 use ic_web3_rs::{contract::Contract, types::U256};
-use serde::{Deserialize, Serialize};
 use sybil_utils::cycles_count;
 
 use crate::{
@@ -18,24 +13,11 @@ use crate::{
         balances::Balances,
         cache::Cache,
         chains_rpc::ChainsRPC,
-        feed_types::get_dxr_data::{GetDXRData, GetDXRDataMetadata, GetDXRDataResult},
+        feed_types::get_dxr_data::{DexType, GetDXRData, GetDXRDataMetadata, GetDXRDataResult},
         state,
     },
     utils::{address, canister, convertion::convert_usd_to_eth, siwe, time::in_seconds, web3},
 };
-
-#[derive(CandidType, Debug, Deserialize, Serialize)]
-pub enum DexType {
-    UniswapV2,
-}
-
-impl Display for DexType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DexType::UniswapV2 => write!(f, "UniswapV2"),
-        }
-    }
-}
 
 const UNISWAP_V2_PAIR_ABI: &[u8] = include_bytes!("../../../../../assets/UniswapV2PairABI.json");
 const ERC20_ABI: &[u8] = include_bytes!("../../../../../assets/ERC20ABI.json");
@@ -82,8 +64,8 @@ pub async fn get_dxr_data(
             block_numbers,
             dex_type,
             reverse_pair,
-            Some(payer),
             false,
+            Some(payer),
         ),
     );
 
@@ -128,8 +110,8 @@ pub async fn get_dxr_data_with_proof(
             block_numbers,
             dex_type,
             reverse_pair,
-            Some(payer),
             true,
+            Some(payer),
         ),
     );
 
@@ -147,10 +129,10 @@ pub async fn _get_dxr_data(
     block_numbers: Option<Vec<u64>>,
     dex_type: DexType,
     reverse_pair: Option<bool>,
-    payer: Option<String>,
     with_signature: bool,
+    payer: Option<String>,
 ) -> Result<GetDXRDataResult, CustomFeedError> {
-    let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id).unwrap();
+    let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
 
     let w3 = web3::batch_instance(chain_rpc, clone_with_state!(evm_rpc_canister));
 

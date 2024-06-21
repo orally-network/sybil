@@ -85,8 +85,14 @@ dfx canister call sybil add_chain_rpc "(11155111, \"https://endpoints.omniatech.
 dfx canister call sybil get_all_chains_rpc 
 dfx canister call sybil remove_chain_rpc_by_index "(11155111, 1)"
 
+# read dex 
+dfx canister call sybil get_dxr_data "(1:nat64, \"0x517F9dD285e75b599234F7221227339478d0FcC8\", opt vec {20131496:nat64; 20131495:nat64; 20131494:nat64}, variant {UniswapV2}, null, opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
+
+# read xrc
+dfx canister call sybil get_xrc_data "(\"BTC/USD\", opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
+
 # read contract
-dfx canister call sybil read_contract "(42161, \"function balanceOf(address account) external view returns (uint256)\", \"0xA533f744B179F2431f5395978e391107DC76e103\", \"balanceOf\", \"(0x654DFF41D51c230FA400205A633101C5C1f1969C)\", opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
+dfx canister call sybil read_contract "(42161, \"function balanceOf(address account) external view returns (uint256)\", \"0xA533f744B179F2431f5395978e391107DC76e103\", \"balanceOf\", \"(0x654DFF41D51c230FA400205A633101C5C1f1969C)\", null, opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 
 # read logs
 dfx canister call sybil read_logs "(11155111, opt 5366640, opt 5366640, opt vec { \"0xdc9a6ce9bdf5d7327deb64beb9074cf0bc6e6c9ca2b318dae8b8ad4d38dd9344\" }, null, null, null, opt vec { \"0x67de6b66516E098EF945EAddE48C54fABfD3Dcf9\"}, opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
