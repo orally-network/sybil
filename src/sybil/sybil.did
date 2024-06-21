@@ -253,6 +253,30 @@ type GetXRCDataResult = record {
     signature : opt text;
 };
 
+type GetDXRData = record { 
+        feed_id: text;
+        rate: nat64;
+        decimals: nat64;
+        timestamp: nat64;
+};
+
+type GetDXRDataMetadata = record { 
+    chain_id : nat64;
+    pool_address : text;
+    block_numbers : vec nat64;
+    dex_type : text;
+    reverse_pair : bool;
+    timestamp : nat64;
+    fee : nat;
+    fee_symbol : text;
+};
+
+type GetDXRDataResult = record { 
+    data : GetDXRData;
+    meta : GetDXRDataMetadata;
+    signature : opt text;
+};
+
 
 type ReadLogsData = record {
     address : text;
@@ -304,6 +328,11 @@ type APIRequest = record {
 };
 
 
+type DexType = variant {
+    UniswapV2 : null;
+};
+
+
 type GetAssetDataWithProofResponse = variant { Ok : AssetDataResult; Err : text };
 type GetAssetDataResponse = variant { Ok : AssetDataResult; Err: text };
 type GetMultipleAssetsDataResponse = variant { Ok : MultipleAssetsDataResult; Err: text };
@@ -317,6 +346,7 @@ type GetWhitelistResponse = variant { Ok : vec text; Err: text };
 type ReadContractResponse = variant { Ok : ReadContractResult; Err: text };
 type ReadLogsResponse = variant { Ok : ReadLogsResult; Err: text };
 type GetXRCDataResponse = variant { Ok : GetXRCDataResult; Err: text };
+type GetDXRDataResponse = variant { Ok : GetDXRDataResult; Err: text };
 type GetChainsRPCResponse = variant { Ok : vec text; Err: text };
 type GetAllChainsRPCResponse = variant { Ok : vec record {nat64; vec text}; Err: text };
 type GetUserAPIKeysResponse = variant { Ok : vec text; Err: text };
@@ -341,6 +371,8 @@ service : {
     // assets 
     get_asset_data_with_proof : (id : text, msg : opt text, sig : opt text) -> (GetAssetDataWithProofResponse);
     get_asset_data : (id : text, msg : opt text, sig : opt text) -> (GetAssetDataResponse);
+    get_dxr_data : (chain_id : nat64, pool_address : text, block_numbers : opt vec nat64, dex_type : DexType, reverse_pair : opt bool, msg : opt text, sig : opt text) -> (GetDXRDataResponse);
+    //get_dxr_data_with_proof : (id : text, msg : opt text, sig : opt text) -> (GetAssetDataResponse);
     get_xrc_data : (id : text, msg : opt text, sig : opt text) -> (GetXRCDataResponse);
     get_xrc_data_with_proof : (id : text, msg : opt text, sig : opt text) -> (GetAssetDataResponse);
     get_multiple_assets_data_with_proof : (ids : vec text, msg : opt text, sig : opt text) -> (GetMultipleAssetsDataResponse);

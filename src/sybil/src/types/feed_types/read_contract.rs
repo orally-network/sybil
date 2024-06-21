@@ -1,8 +1,10 @@
+use std::str::FromStr;
+
 use candid::{CandidType, Nat};
 use ic_web3_rs::{
     ethabi::{encode, Token},
     signing::keccak256,
-    types::U256,
+    types::{H160, U256},
 };
 use serde::{Deserialize, Serialize};
 
@@ -64,7 +66,7 @@ pub enum SolidityToken {
 impl From<Token> for SolidityToken {
     fn from(token: Token) -> Self {
         match token {
-            Token::Address(address) => SolidityToken::Address(address.to_string()),
+            Token::Address(address) => SolidityToken::Address(format!("{:?}", address)),
             Token::FixedBytes(bytes) => SolidityToken::FixedBytes(bytes),
             Token::Bytes(bytes) => SolidityToken::Bytes(bytes),
             Token::Int(int) => SolidityToken::Int(format!("{}", int)),
@@ -87,7 +89,7 @@ impl From<Token> for SolidityToken {
 impl From<SolidityToken> for Token {
     fn from(token: SolidityToken) -> Self {
         match token {
-            SolidityToken::Address(address) => Token::Address(address.parse().unwrap()),
+            SolidityToken::Address(address) => Token::Address(H160::from_str(&address).unwrap()),
             SolidityToken::FixedBytes(bytes) => Token::FixedBytes(bytes),
             SolidityToken::Bytes(bytes) => Token::Bytes(bytes),
             SolidityToken::Int(int) => Token::Int(U256::from_str_radix(&int, 10).unwrap()),
