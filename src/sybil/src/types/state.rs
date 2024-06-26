@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::allowances::Allowances;
 use super::api_keys::APIKeys;
 use super::chains_rpc::ChainsRPC;
+use super::dex_list::DEXList;
 use super::{
     config::{Cfg, UpdateCfg},
     feeds::FeedStorage,
@@ -32,6 +33,7 @@ pub struct State {
     pub allowances: Allowances,
     pub balances_cfg: BalancesCfg,
     pub chains_rpc: ChainsRPC,
+    pub dex_list: DEXList,
     pub eth_address: Option<Address>,
     pub whitelist: Whitelist,
 }
@@ -51,6 +53,7 @@ impl Default for State {
             allowances: Allowances::default(),
             balances_cfg: BalancesCfg::default(),
             chains_rpc: ChainsRPC::default(),
+            dex_list: DEXList::default(),
             eth_address: None,
             whitelist: Whitelist::default(),
         }

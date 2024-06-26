@@ -28,11 +28,11 @@ impl Display for DexType {
 
 #[derive(CandidType, Serialize, Deserialize, Debug)]
 pub struct GetDXRDataMetadata {
-    pub chain_id: u64,
-    pub pool_address: String,
-    pub block_numbers: Vec<u64>,
-    pub dex_type: String,
-    pub reverse_pair: bool,
+    // pub chain_id: u64,
+    // pub pool_address: String,
+    // pub block_numbers: Vec<u64>,
+    // pub dex_type: String,
+    // pub reverse_pair: bool,
     pub timestamp: u64,
     #[serde(with = "super::big_num_serde")]
     pub fee: Nat,
@@ -42,16 +42,16 @@ pub struct GetDXRDataMetadata {
 impl GetDXRDataMetadata {
     fn get_tokens(&self) -> Vec<Token> {
         vec![
-            Token::Uint(self.chain_id.into()),
-            Token::String(self.pool_address.clone()),
-            Token::Array(
-                self.block_numbers
-                    .iter()
-                    .map(|block_number| Token::Uint((*block_number).into()))
-                    .collect(),
-            ),
-            Token::String(self.dex_type.clone()),
-            Token::Bool(self.reverse_pair),
+            // Token::Uint(self.chain_id.into()),
+            // Token::String(self.pool_address.clone()),
+            // Token::Array(
+            //     self.block_numbers
+            //         .iter()
+            //         .map(|block_number| Token::Uint((*block_number).into()))
+            //         .collect(),
+            // ),
+            // Token::String(self.dex_type.clone()),
+            // Token::Bool(self.reverse_pair),
             Token::Uint(self.timestamp.into()),
             Token::Uint(nat::to_u256(&self.fee)),
             Token::String(self.fee_symbol.clone()),

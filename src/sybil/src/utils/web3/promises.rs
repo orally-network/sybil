@@ -1,5 +1,9 @@
 #![allow(dead_code)]
+
+use std::sync::Arc;
+
 use ethers_core::abi::{Token, TopicFilter};
+use futures::channel::oneshot::{self, Receiver};
 use ic_cdk::api::management_canister::http_request::{TransformContext, TransformFunc};
 use ic_web3_rs::{
     contract::Contract,
@@ -178,15 +182,15 @@ impl<T: BatchTransport> Web3Instance<Batch<T>> {
         Err(Web3Error::TxTimeout)
     }
 
-    pub async fn get_call_result_promise<Tr: Transport>(
+    pub fn get_call_result_promise<Tr: Transport + 'static>(
         &self,
-        contract: &Contract<Tr>,
-        func: &str,
+        contract: Arc<Contract<Tr>>,
+        func: &'static str,
         params: &[Token],
         from: H160,
         to: Option<H160>,
         block_number: Option<U64>,
-    ) -> Result<Vec<Token>, Web3Error> {
+    ) -> Result<Receiver<Result<Vec<Token>, Web3Error>>, Web3Error> {
         let data = contract
             .abi()
             .function(func)
@@ -202,26 +206,60 @@ impl<T: BatchTransport> Web3Instance<Batch<T>> {
 
         let block_number = block_number.map(|block_number| BlockId::Number(block_number.into()));
 
-        let raw_result = self.eth().call(
+        let call_result = self.eth().call(
             call_request.clone(),
             block_number,
             processors::transform_ctx(),
         );
 
-        self.submit_batch()
-            .await
-            .map_err(|err| Web3Error::UnableToSubmitBatch(err.to_string()))?;
+        let (tx, rx) = oneshot::channel();
 
-        let raw_result = raw_result
-            .await
-            .map_err(|err| Web3Error::UnableToCallContract(err.to_string()))?;
+        ic_cdk::spawn(async move {
+            let raw_result = call_result
+                .await
+                .map_err(|err| Web3Error::UnableToDecodeOutput(err.to_string()));
 
-        let call_result: Vec<Token> = contract
-            .abi()
-            .function(func)
-            .and_then(|f| f.decode_output(&raw_result.0))
-            .map_err(|err| Web3Error::UnableToDecodeOutput(err.to_string()))?;
+            if raw_result.is_err() {
+                tx.send(Err(raw_result.unwrap_err())).unwrap();
+                return;
+            }
 
-        Ok(call_result)
+            let raw_result = raw_result.unwrap();
+
+            let result = contract
+                .abi()
+                .function(func)
+                .and_then(|f| f.decode_output(&raw_result.0))
+                .map_err(|err| Web3Error::UnableToDecodeOutput(err.to_string()));
+
+            if let Ok(result) = result {
+                tx.send(Ok(result)).unwrap();
+            } else {
+                // Trying to decode output with analog function
+                let result = contract
+                    .abi()
+                    .function(&format!("{func}_analog"))
+                    .and_then(|f| f.decode_output(&raw_result.0))
+                    .map_err(|_| result.unwrap_err());
+
+                tx.send(result).unwrap();
+            };
+        });
+
+        Ok(rx)
     }
+}
+
+pub fn decode_call_result<Tr: Transport>(
+    contract: &Contract<Tr>,
+    func: &str,
+    raw_result: Result<Bytes, ic_web3_rs::Error>,
+) -> Result<Vec<Token>, Web3Error> {
+    let raw_result = raw_result.map_err(|err| Web3Error::UnableToDecodeOutput(err.to_string()))?;
+
+    Ok(contract
+        .abi()
+        .function(func)
+        .and_then(|f| f.decode_output(&raw_result.0))
+        .map_err(|err| Web3Error::UnableToDecodeOutput(err.to_string()))?)
 }

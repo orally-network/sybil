@@ -4,6 +4,7 @@ pub mod balances;
 pub mod cache;
 pub mod chains_rpc;
 pub mod config;
+pub mod dex_list;
 pub mod exchange_rate;
 pub mod feed_types;
 pub mod feeds;

@@ -16,6 +16,7 @@ use crate::{
         balances::{AllowedChain, Balances, BalancesCfg, ERC20Contract},
         cache::{HttpCache, RateCache, SignaturesCache},
         chains_rpc::{ChainsRPC, RPCUrl},
+        dex_list::DEXList,
         feed_types::rate_data::AssetDataResult,
         feeds::{Feed, FeedStatus, FeedStorage, FeedType},
         http::APIRequest,
@@ -344,6 +345,7 @@ pub struct OldState {
     pub allowances: Option<OldAllowances>,
     pub balances_cfg: OldBalancesCfg,
     pub chains_rpc: Option<ChainsRPC>,
+    pub dex_list: Option<DEXList>,
     pub eth_address: Option<Address>,
     pub whitelist: Whitelist,
     pub data_fetchers: Option<DataFetchersStorage>,
@@ -372,6 +374,7 @@ impl From<OldState> for State {
                 .unwrap_or_default(),
             balances_cfg: state.balances_cfg.into(),
             chains_rpc: state.chains_rpc.unwrap_or_default().into(),
+            dex_list: state.dex_list.unwrap_or_default(),
             eth_address: state.eth_address,
             whitelist: state.whitelist,
         }

@@ -189,6 +189,7 @@ type ReadContractMetadata = record {
     contract_address: text;
     method: text;
     params: text;
+    block_number: nat64;
     timestamp: nat64;
     fee: nat; 
     fee_symbol: text;
@@ -261,11 +262,11 @@ type GetDXRData = record {
 };
 
 type GetDXRDataMetadata = record { 
-    chain_id : nat64;
-    pool_address : text;
-    block_numbers : vec nat64;
-    dex_type : text;
-    reverse_pair : bool;
+    //chain_id : nat64;
+    //pool_address : text;
+    //block_numbers : vec nat64;
+    //dex_type : text;
+    //reverse_pair : bool;
     timestamp : nat64;
     fee : nat;
     fee_symbol : text;

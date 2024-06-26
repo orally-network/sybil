@@ -110,6 +110,8 @@ pub fn batch_instance(
     Web3Instance::new(Web3::new(Batch::new(
         EVMCanisterTransport::new_with_one_rpc(rpc_url, _evm_rpc_canister),
     )))
+
+    // Web3Instance::new(Web3::new(Batch::new(ICHttp::new(&rpc_url, None).unwrap())))
 }
 
 impl<T: Transport> Web3Instance<T> {
