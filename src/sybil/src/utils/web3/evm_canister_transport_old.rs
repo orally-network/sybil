@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     fmt::Debug,
-    marker::PhantomData,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -10,142 +9,27 @@ use std::{
 
 use anyhow::Result;
 use candid::{CandidType, Principal};
-use cketh_common::numeric::BlockNumber;
-use ic_cdk::api::{
-    call::{call_with_payment128, RejectionCode},
-    management_canister::http_request::HttpHeader,
+use cketh_common::{
+    eth_rpc::{LogEntry, RpcError, SendRawTransactionResult},
+    eth_rpc_client::{
+        providers::{EthMainnetService, EthSepoliaService, RpcApi, RpcService},
+        RpcConfig,
+    },
+    numeric::BlockNumber,
 };
+use ic_cdk::api::call::call_with_payment128;
 use ic_web3_rs::{
     error::TransportError, futures::future::BoxFuture, helpers, signing::keccak256,
     transports::ic_http::CallOptions, types::H256, BatchTransport, RequestId, Transport,
 };
 use jsonrpc_core::{Call, Output, Params, Request};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::Value;
 
 use crate::{log, retry_until_success};
 
 const MAX_CYCLES: u128 = 60_000_000_000;
 const DEFAULT_MAX_RESPONSE_BYTES: u64 = 10_000;
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, CandidType)]
-pub struct LogEntry {
-    pub address: Address,
-    pub topics: Vec<FixedSizeData>,
-    pub data: Data,
-    #[serde(rename = "blockNumber")]
-    pub block_number: Option<BlockNumber>,
-    #[serde(rename = "transactionHash")]
-    pub transaction_hash: Option<Hash>,
-    #[serde(rename = "transactionIndex")]
-    pub transaction_index: Option<CheckedAmountOf<()>>,
-    #[serde(rename = "blockHash")]
-    pub block_hash: Option<Hash>,
-    #[serde(rename = "logIndex")]
-    pub log_index: Option<LogIndex>,
-    #[serde(default)]
-    pub removed: bool,
-}
-
-#[derive(Debug, Deserialize, Serialize, CandidType)]
-pub enum SendRawTransactionResult {
-    Ok,
-    InsufficientFunds,
-    NonceTooLow,
-    NonceTooHigh,
-}
-
-#[derive(Clone, Debug, CandidType, Deserialize)]
-pub struct RpcConfig {
-    #[serde(rename = "responseSizeEstimate")]
-    pub response_size_estimate: Option<u64>,
-}
-
-#[derive(Clone, Debug, CandidType, Deserialize)]
-pub enum RpcError {
-    // #[error("RPC provider error")]
-    ProviderError(/* #[source] */ ProviderError),
-    // #[error("HTTPS outcall error")]
-    HttpOutcallError(/* #[source] */ HttpOutcallError),
-    // #[error("JSON-RPC error")]
-    JsonRpcError(/* #[source] */ JsonRpcError),
-    // #[error("data format error")]
-    ValidationError(/* #[source] */ ValidationError),
-}
-
-#[derive(Clone, Debug, CandidType, Deserialize)]
-pub enum ProviderError {
-    // #[error("no permission")]
-    NoPermission,
-    // #[error("too few cycles (expected {expected}, received {received})")]
-    TooFewCycles { expected: u128, received: u128 },
-    // #[error("provider not found")]
-    ProviderNotFound,
-    // #[error("missing required provider")]
-    MissingRequiredProvider,
-}
-
-#[derive(Clone, Debug, CandidType, Deserialize)]
-pub enum HttpOutcallError {
-    IcError {
-        code: RejectionCode,
-        message: String,
-    },
-    InvalidHttpJsonRpcResponse {
-        status: u16,
-        body: String,
-        #[serde(rename = "parsingError")]
-        parsing_error: Option<String>,
-    },
-}
-
-#[derive(Clone, Debug, CandidType, Deserialize)]
-pub enum ValidationError {
-    Custom(String),
-    InvalidHex(String),
-    UrlParseError(String),
-    HostNotAllowed(String),
-    CredentialPathNotAllowed,
-    CredentialHeaderNotAllowed,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, CandidType)]
-pub struct JsonRpcError {
-    pub code: i64,
-    pub message: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, CandidType)]
-pub struct RpcApi {
-    pub url: String,
-    pub headers: Option<Vec<HttpHeader>>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, CandidType)]
-pub enum RpcService {
-    EthMainnet(EthMainnetService),
-    EthSepolia(EthSepoliaService),
-    Chain(u64),
-    Provider(u64),
-    Custom(RpcApi),
-}
-
-#[derive(Clone, Debug, Copy, Serialize, Deserialize, CandidType)]
-pub enum EthMainnetService {
-    Alchemy,
-    Ankr,
-    BlockPi,
-    PublicNode,
-    Cloudflare,
-}
-
-#[derive(Clone, Debug, Copy, Serialize, Deserialize, CandidType)]
-pub enum EthSepoliaService {
-    Alchemy,
-    Ankr,
-    BlockPi,
-    PublicNode,
-}
 
 /// ICEthRpc deals with the JSON-RPC canister nametd "ic-eth-rpc" which is deployed on the IC.
 #[derive(Clone, Debug)]
@@ -245,7 +129,7 @@ async fn execute_canister_call(
     }
 }
 
-#[derive(Clone, Debug, CandidType, Deserialize)]
+#[derive(Clone, CandidType, Deserialize)]
 pub enum RpcServices {
     EthMainnet(Option<Vec<EthMainnetService>>),
     EthSepolia(Option<Vec<EthSepoliaService>>),
@@ -258,7 +142,7 @@ pub enum RpcServices {
 
 pub type RpcResult<T> = Result<T, RpcError>;
 
-#[derive(Clone, CandidType, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, CandidType, Deserialize)]
 pub enum MultiRpcResult<T> {
     Consistent(RpcResult<T>),
     Inconsistent(Vec<(RpcService, RpcResult<T>)>),
@@ -297,8 +181,6 @@ impl<T: Debug + Clone> MultiRpcResult<T> {
         }
     }
 }
-
-pub struct CheckedAmountOf<Unit>(ethnum::u256, PhantomData<Unit>);
 
 #[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize, Default)]
 pub enum BlockTag {

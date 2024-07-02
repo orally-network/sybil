@@ -45,4 +45,15 @@ jsonrpc-core = "18.0.0"
 serde_cbor = "0.11.2"
 url = "2.5.0"
 ethers-core = "2.0.14"
+# soroban-sdk = "21.1.1"
+
 sybil_utils = { path = "../sybil_utils" }
+# soroban-client = "0.3.2"
+# stellar-baselib = "0.3.4"
+stellar-xdr = { version = "21.1.0", features = ["next", "base64"] }
+base64 = "0.22.1"
+stellar-strkey = "0.0.8"
+
+
+# [patch.crates-io]
+# cketh-common = { git = "https://github.com/dfinity/ic", tag = "release-2024-01-03_23-01+p2p-outcalls", package = "ic-cketh-minter" }

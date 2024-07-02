@@ -20,7 +20,7 @@ use thiserror::Error;
 
 use crate::{retry_until_success, types::cache::CacheError};
 
-use self::evm_canister_transport::EVMCanisterTransport;
+use self::evm_canister_transport_old::EVMCanisterTransport;
 
 use super::{
     address::{self, AddressError},
@@ -33,7 +33,7 @@ pub const ERC20_TRANSFER_METHOD: &str = "transfer";
 const TX_WAITING_TIMEOUT: u64 = 60 * 5;
 const TX_WAIT_DELAY: Duration = Duration::from_secs(3);
 
-mod evm_canister_transport;
+mod evm_canister_transport_old;
 pub mod promises;
 
 #[derive(Error, Debug, CandidType, Deserialize)]
