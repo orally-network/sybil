@@ -66,6 +66,7 @@ pub struct GetXRCDataResult {
     pub data: GetXRCData,
     pub meta: GetXRCDataMetadata,
     pub signature: Option<String>,
+    pub bytes: Option<String>,
 }
 
 impl GetXRCDataResult {

@@ -131,9 +131,8 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     }
 
     if let Some(_bytes @ true) = params.bytes {
-        let data = format!("0x{}", hex::encode(&rate.encode()));
-        Ok(serde_json::to_vec(&data)?)
-    } else {
-        Ok(serde_json::to_vec(&rate)?)
+        rate.bytes = Some(format!("0x{}", hex::encode(&rate.encode())));
     }
+
+    Ok(serde_json::to_vec(&rate)?)
 }

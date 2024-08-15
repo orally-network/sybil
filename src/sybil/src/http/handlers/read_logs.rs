@@ -175,9 +175,8 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
     }
 
     if let Some(_bytes @ true) = params.bytes {
-        let data = format!("0x{}", hex::encode(&result.encode()));
-        Ok(serde_json::to_vec(&data)?)
-    } else {
-        Ok(serde_json::to_vec(&result)?)
+        result.bytes = Some(format!("0x{}", hex::encode(&result.encode())));
     }
+
+    Ok(serde_json::to_vec(&result)?)
 }

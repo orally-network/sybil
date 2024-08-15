@@ -44,6 +44,7 @@ pub struct GetAssetDataResult {
     pub data: AssetData,
     pub meta: GetAssetDataMetadata,
     pub signature: Option<String>,
+    pub bytes: Option<String>,
 }
 
 impl GetAssetDataResult {

@@ -44,6 +44,7 @@ pub struct GetMultipleAssetDataResult {
     pub data: Vec<AssetData>,
     pub meta: GetMultipleAssetDataMetadata,
     pub signature: Option<String>,
+    pub bytes: Option<String>,
 }
 
 impl GetMultipleAssetDataResult {

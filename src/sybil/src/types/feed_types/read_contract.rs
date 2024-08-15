@@ -114,6 +114,7 @@ pub struct ReadContractResult {
     pub data: Vec<SolidityToken>,
     pub meta: ReadContractMetadata,
     pub signature: Option<String>,
+    pub bytes: Option<String>,
 }
 
 impl ReadContractResult {

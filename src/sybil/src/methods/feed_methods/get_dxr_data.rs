@@ -449,6 +449,7 @@ pub async fn _get_dxr_data(
             fee_symbol: "ETH".to_string(),
         },
         signature: None,
+        bytes: None,
     };
 
     let cost = state::get_cfg().balances_cfg.base_fee.clone();

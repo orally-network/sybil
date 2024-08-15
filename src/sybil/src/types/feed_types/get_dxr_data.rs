@@ -94,6 +94,7 @@ pub struct GetDXRDataResult {
     pub data: GetDXRData,
     pub meta: GetDXRDataMetadata,
     pub signature: Option<String>,
+    pub bytes: Option<String>,
 }
 
 impl GetDXRDataResult {

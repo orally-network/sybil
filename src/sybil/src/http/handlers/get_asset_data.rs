@@ -123,19 +123,18 @@ async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Resu
         cache_builder.with_cache_ttl(cache_ttl);
     }
 
-    let mut rate = cache_builder.evaluate().await?;
+    let mut result = cache_builder.evaluate().await?;
 
     if is_free {
-        rate.meta.fee = 0.into();
+        result.meta.fee = 0.into();
         if with_signature {
-            rate.sign().await?;
+            result.sign().await?;
         }
     }
 
     if let Some(_bytes @ true) = params.bytes {
-        let data = format!("0x{}", hex::encode(&rate.encode()));
-        Ok(serde_json::to_vec(&data)?)
-    } else {
-        Ok(serde_json::to_vec(&rate)?)
+        result.bytes = Some(format!("0x{}", hex::encode(&result.encode())));
     }
+
+    Ok(serde_json::to_vec(&result)?)
 }

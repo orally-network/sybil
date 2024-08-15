@@ -188,6 +188,7 @@ pub async fn _read_contract(
             fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
         },
         signature: None,
+        bytes: None,
     };
 
     if payer.is_none() {

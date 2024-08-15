@@ -163,6 +163,7 @@ pub struct ReadLogsResult {
     pub data: Vec<ReadLogsData>,
     pub meta: ReadLogsMetadata,
     pub signature: Option<String>,
+    pub bytes: Option<String>,
 }
 
 impl ReadLogsResult {
