@@ -177,7 +177,7 @@ pub async fn _read_contract(
 
     let mut result = ReadContractResult {
         data: call_result.into_iter().map(SolidityToken::from).collect(),
-        meta: ReadContractMetadata {
+        meta: Some(ReadContractMetadata {
             chain_id,
             contract_address: contract_addr,
             method,
@@ -186,14 +186,14 @@ pub async fn _read_contract(
             timestamp: in_seconds(),
             fee: 0.into(),
             fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
-        },
+        }),
         signature: None,
         bytes: None,
     };
 
     if payer.is_none() {
         let fee = convert_usd_to_eth(base_fee.clone(), balances::DECIMALS).await?;
-        result.meta.fee = fee;
+        result.meta.as_mut().map(|meta| meta.fee = fee);
     }
 
     if with_signature {

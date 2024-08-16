@@ -64,38 +64,40 @@ impl GetXRCData {
 #[derive(CandidType, Serialize, Deserialize, Debug)]
 pub struct GetXRCDataResult {
     pub data: GetXRCData,
-    pub meta: GetXRCDataMetadata,
+    pub meta: Option<GetXRCDataMetadata>,
     pub signature: Option<String>,
     pub bytes: Option<String>,
 }
 
 impl GetXRCDataResult {
     fn encode_packed(&self) -> Vec<u8> {
-        let encode_data = self.data.encode();
-        let encode_meta = self.meta.encode();
+        let mut data_to_encode = Vec::new();
 
-        let encoded_packed =
-            encode_packed(&vec![Token::Bytes(encode_data), Token::Bytes(encode_meta)])
-                .expect("tokens should be valid");
+        data_to_encode.push(Token::Bytes(self.data.encode()));
+
+        if let Some(meta) = &self.meta {
+            data_to_encode.push(Token::Bytes(meta.encode()));
+        }
+
+        let encoded_packed = encode_packed(&data_to_encode).expect("tokens should be valid");
 
         encoded_packed
     }
 
     pub fn encode(&self) -> Vec<u8> {
-        let encode_data = self.data.encode();
-        let encode_meta = self.meta.encode();
+        let mut data_to_encode = Vec::new();
 
-        let encode_signature = if let Some(signature) = &self.signature {
-            hex::decode(signature.clone()).unwrap()
-        } else {
-            vec![]
+        data_to_encode.push(Token::Bytes(self.data.encode()));
+
+        if let Some(meta) = &self.meta {
+            data_to_encode.push(Token::Bytes(meta.encode()));
+        }
+
+        if let Some(signature) = &self.signature {
+            data_to_encode.push(Token::Bytes(hex::decode(signature.clone()).unwrap()));
         };
 
-        encode(&vec![
-            Token::Bytes(encode_data),
-            Token::Bytes(encode_meta),
-            Token::Bytes(encode_signature),
-        ])
+        encode(&data_to_encode)
     }
 
     pub async fn sign(&mut self) -> Result<(), SignaturesCacheError> {

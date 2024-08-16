@@ -25,6 +25,7 @@ pub struct GetMultipleAssetsDataQueryParams {
     pub sig: Option<String>,
     pub api_key: Option<String>,
     pub bytes: Option<bool>,
+    pub meta: Option<bool>,
     pub cache_ttl: Option<u64>,
 }
 
@@ -123,7 +124,7 @@ async fn _get_multiple_assets_data_request(
             );
 
             if let Some(mut data) = entry {
-                data.meta.fee = 0.into();
+                data.meta.as_mut().map(|meta| meta.fee = 0.into());
                 if with_signature {
                     data.sign().await.unwrap();
                 }
@@ -140,13 +141,17 @@ async fn _get_multiple_assets_data_request(
     let mut result = cache_builder.evaluate().await?;
 
     if is_free {
-        result.meta.fee = 0.into();
+        result.meta.as_mut().map(|meta| meta.fee = 0.into());
         if with_signature {
             result.sign().await?;
         }
     }
 
-    if let Some(_bytes @ true) = params.bytes {
+    if !params.meta.unwrap_or(false) {
+        result.meta = None;
+    }
+
+    if params.bytes.unwrap_or(false) {
         result.bytes = Some(format!("0x{}", hex::encode(&result.encode())));
     }
 

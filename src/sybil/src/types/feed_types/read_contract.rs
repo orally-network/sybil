@@ -112,54 +112,44 @@ impl From<SolidityToken> for Token {
 #[derive(CandidType, Serialize, Deserialize, Debug)]
 pub struct ReadContractResult {
     pub data: Vec<SolidityToken>,
-    pub meta: ReadContractMetadata,
+    pub meta: Option<ReadContractMetadata>,
     pub signature: Option<String>,
     pub bytes: Option<String>,
 }
 
 impl ReadContractResult {
     fn encode_packed(&self) -> Vec<u8> {
-        let tokens = self
-            .data
-            .clone()
-            .into_iter()
-            .map(Token::from)
-            .collect::<Vec<Token>>();
+        let data_tokens: Vec<_> = self.data.clone().into_iter().map(Token::from).collect();
 
-        let encode_data = encode(&tokens);
+        let mut data_to_encode = Vec::new();
 
-        let encode_meta = self.meta.encode();
+        data_to_encode.push(Token::Bytes(encode(&data_tokens)));
 
-        let encoded_packed =
-            encode_packed(&vec![Token::Bytes(encode_data), Token::Bytes(encode_meta)])
-                .expect("tokens should be valid");
+        if let Some(meta) = &self.meta {
+            data_to_encode.push(Token::Bytes(meta.encode()));
+        }
+
+        let encoded_packed = encode_packed(&data_to_encode).expect("tokens should be valid");
 
         encoded_packed
     }
 
     pub fn encode(&self) -> Vec<u8> {
-        let tokens = self
-            .data
-            .clone()
-            .into_iter()
-            .map(Token::from)
-            .collect::<Vec<Token>>();
+        let data_tokens: Vec<_> = self.data.clone().into_iter().map(Token::from).collect();
 
-        let encode_data = encode(&tokens);
+        let mut data_to_encode = Vec::new();
 
-        let encode_meta = self.meta.encode();
+        data_to_encode.push(Token::Bytes(encode(&data_tokens)));
 
-        let encode_signature = if let Some(signature) = &self.signature {
-            hex::decode(signature.clone()).unwrap()
-        } else {
-            vec![]
+        if let Some(meta) = &self.meta {
+            data_to_encode.push(Token::Bytes(meta.encode()));
+        }
+
+        if let Some(signature) = &self.signature {
+            data_to_encode.push(Token::Bytes(hex::decode(signature.clone()).unwrap()));
         };
 
-        encode(&vec![
-            Token::Bytes(encode_data),
-            Token::Bytes(encode_meta),
-            Token::Bytes(encode_signature),
-        ])
+        encode(&data_to_encode)
     }
 
     pub async fn sign(&mut self) -> Result<(), SignaturesCacheError> {

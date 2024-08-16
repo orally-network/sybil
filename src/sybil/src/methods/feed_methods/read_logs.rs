@@ -148,7 +148,7 @@ pub async fn _read_logs(
 
     let mut result = ReadLogsResult {
         data: logs.into_iter().map(ReadLogsData::from).collect(),
-        meta: ReadLogsMetadata {
+        meta: Some(ReadLogsMetadata {
             chain_id,
             block_from: block_from.unwrap_or_default(),
             block_to: block_to.unwrap_or_default(),
@@ -160,14 +160,14 @@ pub async fn _read_logs(
             timestamp: in_seconds(),
             fee: 0.into(),
             fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
-        },
+        }),
         signature: None,
         bytes: None,
     };
 
     if payer.is_none() {
         let fee = convert_usd_to_eth(base_fee.clone(), balances::DECIMALS).await?;
-        result.meta.fee = fee;
+        result.meta.as_mut().map(|meta| meta.fee = fee);
     }
 
     if with_signature {

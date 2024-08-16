@@ -438,7 +438,7 @@ pub async fn _get_dxr_data(
             decimals: TARGET_DECIMALS as u64,
             timestamp,
         },
-        meta: GetDXRDataMetadata {
+        meta: Some(GetDXRDataMetadata {
             // chain_id,
             // pool_address,
             // block_numbers: block_numbers.unwrap_or_default(),
@@ -447,7 +447,7 @@ pub async fn _get_dxr_data(
             timestamp: in_seconds(),
             fee: 0.into(),
             fee_symbol: "ETH".to_string(),
-        },
+        }),
         signature: None,
         bytes: None,
     };
@@ -456,7 +456,7 @@ pub async fn _get_dxr_data(
 
     if payer.is_none() {
         let fee = convert_usd_to_eth(cost.clone(), balances::DECIMALS).await?;
-        result.meta.fee = fee;
+        result.meta.as_mut().map(|meta| meta.fee = fee);
     }
 
     if with_signature {

@@ -42,44 +42,42 @@ impl GetAssetDataMetadata {
 #[derive(CandidType, Serialize, Deserialize, Debug)]
 pub struct GetAssetDataResult {
     pub data: AssetData,
-    pub meta: GetAssetDataMetadata,
+    pub meta: Option<GetAssetDataMetadata>,
     pub signature: Option<String>,
     pub bytes: Option<String>,
 }
 
 impl GetAssetDataResult {
     fn encode_packed(&self) -> Vec<u8> {
+        let mut data_to_encode = Vec::new();
+
         let data_tokens = self.data.clone().get_tokens();
+        data_to_encode.push(Token::Bytes(encode(&vec![Token::Tuple(data_tokens)])));
 
-        let encode_data = encode(&vec![Token::Tuple(data_tokens)]);
+        if let Some(meta) = &self.meta {
+            data_to_encode.push(Token::Bytes(meta.encode()));
+        }
 
-        let encode_meta = self.meta.encode();
-
-        let encoded_packed =
-            encode_packed(&vec![Token::Bytes(encode_data), Token::Bytes(encode_meta)])
-                .expect("tokens should be valid");
+        let encoded_packed = encode_packed(&data_to_encode).expect("tokens should be valid");
 
         encoded_packed
     }
 
     pub fn encode(&self) -> Vec<u8> {
+        let mut data_to_encode = Vec::new();
+
         let data_tokens = self.data.clone().get_tokens();
+        data_to_encode.push(Token::Bytes(encode(&vec![Token::Tuple(data_tokens)])));
 
-        let encode_data = encode(&vec![Token::Tuple(data_tokens)]);
+        if let Some(meta) = &self.meta {
+            data_to_encode.push(Token::Bytes(meta.encode()));
+        }
 
-        let encode_meta = self.meta.encode();
-
-        let encode_signature = if let Some(signature) = &self.signature {
-            hex::decode(signature.clone()).unwrap()
-        } else {
-            vec![]
+        if let Some(signature) = &self.signature {
+            data_to_encode.push(Token::Bytes(hex::decode(signature.clone()).unwrap()));
         };
 
-        encode(&vec![
-            Token::Bytes(encode_data),
-            Token::Bytes(encode_meta),
-            Token::Bytes(encode_signature),
-        ])
+        encode(&data_to_encode)
     }
 
     pub async fn sign(&mut self) -> Result<(), SignaturesCacheError> {

@@ -127,19 +127,19 @@ pub async fn _get_multiple_assets_data_result(
 
     let mut result = GetMultipleAssetDataResult {
         data,
-        meta: GetMultipleAssetDataMetadata {
+        meta: Some(GetMultipleAssetDataMetadata {
             ids,
             timestamp: in_seconds(),
             fee: 0.into(),
             fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
-        },
+        }),
         signature: None,
         bytes: None,
     };
 
     if payer.is_none() {
         let fee = convert_usd_to_eth(cost.clone(), balances::DECIMALS).await?;
-        result.meta.fee = fee;
+        result.meta.as_mut().map(|meta| meta.fee = fee);
     }
 
     if with_signature {
