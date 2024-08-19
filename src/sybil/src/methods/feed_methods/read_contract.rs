@@ -58,7 +58,7 @@ pub async fn read_contract_with_proof(
             method,
             params,
             block_number,
-            None,
+            Some(payer),
             true,
         ),
     );
@@ -107,7 +107,7 @@ pub async fn read_contract(
             method,
             params,
             block_number,
-            None,
+            Some(payer),
             false,
         ),
     );

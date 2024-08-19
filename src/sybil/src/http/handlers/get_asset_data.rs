@@ -83,6 +83,10 @@ async fn _get_asset_data_request(req: HttpRequest, with_signature: bool) -> Resu
     )
     .await?;
 
+    if payer.is_none() {
+        return Err(anyhow::anyhow!("Payer not found"));
+    }
+
     let func_signature = stringify_func_call!(_get_asset_data_result(params.id, with_signature));
     let mut cache_builder = Cache::with(
         func_signature.clone(),

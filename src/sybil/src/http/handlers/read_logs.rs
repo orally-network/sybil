@@ -87,6 +87,10 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
     )
     .await?;
 
+    if payer.is_none() {
+        return Err(anyhow::anyhow!("Payer not found"));
+    }
+
     let topics0 = params
         .topics0
         .map(|s| s.split(",").map(|s| s.to_string()).collect());

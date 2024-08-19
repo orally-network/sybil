@@ -85,6 +85,10 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
     )
     .await?;
 
+    if payer.is_none() {
+        return Err(anyhow::anyhow!("Payer not found"));
+    }
+
     let func_signature = stringify_func_call!(_read_contract(
         params.chain_id,
         params.function_signature,

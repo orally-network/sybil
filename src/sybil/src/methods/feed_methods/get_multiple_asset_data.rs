@@ -37,7 +37,7 @@ pub async fn get_multiple_assets_data(
         ic_cdk::caller().to_string()
     };
 
-    _get_multiple_assets_data(ids, false, None)
+    _get_multiple_assets_data(ids, false, Some(payer))
         .await
         .map_err(|e| format!("failed to get assets data: {}", e))
 }
@@ -56,7 +56,7 @@ pub async fn get_multiple_assets_data_with_proof(
         ic_cdk::caller().to_string()
     };
 
-    let mut multiple_assetds_data = _get_multiple_assets_data(ids, true, None)
+    let mut multiple_assetds_data = _get_multiple_assets_data(ids, true, Some(payer))
         .await
         .map_err(|e| format!("failed to get assets data: {}", e))?;
 

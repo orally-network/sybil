@@ -44,10 +44,18 @@ pub async fn read_logs(
         chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, false
     ));
 
-    let mut cache_builder = Cache::with(
+    let cache_builder = Cache::with(
         func_signature,
         _read_logs(
-            chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, None,
+            chain_id,
+            block_from,
+            block_to,
+            topics0,
+            topics1,
+            topics2,
+            topics3,
+            addresses,
+            Some(payer),
             false,
         ),
     );
@@ -83,10 +91,18 @@ pub async fn read_logs_with_proof(
         chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, true
     ));
 
-    let mut cache_builder = Cache::with(
+    let cache_builder = Cache::with(
         func_signature,
         _read_logs(
-            chain_id, block_from, block_to, topics0, topics1, topics2, topics3, addresses, None,
+            chain_id,
+            block_from,
+            block_to,
+            topics0,
+            topics1,
+            topics2,
+            topics3,
+            addresses,
+            Some(payer),
             true,
         ),
     );

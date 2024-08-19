@@ -1,5 +1,3 @@
-use std::borrow::BorrowMut;
-
 use ic_cdk::update;
 use sybil_utils::cycles_count;
 
@@ -35,7 +33,7 @@ pub async fn get_asset_data(
         ic_cdk::caller().to_string()
     };
 
-    _get_asset_data(id, false, None)
+    _get_asset_data(id, false, Some(payer))
         .await
         .map_err(|e| format!("failed to get asset data: {}", e))
 }
@@ -54,7 +52,7 @@ pub async fn get_asset_data_with_proof(
         ic_cdk::caller().to_string()
     };
 
-    _get_asset_data(id, true, None)
+    _get_asset_data(id, true, Some(payer))
         .await
         .map_err(|e| format!("failed to get asset data with proof: {}", e))
 }

@@ -80,6 +80,10 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     )
     .await?;
 
+    if payer.is_none() {
+        return Err(anyhow::anyhow!("Payer not found"));
+    }
+
     let func_signature = stringify_func_call!(_get_xrc_data(params.id.clone(), with_signature));
 
     let mut cache_builder = Cache::with(

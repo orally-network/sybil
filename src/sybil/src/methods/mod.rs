@@ -12,31 +12,8 @@ pub mod whitelist;
 
 pub mod stellar;
 
-use std::{collections::HashMap, fmt::format, str::FromStr};
+use ic_cdk::{query, update};
 
-use base64::Engine;
-use candid::{de, CandidType, Principal};
-use ethers_core::k256::{
-    pkcs8::der::pem::Base64Decoder,
-    sha2::{Digest, Sha256},
-};
-use ic_cdk::{
-    api::management_canister::http_request::{
-        CanisterHttpRequestArgument, HttpHeader, HttpMethod, TransformContext, TransformFunc,
-    },
-    query, update,
-};
-
-use ic_web3_rs::ic::pubkey_to_address;
-use serde::{Deserialize, Serialize};
-use serde_bytes::ByteBuf;
-use stellar_strkey::ed25519::PublicKey;
-use stellar_xdr::next::{
-    AccountEntry, AccountId, Asset, DecoratedSignature, LedgerEntryData, LedgerKey,
-    LedgerKeyAccount, Limits, Memo, MuxedAccount, Operation, OperationBody, PaymentOp,
-    Preconditions, ReadXdr, Signature, SignatureHint, Transaction, TransactionEnvelope,
-    TransactionExt, TransactionResult, TransactionV1Envelope, Uint256, VecM, WriteXdr,
-};
 use thiserror::Error;
 
 use ic_utils::{
@@ -45,12 +22,11 @@ use ic_utils::{
 };
 
 use crate::{
-    clone_with_state, log,
     types::{
         feeds::{Feed, FeedError, FeedStorage, GetFeedsFilter},
         pagination::{Pagination, PaginationResult},
     },
-    utils::{canister, processors::transform_ctx, siwe},
+    utils::{canister, siwe},
 };
 
 #[derive(Error, Debug)]

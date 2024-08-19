@@ -84,6 +84,10 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     )
     .await?;
 
+    if payer.is_none() {
+        return Err(anyhow::anyhow!("Payer not found"));
+    }
+
     let block_numbers = params
         .block_numbers
         .map(|s| s.split(",").map(|s| s.parse().unwrap()).collect());

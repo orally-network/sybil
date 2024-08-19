@@ -7,7 +7,7 @@ use crate::{
     stringify_func_call,
     types::{
         balances::Balances,
-        cache::{self, Cache},
+        cache::Cache,
         feed_types::{
             get_xrc_data::{GetXRCData, GetXRCDataMetadata, GetXRCDataResult},
             rate_data::AssetData,
@@ -32,7 +32,7 @@ pub async fn get_xrc_data(
     };
 
     let func_signature = stringify_func_call!(_get_xrc_data(id, false));
-    let mut cache_builder = Cache::with(func_signature, _get_xrc_data(id, false, Some(payer)));
+    let cache_builder = Cache::with(func_signature, _get_xrc_data(id, false, Some(payer)));
 
     cache_builder
         .evaluate()

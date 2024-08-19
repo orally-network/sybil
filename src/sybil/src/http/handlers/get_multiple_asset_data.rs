@@ -87,6 +87,10 @@ async fn _get_multiple_assets_data_request(
     )
     .await?;
 
+    if payer.is_none() {
+        return Err(anyhow::anyhow!("Payer not found"));
+    }
+
     let ids: Vec<_> = params.ids.split(",").map(|s| s.to_string()).collect();
 
     let func_signature =
