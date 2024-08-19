@@ -16,7 +16,7 @@ use ic_web3_rs::signing::keccak256;
 use serde_json::Error as SerdeError;
 use thiserror::Error;
 
-use crate::utils::signature::{get_eth_v, sign};
+use crate::utils::signature::{get_eth_v, sign_with_ecdsa};
 use crate::{
     clone_with_state, log,
     utils::{
@@ -297,6 +297,7 @@ impl SignaturesCache {
         }
 
         let key_name = clone_with_state!(key_name);
+
         let call_args = SignWithEcdsaArgument {
             message_hash: sign_data.clone(),
             derivation_path: vec![ic_cdk::id().as_slice().to_vec()],
@@ -306,7 +307,7 @@ impl SignaturesCache {
             },
         };
 
-        let mut signature = sign(call_args)
+        let mut signature = sign_with_ecdsa(call_args)
             .await
             .map_err(|(_, msg)| SignaturesCacheError::SignWithECDSAError(msg))?
             .0
@@ -319,6 +320,21 @@ impl SignaturesCache {
             &sign_data,
             &address::to_h160(&pub_key)?,
         )?);
+
+        // let call_args = SignWithSchnorrArgs {
+        //     message: ByteBuf::from(sign_data.clone()),
+        //     derivation_path: vec![ByteBuf::from(ic_cdk::id().as_slice())],
+        //     key_id: SchnorrKeyId {
+        //         algorithm: SchnorrAlgorithm::Bip340Secp256k1,
+        //         name: key_name,
+        //     },
+        // };
+
+        // let signature = sign_with_schnorr(call_args)
+        //     .await
+        //     .map_err(|(_, msg)| SignaturesCacheError::SignWithECDSAError(msg))?
+        //     .0
+        //     .signature.into_vec();
 
         self.signatures
             .insert(hex::encode(&sign_data), hex::encode(&signature));

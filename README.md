@@ -57,7 +57,8 @@ dfx canister call sybil get_allowed_chains
 dfx canister call sybil update_treasure_address "(\"${CALLER}\")"
 dfx canister call sybil add_allowed_erc20_tokens "(${CHAIN_ID}:nat64, vec {record { erc20_contract = \"0xD6CdFF58Dd98528730549c6E5EEdF1be397A723f\"; token_symbol = \"SHR\"; decimals = 6:nat64}})"
 dfx canister call sybil add_to_whitelist "(\"${CALLER}\")" 
-dfx canister call sybil get_treasure_address # address to deposit to
+# address to deposit to
+dfx canister call sybil get_treasure_address 
 dfx canister call sybil eth_address
 dfx canister call sybil deposit "(${CHAIN_ID}, \"${TX_HASH}\", null, \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 dfx canister call sybil get_balance "(\"${CALLER}\")"
@@ -92,10 +93,10 @@ dfx canister call sybil get_dxr_data "(1:nat64, \"0x517F9dD285e75b599234F7221227
 dfx canister call sybil get_xrc_data "(\"BTC/USD\", opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 
 # read contract
-dfx canister call sybil read_contract "(42161, \"function balanceOf(address account) external view returns (uint256)\", \"0xA533f744B179F2431f5395978e391107DC76e103\", \"balanceOf\", \"(0x654DFF41D51c230FA400205A633101C5C1f1969C)\", null, opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
+dfx canister call sybil read_contract "(42161:nat64, \"function balanceOf(address account) external view returns (uint256)\", \"0xA533f744B179F2431f5395978e391107DC76e103\", \"balanceOf\", \"(0x654DFF41D51c230FA400205A633101C5C1f1969C)\", null, opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 
 # read logs
-dfx canister call sybil read_logs "(11155111, opt 5366640, opt 5366640, opt vec { \"0xdc9a6ce9bdf5d7327deb64beb9074cf0bc6e6c9ca2b318dae8b8ad4d38dd9344\" }, null, null, null, opt vec { \"0x67de6b66516E098EF945EAddE48C54fABfD3Dcf9\"}, opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
+dfx canister call sybil read_logs "(11155111:nat64, opt 5366640, opt 5366640, opt vec { \"0xdc9a6ce9bdf5d7327deb64beb9074cf0bc6e6c9ca2b318dae8b8ad4d38dd9344\" }, null, null, null, opt vec { \"0x67de6b66516E098EF945EAddE48C54fABfD3Dcf9\"}, opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 
 
 dfx canister call sybil create_custom_feed "(record {id=\"BTC/USDT\"; feed_type=variant {Custom}; update_freq=3600:nat; decimals=opt 6; sources=vec {variant { HttpSource = record {uri=\"https://api.pro.coinbase.com/products/{key1}/candles?granularity=60\"; api_keys = opt vec {record { title = \"key1\"; key = \"BTC-USDT\"}}; resolver=\"/0/1\"}}};msg=\"${SIWE_MSG}\"; sig=\"${SIWE_SIG}\"})"
@@ -118,7 +119,7 @@ dfx canister call sybil remove_default_feed "(\"ETH/USD\")"
 dfx canister call sybil get_multiple_assets_data "(vec { \"ETH/USD\"; \"custom_get_logs_example\" }, opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 dfx canister call sybil get_multiple_assets_data_with_proof "(vec { \"ETH/USD\"; \"custom_get_logs_example\" }, opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 
-dfx canister call sybil update_cfg "(record {evm_rpc_canister = opt \"aovwi-4maaa-aaaaa-qaagq-cai\"})"
+dfx canister call sybil update_cfg "(record {evm_rpc_canister = opt principal \"aovwi-4maaa-aaaaa-qaagq-cai\"})"
 
 dfx canister call sybil get_feeds "(null, null, opt \"${SIWE_MSG}\", opt \"${SIWE_SIG}\")"
 dfx canister call sybil withdraw "(1:nat, \"${CALLER}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"

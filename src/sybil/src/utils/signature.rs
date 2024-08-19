@@ -6,7 +6,10 @@ use ic_cdk::api::{
 use ic_web3_rs::{ic::recover_address, types::H160};
 use thiserror::Error;
 
+use crate::methods::stellar::types::{SignWithSchnorrArgs, SignWithSchnorrResult};
+
 const ECDSA_SIGN_CYCLES: u64 = 23_000_000_000;
+const SCHNORR_SIGN_CYCLES: u64 = 25_000_000_000;
 
 #[derive(Error, Debug)]
 pub enum SignatureError {
@@ -31,12 +34,22 @@ pub fn get_eth_v(
     Err(SignatureError::InvalidSignatureFormat)
 }
 
-pub async fn sign(args: SignWithEcdsaArgument) -> CallResult<(SignWithEcdsaResponse,)> {
+pub async fn sign_with_ecdsa(args: SignWithEcdsaArgument) -> CallResult<(SignWithEcdsaResponse,)> {
     call_with_payment(
         Principal::management_canister(),
         "sign_with_ecdsa",
         (args,),
         ECDSA_SIGN_CYCLES,
+    )
+    .await
+}
+
+pub async fn sign_with_schnorr(args: SignWithSchnorrArgs) -> CallResult<(SignWithSchnorrResult,)> {
+    call_with_payment(
+        Principal::management_canister(),
+        "sign_with_schnorr",
+        (args,),
+        SCHNORR_SIGN_CYCLES,
     )
     .await
 }

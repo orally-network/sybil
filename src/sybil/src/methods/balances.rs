@@ -337,7 +337,7 @@ async fn deposit_coin(tx: &Transaction, coin_symbol: &str) -> Result<U256, Depos
         return Ok(0.into());
     }
 
-    let value_usd = if clone_with_state!(mock) || tx.value.is_zero() {
+    let value_usd = if tx.value.is_zero() {
         tx.value
     } else {
         let id = format!("{}/USD", coin_symbol);
