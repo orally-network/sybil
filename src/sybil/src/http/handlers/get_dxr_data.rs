@@ -13,7 +13,7 @@ use crate::{
         allowances::Allowances,
         api_keys::APIKeys,
         cache::Cache,
-        feed_types::get_dxr_data::{DexType, GetDXRDataResult},
+        feed_types::get_dxr_data::{Aggregation, DexType, GetDXRDataResult},
         http::{HttpRequest, HttpResponse},
     },
 };
@@ -22,7 +22,7 @@ use crate::{
 pub struct GetDXRDataQueryParams {
     pub chain_id: u64,
     pub pool_address: String,
-    pub block_numbers: Option<String>,
+    pub aggregation: Option<Aggregation>,
     pub dex_type: DexType,
     pub reverse_pair: Option<bool>,
     pub api_key: Option<String>,
@@ -73,7 +73,7 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     let params = GetDXRDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
-    let domain = get_domain(&req).unwrap();
+    let domain = get_domain(&req).ok_or(anyhow::anyhow!("Domain not found"))?;
 
     let (payer, is_free) = resolve_payer(
         Some(domain.clone()),
@@ -88,14 +88,10 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
         return Err(anyhow::anyhow!("Payer not found"));
     }
 
-    let block_numbers = params
-        .block_numbers
-        .map(|s| s.split(",").map(|s| s.parse().unwrap()).collect());
-
     let func_signature = stringify_func_call!(_get_dxr_data(
         params.chain_id,
         params.pool_address,
-        block_numbers,
+        params.aggregation,
         params.dex_type,
         params.reverse_pair,
         with_signature
@@ -106,7 +102,7 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
         crate::methods::feed_methods::get_dxr_data::_get_dxr_data(
             params.chain_id.clone(),
             params.pool_address.clone(),
-            block_numbers.clone(),
+            params.aggregation,
             params.dex_type.clone(),
             params.reverse_pair.clone(),
             with_signature,

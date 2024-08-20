@@ -1,5 +1,6 @@
 use std::{cmp::max, sync::Arc};
 
+use candid::Nat;
 use ethers_core::abi::Token;
 use ic_cdk::update;
 use ic_web3_rs::{contract::Contract, types::U256, Transport};
@@ -14,7 +15,9 @@ use crate::{
         cache::Cache,
         chains_rpc::ChainsRPC,
         dex_list::{DEXList, DEX},
-        feed_types::get_dxr_data::{DexType, GetDXRData, GetDXRDataMetadata, GetDXRDataResult},
+        feed_types::get_dxr_data::{
+            Aggregation, DexType, GetDXRData, GetDXRDataMetadata, GetDXRDataResult,
+        },
         state,
     },
     utils::{address, canister, convertion::convert_usd_to_eth, siwe, time::in_seconds, web3},
@@ -35,7 +38,7 @@ const SYMBOL_FUNCTION_NAME: &str = "symbol";
 pub async fn get_dxr_data(
     chain_id: u64,
     pool_address: String,
-    block_numbers: Option<Vec<u64>>,
+    aggregation: Option<Aggregation>,
     dex_type: DexType,
     reverse_pair: Option<bool>,
     msg: Option<String>,
@@ -52,7 +55,7 @@ pub async fn get_dxr_data(
     let func_signature = stringify_func_call!(_get_dxr_data(
         chain_id,
         pool_address,
-        block_numbers,
+        aggregation,
         dex_type,
         reverse_pair,
         false
@@ -63,7 +66,7 @@ pub async fn get_dxr_data(
         _get_dxr_data(
             chain_id,
             pool_address,
-            block_numbers,
+            aggregation,
             dex_type,
             reverse_pair,
             false,
@@ -81,7 +84,7 @@ pub async fn get_dxr_data(
 pub async fn get_dxr_data_with_proof(
     chain_id: u64,
     pool_address: String,
-    block_numbers: Option<Vec<u64>>,
+    aggregation: Option<Aggregation>,
     dex_type: DexType,
     reverse_pair: Option<bool>,
     msg: Option<String>,
@@ -98,7 +101,7 @@ pub async fn get_dxr_data_with_proof(
     let func_signature = stringify_func_call!(_get_dxr_data(
         chain_id,
         pool_address,
-        block_numbers,
+        aggregation,
         dex_type,
         reverse_pair,
         true
@@ -109,7 +112,7 @@ pub async fn get_dxr_data_with_proof(
         _get_dxr_data(
             chain_id,
             pool_address,
-            block_numbers,
+            aggregation,
             dex_type,
             reverse_pair,
             true,
@@ -310,15 +313,13 @@ async fn get_dex<T: Transport + 'static>(
 pub async fn _get_dxr_data(
     chain_id: u64,
     pool_address: String,
-    block_numbers: Option<Vec<u64>>,
+    aggregation: Option<Aggregation>,
     _dex_type: DexType,
     reverse_pair: Option<bool>,
     with_signature: bool,
     payer: Option<String>,
 ) -> Result<GetDXRDataResult, CustomFeedError> {
     let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
-
-    log!("TEST1");
 
     let w3 = web3::batch_instance(chain_rpc, clone_with_state!(evm_rpc_canister));
 
@@ -332,8 +333,6 @@ pub async fn _get_dxr_data(
     let tokens = vec![];
 
     let from = address::to_h160(&canister::eth_address().await?.to_string())?;
-
-    log!("TEST2: Before submiting batch");
 
     let DEX {
         mut token0_decimals,
@@ -349,58 +348,47 @@ pub async fn _get_dxr_data(
     )
     .await?;
 
+    let block_numbers = match aggregation.unwrap_or(Aggregation::AvgFromLastBlocks(1)) {
+        Aggregation::AvgFromBlocks(block_numbers) => block_numbers,
+        Aggregation::AvgFromLastBlocks(last_blocks) => {
+            let block_number_promise = w3.get_block_promise();
+            w3.submit_batch().await?;
+            let block = block_number_promise.await.unwrap().as_u64();
+
+            (block - last_blocks..block).collect()
+        }
+    };
+
     // Getting the reserves for each provided block number.
     // If no block number is provided, we get the reserves for the latest block
-    let result = if let Some(ref block_nubmers) = block_numbers {
-        let futures = block_nubmers
-            .iter()
-            .map(|block_number| {
-                w3.get_call_result_promise(
-                    uniswap_v2_pair_contract.clone(),
-                    &GET_RESERVES_FUNCTION_NAME,
-                    &tokens,
-                    from,
-                    Some(contract_address),
-                    Some((*block_number).into()),
-                )
-                .unwrap()
-            })
-            .collect::<Vec<_>>();
+    let futures = block_numbers
+        .iter()
+        .map(|block_number| {
+            w3.get_call_result_promise(
+                uniswap_v2_pair_contract.clone(),
+                &GET_RESERVES_FUNCTION_NAME,
+                &tokens,
+                from,
+                Some(contract_address),
+                Some((*block_number).into()),
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
 
-        log!("TEST3: Submit batch");
-        w3.submit_batch().await?;
-        log!("TEST4: After Submit batch");
-        let mut results = Vec::with_capacity(futures.len());
+    w3.submit_batch().await?;
+    let mut results = Vec::with_capacity(futures.len());
 
-        for result in futures {
-            results.push(result.await.unwrap()?);
-            log!("TEST4.1: After Submit batch and awaiting");
-        }
-
-        results
-    } else {
-        let call_result = w3.get_call_result_promise(
-            uniswap_v2_pair_contract.clone(),
-            &GET_RESERVES_FUNCTION_NAME,
-            &tokens,
-            from,
-            Some(contract_address),
-            None,
-        )?;
-
-        log!("TEST3: Submit batch");
-        w3.submit_batch().await?;
-        log!("TEST4: After Submit batch");
-
-        vec![call_result.await.unwrap()?]
-    };
+    for result in futures {
+        results.push(result.await.unwrap()?);
+    }
 
     let mut reserve0 = U256::zero();
     let mut reserve1 = U256::zero();
     let mut timestamp = 0;
 
     // Calculating the average rate
-    result.clone().into_iter().for_each(|reserve| {
+    results.clone().into_iter().for_each(|reserve| {
         let reserve0_token: Token = reserve[0].clone().into();
         let reserve1_token: Token = reserve[1].clone().into();
 
@@ -416,17 +404,17 @@ pub async fn _get_dxr_data(
         std::mem::swap(&mut token0_symbol, &mut token1_symbol);
     }
 
-    // Adding 9 zeros to the reserve0 wich represents the amount of decimals we want to have
-    reserve0 *= U256::from(10).pow(U256::from(TARGET_DECIMALS));
+    // Adding 9 zeros to the reserve1 wich represents the amount of decimals we want to have
+    reserve1 *= U256::from(10).pow(U256::from(TARGET_DECIMALS));
 
     // Adjusting the decimals
-    if token0_decimals > token1_decimals {
-        reserve0 /= U256::from(10).pow(U256::from(token0_decimals - token1_decimals));
+    if token1_decimals > token0_decimals {
+        reserve1 /= U256::from(10).pow(U256::from(token1_decimals - token0_decimals));
     } else {
-        reserve0 *= U256::from(10).pow(U256::from(token1_decimals - token0_decimals));
+        reserve1 *= U256::from(10).pow(U256::from(token0_decimals - token1_decimals));
     }
 
-    let rate = reserve0 / reserve1;
+    let rate = reserve1 / reserve0;
 
     let mut result = GetDXRDataResult {
         data: GetDXRData {
@@ -452,7 +440,7 @@ pub async fn _get_dxr_data(
         bytes: None,
     };
 
-    let cost = state::get_cfg().balances_cfg.base_fee.clone();
+    let cost = state::get_cfg().balances_cfg.base_fee.clone() * Nat::from(block_numbers.len());
 
     if payer.is_none() {
         let fee = convert_usd_to_eth(cost.clone(), balances::DECIMALS).await?;

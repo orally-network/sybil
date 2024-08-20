@@ -98,6 +98,12 @@ impl<T: BatchTransport> Web3Instance<Batch<T>> {
             .transaction_receipt(tx_hash, processors::transform_ctx_tx_with_logs())
     }
 
+    pub fn get_block_promise(
+        &self,
+    ) -> CallFuture<ic_web3_rs::types::U64, <Batch<T> as Transport>::Out> {
+        self.eth().block_number(processors::transform_ctx())
+    }
+
     pub fn get_gas_price_promise(&self) -> CallFuture<U256, <Batch<T> as Transport>::Out> {
         self.eth().gas_price(processors::transform_ctx())
     }
