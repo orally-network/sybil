@@ -60,6 +60,7 @@ pub async fn read_contract_with_proof(
             block_number,
             Some(payer),
             true,
+            true,
         ),
     );
 
@@ -109,6 +110,7 @@ pub async fn read_contract(
             block_number,
             Some(payer),
             false,
+            true,
         ),
     );
 
@@ -129,8 +131,10 @@ pub async fn _read_contract(
     block_number: Option<u64>,
     payer: Option<String>,
     with_signature: bool,
+    with_meta: bool,
 ) -> Result<ReadContractResult, CustomFeedError> {
     let base_fee = state::get_cfg().balances_cfg.base_fee;
+    let signature_fee = state::get_cfg().balances_cfg.signature_fee.clone();
 
     if let Some(ref payer) = payer {
         if !Balances::is_sufficient(payer, &base_fee)? {
@@ -177,16 +181,20 @@ pub async fn _read_contract(
 
     let mut result = ReadContractResult {
         data: call_result.into_iter().map(SolidityToken::from).collect(),
-        meta: Some(ReadContractMetadata {
-            chain_id,
-            contract_address: contract_addr,
-            method,
-            params,
-            block_number: block_number.unwrap_or_default(),
-            timestamp: in_seconds(),
-            fee: 0.into(),
-            fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
-        }),
+        meta: if with_meta {
+            Some(ReadContractMetadata {
+                chain_id,
+                contract_address: contract_addr,
+                method,
+                params,
+                block_number: block_number.unwrap_or_default(),
+                timestamp: in_seconds(),
+                fee: 0.into(),
+                fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
+            })
+        } else {
+            None
+        },
         signature: None,
         bytes: None,
     };
@@ -198,6 +206,11 @@ pub async fn _read_contract(
 
     if with_signature {
         result.sign().await?;
+
+        if let Some(payer) = &payer {
+            Balances::reduce_amount(payer, &signature_fee)?;
+            Balances::add_amount(&canister::eth_address().await?, &signature_fee)?;
+        }
     }
 
     if let Some(payer) = payer {

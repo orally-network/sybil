@@ -73,6 +73,8 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     let params = GetDXRDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
+    let with_meta = params.meta.unwrap_or(false);
+
     let domain = get_domain(&req).ok_or(anyhow::anyhow!("Domain not found"))?;
 
     let (payer, is_free) = resolve_payer(
@@ -94,7 +96,8 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
         params.aggregation,
         params.dex_type,
         params.reverse_pair,
-        with_signature
+        with_signature,
+        with_meta
     ));
 
     let mut cache_builder = Cache::with(
@@ -106,6 +109,7 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
             params.dex_type.clone(),
             params.reverse_pair.clone(),
             with_signature,
+            with_meta,
             if is_free { None } else { payer.clone() },
         ),
     );

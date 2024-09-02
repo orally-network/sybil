@@ -76,6 +76,8 @@ async fn _get_multiple_assets_data_request(
     let params = GetMultipleAssetsDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
+    let with_meta = params.meta.unwrap_or(false);
+
     let domain = get_domain(&req).unwrap();
 
     let (payer, is_free) = resolve_payer(
@@ -93,13 +95,17 @@ async fn _get_multiple_assets_data_request(
 
     let ids: Vec<_> = params.ids.split(",").map(|s| s.to_string()).collect();
 
-    let func_signature =
-        stringify_func_call!(_get_multiple_assets_data_result(ids, with_signature));
+    let func_signature = stringify_func_call!(_get_multiple_assets_data_result(
+        ids,
+        with_signature,
+        with_meta
+    ));
     let mut cache_builder = Cache::with(
         func_signature.clone(),
         crate::methods::feed_methods::get_multiple_asset_data::_get_multiple_assets_data_result(
             ids.clone(),
             with_signature,
+            with_meta,
             if is_free { None } else { payer.clone() },
         ),
     );
@@ -149,10 +155,6 @@ async fn _get_multiple_assets_data_request(
         if with_signature {
             result.sign().await?;
         }
-    }
-
-    if !params.meta.unwrap_or(false) {
-        result.meta = None;
     }
 
     if params.bytes.unwrap_or(false) {

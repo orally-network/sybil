@@ -69,6 +69,8 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     let params = GetXRCDataQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
+    let with_meta = params.meta.unwrap_or(false);
+
     let domain = get_domain(&req).unwrap();
 
     let (payer, is_free) = resolve_payer(
@@ -84,13 +86,15 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
         return Err(anyhow::anyhow!("Payer not found"));
     }
 
-    let func_signature = stringify_func_call!(_get_xrc_data(params.id.clone(), with_signature));
+    let func_signature =
+        stringify_func_call!(_get_xrc_data(params.id.clone(), with_signature, with_meta));
 
     let mut cache_builder = Cache::with(
         func_signature.clone(),
         crate::methods::feed_methods::get_xrc_data::_get_xrc_data(
             params.id.clone(),
             with_signature,
+            with_meta,
             if is_free { None } else { payer.clone() },
         ),
     );
@@ -133,10 +137,6 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
         if with_signature {
             result.sign().await?;
         }
-    }
-
-    if !params.meta.unwrap_or(false) {
-        result.meta = None;
     }
 
     if params.bytes.unwrap_or(false) {

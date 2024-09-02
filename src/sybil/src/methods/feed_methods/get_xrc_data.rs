@@ -13,6 +13,7 @@ use crate::{
             rate_data::AssetData,
         },
         feeds::{Feed, FeedError, FeedStorage, DEFAULT_UPDATE_FREQ},
+        state,
     },
     utils::{canister, convertion::convert_usd_to_eth, siwe, time::in_seconds},
 };
@@ -32,7 +33,7 @@ pub async fn get_xrc_data(
     };
 
     let func_signature = stringify_func_call!(_get_xrc_data(id, false));
-    let cache_builder = Cache::with(func_signature, _get_xrc_data(id, false, Some(payer)));
+    let cache_builder = Cache::with(func_signature, _get_xrc_data(id, false, true, Some(payer)));
 
     cache_builder
         .evaluate()
@@ -55,7 +56,7 @@ pub async fn get_xrc_data_with_proof(
     };
 
     let func_signature = stringify_func_call!(_get_xrc_data(id, true));
-    let cache_builder = Cache::with(func_signature, _get_xrc_data(id, true, Some(payer)));
+    let cache_builder = Cache::with(func_signature, _get_xrc_data(id, true, true, Some(payer)));
 
     cache_builder
         .evaluate()
@@ -68,6 +69,7 @@ pub async fn get_xrc_data_with_proof(
 pub async fn _get_xrc_data(
     id: String,
     with_signature: bool,
+    with_meta: bool,
     payer: Option<String>,
 ) -> Result<GetXRCDataResult, FeedError> {
     let rate = Feed {
@@ -77,6 +79,7 @@ pub async fn _get_xrc_data(
     };
 
     let (cost, rate) = FeedStorage::get_default_rate(&rate, None).await?;
+    let signature_fee = state::get_cfg().balances_cfg.signature_fee.clone();
 
     let rate = rate.data;
 
@@ -97,12 +100,16 @@ pub async fn _get_xrc_data(
             decimals,
             timestamp,
         },
-        meta: Some(GetXRCDataMetadata {
-            id: id.clone(),
-            timestamp: in_seconds(),
-            fee: 0.into(),
-            fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
-        }),
+        meta: if with_meta {
+            Some(GetXRCDataMetadata {
+                id: id.clone(),
+                timestamp: in_seconds(),
+                fee: 0.into(),
+                fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
+            })
+        } else {
+            None
+        },
         signature: None,
         bytes: None,
     };
@@ -114,6 +121,11 @@ pub async fn _get_xrc_data(
 
     if with_signature {
         result.sign().await?;
+
+        if let Some(payer) = &payer {
+            Balances::reduce_amount(payer, &signature_fee)?;
+            Balances::add_amount(&canister::eth_address().await?, &signature_fee)?;
+        }
     }
 
     if let Some(payer) = payer {

@@ -74,6 +74,8 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
     let params = ReadContractQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
+    let with_meta = params.meta.unwrap_or(false);
+
     let domain = get_domain(&req).unwrap();
 
     let (payer, is_free) = resolve_payer(
@@ -96,7 +98,8 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
         params.method,
         params.params,
         params.block_number,
-        with_signature
+        with_signature,
+        with_meta
     ));
 
     let mut cache_builder = Cache::with(
@@ -110,6 +113,7 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
             params.block_number,
             if is_free { None } else { payer.clone() },
             with_signature,
+            with_meta,
         ),
     );
 
@@ -151,10 +155,6 @@ async fn _read_contract(req: HttpRequest, with_signature: bool) -> Result<Vec<u8
         if with_signature {
             result.sign().await?;
         }
-    }
-
-    if !params.meta.unwrap_or(false) {
-        result.meta = None;
     }
 
     if params.bytes.unwrap_or(false) {

@@ -196,6 +196,7 @@ pub struct OldBalancesCfg {
     pub treasure_address: Option<Address>,
     pub fee_per_byte: Nat,
     pub base_fee: Option<Nat>,
+    pub signature_fee: Option<Nat>,
     pub allowed_chains: Option<HashMap<u64, AllowedChain>>,
     // Vec of addresses that won't be charged for anything
     pub whitelist: Option<HashSet<String>>,
@@ -228,6 +229,7 @@ impl From<OldBalancesCfg> for BalancesCfg {
             treasure_address: old.treasure_address.unwrap_or_default(),
             fee_per_byte: old.fee_per_byte,
             base_fee: old.base_fee.unwrap_or_default(),
+            signature_fee: old.signature_fee.unwrap_or_default(),
             whitelist: old.whitelist.unwrap_or_default(),
         }
     }

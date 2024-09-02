@@ -7,6 +7,7 @@ use crate::methods::balances;
 use crate::types::balances::Balances;
 use crate::types::feed_types::get_asset_data::{GetAssetDataMetadata, GetAssetDataResult};
 use crate::types::feed_types::rate_data::AssetDataResult;
+use crate::types::state;
 use crate::utils::canister;
 use crate::utils::convertion::convert_usd_to_eth;
 use crate::utils::time::in_seconds;
@@ -95,6 +96,7 @@ pub async fn _get_asset_data(
 pub async fn _get_asset_data_result(
     id: String,
     with_signature: bool,
+    with_meta: bool,
     payer: Option<String>,
 ) -> Result<GetAssetDataResult, FeedError> {
     if with_signature {
@@ -104,15 +106,20 @@ pub async fn _get_asset_data_result(
     }
 
     let (cost, rate) = FeedStorage::rate(&id, with_signature, payer.clone()).await?;
+    let signature_fee = state::get_cfg().balances_cfg.signature_fee.clone();
 
     let mut result = GetAssetDataResult {
         data: rate.data,
-        meta: Some(GetAssetDataMetadata {
-            id: id.clone(),
-            timestamp: in_seconds(),
-            fee: 0.into(),
-            fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
-        }),
+        meta: if with_meta {
+            Some(GetAssetDataMetadata {
+                id: id.clone(),
+                timestamp: in_seconds(),
+                fee: 0.into(),
+                fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
+            })
+        } else {
+            None
+        },
         signature: None,
         bytes: None,
     };
@@ -124,6 +131,11 @@ pub async fn _get_asset_data_result(
 
     if with_signature {
         result.sign().await?;
+
+        if let Some(payer) = &payer {
+            Balances::reduce_amount(payer, &signature_fee)?;
+            Balances::add_amount(&canister::eth_address().await?, &signature_fee)?;
+        }
     }
 
     if let Some(payer) = payer {

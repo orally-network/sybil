@@ -7,6 +7,7 @@ use crate::{
             GetMultipleAssetDataMetadata, GetMultipleAssetDataResult,
         },
         feeds::FeedStorage,
+        state,
     },
     utils::{canister, convertion::convert_usd_to_eth, time::in_seconds},
 };
@@ -108,6 +109,7 @@ pub async fn _get_multiple_assets_data(
 pub async fn _get_multiple_assets_data_result(
     ids: Vec<String>,
     with_signature: bool,
+    with_meta: bool,
     payer: Option<String>,
 ) -> Result<GetMultipleAssetDataResult, FeedError> {
     let mut data = Vec::with_capacity(ids.len());
@@ -118,6 +120,7 @@ pub async fn _get_multiple_assets_data_result(
         .collect::<Vec<_>>();
 
     let mut cost = Nat::from(0);
+    let signature_fee = state::get_cfg().balances_cfg.signature_fee.clone();
 
     for result in join_all(futures).await {
         let result = result?;
@@ -127,12 +130,16 @@ pub async fn _get_multiple_assets_data_result(
 
     let mut result = GetMultipleAssetDataResult {
         data,
-        meta: Some(GetMultipleAssetDataMetadata {
-            ids,
-            timestamp: in_seconds(),
-            fee: 0.into(),
-            fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
-        }),
+        meta: if with_meta {
+            Some(GetMultipleAssetDataMetadata {
+                ids,
+                timestamp: in_seconds(),
+                fee: 0.into(),
+                fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
+            })
+        } else {
+            None
+        },
         signature: None,
         bytes: None,
     };
@@ -144,6 +151,11 @@ pub async fn _get_multiple_assets_data_result(
 
     if with_signature {
         result.sign().await?;
+
+        if let Some(payer) = &payer {
+            Balances::reduce_amount(payer, &signature_fee)?;
+            Balances::add_amount(&canister::eth_address().await?, &signature_fee)?;
+        }
     }
 
     if let Some(payer) = payer {

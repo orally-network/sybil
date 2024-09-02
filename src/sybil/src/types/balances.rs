@@ -29,6 +29,7 @@ pub struct BalancesCfg {
     pub treasure_address: Address,
     pub fee_per_byte: Nat,
     pub base_fee: Nat,
+    pub signature_fee: Nat,
     // Vec of addresses that won't be charged for anything
     #[serde(default)]
     pub whitelist: HashSet<String>,
@@ -39,6 +40,7 @@ pub struct UpdateBalancesCfg {
     pub treasure_address: Option<Address>,
     pub fee_per_byte: Option<Nat>,
     pub base_fee: Option<Nat>,
+    pub signature_fee: Option<Nat>,
 }
 
 impl BalancesCfg {
@@ -53,6 +55,10 @@ impl BalancesCfg {
 
         if let Some(base_fee) = &cfg.base_fee {
             self.base_fee = base_fee.clone();
+        }
+
+        if let Some(signature_fee) = &cfg.signature_fee {
+            self.signature_fee = signature_fee.clone();
         }
     }
 }

@@ -139,6 +139,7 @@ impl GetDXRDataResult {
     }
 
     pub async fn sign(&mut self) -> Result<(), SignaturesCacheError> {
+        let balance_before = ic_cdk::api::canister_balance();
         let sign_data = self.encode_packed();
 
         log!(
@@ -149,6 +150,8 @@ impl GetDXRDataResult {
         self.signature = Some(hex::encode(
             SignaturesCache::eth_sign_with_access(&sign_data).await?,
         ));
+        let balance_after = ic_cdk::api::canister_balance();
+        log!("Cost for sign: {}", balance_before - balance_after);
 
         Ok(())
     }

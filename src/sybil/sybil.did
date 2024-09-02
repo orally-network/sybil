@@ -93,6 +93,7 @@ type UpdateBalancesCfg = record {
     treasure_address : opt text;
     fee_per_byte : opt nat;
     base_fee : opt nat;
+    signature_fee : opt nat;
 };
 
 type BalancesCfg = record {

@@ -58,7 +58,8 @@ pub async fn get_dxr_data(
         aggregation,
         dex_type,
         reverse_pair,
-        false
+        false,
+        true
     ));
 
     let cache_builder = Cache::with(
@@ -70,6 +71,7 @@ pub async fn get_dxr_data(
             dex_type,
             reverse_pair,
             false,
+            true,
             Some(payer),
         ),
     );
@@ -104,6 +106,7 @@ pub async fn get_dxr_data_with_proof(
         aggregation,
         dex_type,
         reverse_pair,
+        true,
         true
     ));
 
@@ -115,6 +118,7 @@ pub async fn get_dxr_data_with_proof(
             aggregation,
             dex_type,
             reverse_pair,
+            true,
             true,
             Some(payer),
         ),
@@ -317,8 +321,10 @@ pub async fn _get_dxr_data(
     _dex_type: DexType,
     reverse_pair: Option<bool>,
     with_signature: bool,
+    with_meta: bool,
     payer: Option<String>,
 ) -> Result<GetDXRDataResult, CustomFeedError> {
+    let balance_before = ic_cdk::api::canister_balance();
     let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
 
     let w3 = web3::batch_instance(chain_rpc, clone_with_state!(evm_rpc_canister));
@@ -359,8 +365,14 @@ pub async fn _get_dxr_data(
         }
     };
 
+    let balance_after = ic_cdk::api::canister_balance();
+    log!(
+        "cost for preparing _get_dxr_data: {}",
+        balance_before - balance_after
+    );
     // Getting the reserves for each provided block number.
     // If no block number is provided, we get the reserves for the latest block
+    let balance_before = ic_cdk::api::canister_balance();
     let futures = block_numbers
         .iter()
         .map(|block_number| {
@@ -377,6 +389,12 @@ pub async fn _get_dxr_data(
         .collect::<Vec<_>>();
 
     w3.submit_batch().await?;
+    let balance_after = ic_cdk::api::canister_balance();
+    log!(
+        "cost for getting reserves: {}",
+        balance_before - balance_after
+    );
+    let balance_before = ic_cdk::api::canister_balance();
     let mut results = Vec::with_capacity(futures.len());
 
     for result in futures {
@@ -426,21 +444,26 @@ pub async fn _get_dxr_data(
             decimals: TARGET_DECIMALS as u64,
             timestamp,
         },
-        meta: Some(GetDXRDataMetadata {
-            // chain_id,
-            // pool_address,
-            // block_numbers: block_numbers.unwrap_or_default(),
-            // dex_type: dex_type.to_string(),
-            // reverse_pair: reverse_pair.unwrap_or(false),
-            timestamp: in_seconds(),
-            fee: 0.into(),
-            fee_symbol: "ETH".to_string(),
-        }),
+        meta: if with_meta {
+            Some(GetDXRDataMetadata {
+                // chain_id,
+                // pool_address,
+                // block_numbers: block_numbers.unwrap_or_default(),
+                // dex_type: dex_type.to_string(),
+                // reverse_pair: reverse_pair.unwrap_or(false),
+                timestamp: in_seconds(),
+                fee: 0.into(),
+                fee_symbol: "ETH".to_string(),
+            })
+        } else {
+            None
+        },
         signature: None,
         bytes: None,
     };
 
     let cost = state::get_cfg().balances_cfg.base_fee.clone() * Nat::from(block_numbers.len());
+    let signature_fee = state::get_cfg().balances_cfg.signature_fee.clone();
 
     if payer.is_none() {
         let fee = convert_usd_to_eth(cost.clone(), balances::DECIMALS).await?;
@@ -449,6 +472,11 @@ pub async fn _get_dxr_data(
 
     if with_signature {
         result.sign().await?;
+
+        if let Some(payer) = &payer {
+            Balances::reduce_amount(payer, &signature_fee)?;
+            Balances::add_amount(&canister::eth_address().await?, &signature_fee)?;
+        }
     }
 
     if let Some(payer) = payer {
@@ -456,5 +484,10 @@ pub async fn _get_dxr_data(
         Balances::add_amount(&canister::eth_address().await?, &cost)?;
     }
 
+    let balance_after = ic_cdk::api::canister_balance();
+    log!(
+        "cost for casting and returning answer: {}",
+        balance_before - balance_after
+    );
     Ok(result)
 }

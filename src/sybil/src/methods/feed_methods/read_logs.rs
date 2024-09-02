@@ -57,6 +57,7 @@ pub async fn read_logs(
             addresses,
             Some(payer),
             false,
+            true,
         ),
     );
 
@@ -104,6 +105,7 @@ pub async fn read_logs_with_proof(
             addresses,
             Some(payer),
             true,
+            true,
         ),
     );
 
@@ -126,8 +128,10 @@ pub async fn _read_logs(
     addresses: Option<Vec<String>>,
     payer: Option<String>,
     with_signature: bool,
+    with_meta: bool,
 ) -> Result<ReadLogsResult, CustomFeedError> {
     let base_fee = state::get_cfg().balances_cfg.base_fee;
+    let signature_fee = state::get_cfg().balances_cfg.signature_fee.clone();
     if let Some(ref payer) = payer {
         if !Balances::is_sufficient(payer, &base_fee)? {
             return Err(BalanceError::InsufficientBalance)?;
@@ -164,19 +168,23 @@ pub async fn _read_logs(
 
     let mut result = ReadLogsResult {
         data: logs.into_iter().map(ReadLogsData::from).collect(),
-        meta: Some(ReadLogsMetadata {
-            chain_id,
-            block_from: block_from.unwrap_or_default(),
-            block_to: block_to.unwrap_or_default(),
-            topics0: topics0.unwrap_or_default(),
-            topics1: topics1.unwrap_or_default(),
-            topics2: topics2.unwrap_or_default(),
-            topics3: topics3.unwrap_or_default(),
-            addresses: addresses.unwrap_or_default(),
-            timestamp: in_seconds(),
-            fee: 0.into(),
-            fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
-        }),
+        meta: if with_meta {
+            Some(ReadLogsMetadata {
+                chain_id,
+                block_from: block_from.unwrap_or_default(),
+                block_to: block_to.unwrap_or_default(),
+                topics0: topics0.unwrap_or_default(),
+                topics1: topics1.unwrap_or_default(),
+                topics2: topics2.unwrap_or_default(),
+                topics3: topics3.unwrap_or_default(),
+                addresses: addresses.unwrap_or_default(),
+                timestamp: in_seconds(),
+                fee: 0.into(),
+                fee_symbol: "ETH".to_string(), // TODO: it's hardcoded, change it properly
+            })
+        } else {
+            None
+        },
         signature: None,
         bytes: None,
     };
@@ -188,6 +196,11 @@ pub async fn _read_logs(
 
     if with_signature {
         result.sign().await?;
+
+        if let Some(payer) = &payer {
+            Balances::reduce_amount(payer, &signature_fee)?;
+            Balances::add_amount(&canister::eth_address().await?, &signature_fee)?;
+        }
     }
 
     if let Some(payer) = payer {

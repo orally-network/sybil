@@ -343,7 +343,7 @@ async fn deposit_coin(tx: &Transaction, coin_symbol: &str) -> Result<U256, Depos
         let id = format!("{}/USD", coin_symbol);
         let func_signature = stringify_func_call!(_get_xrc_data(id, false));
 
-        let mut cache_builder = Cache::with(func_signature, _get_xrc_data(id, false, None));
+        let mut cache_builder = Cache::with(func_signature, _get_xrc_data(id, false, false, None));
         cache_builder.with_cache_ttl(DEPOSIT_CACHE_TTL);
 
         let xrc_data = cache_builder.evaluate().await?;
@@ -409,7 +409,8 @@ async fn deposit_erc20(
             let id = format!("{}/USD", erc20_contract.token_symbol);
             let func_signature = stringify_func_call!(_get_xrc_data(id, false));
 
-            let mut cache_builder = Cache::with(func_signature, _get_xrc_data(id, false, None));
+            let mut cache_builder =
+                Cache::with(func_signature, _get_xrc_data(id, false, false, None));
             cache_builder.with_cache_ttl(DEPOSIT_CACHE_TTL);
 
             let xrc_data = cache_builder.evaluate().await?;
