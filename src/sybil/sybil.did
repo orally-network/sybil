@@ -104,6 +104,7 @@ type BalancesCfg = record {
     treasure_address : text;
     fee_per_byte : nat;
     base_fee : nat;
+    signature_fee : nat;
     whitelist : vec text;
 };
 
@@ -279,6 +280,11 @@ type GetDXRDataResult = record {
     signature : opt text;
 };
 
+type GetDXRDataBatchResult = record { 
+    data : vec GetDXRData;
+    meta : opt GetDXRDataMetadata;
+    signature : opt text;
+};
 
 type ReadLogsData = record {
     address : text;

@@ -13,15 +13,15 @@ use crate::{
         allowances::Allowances,
         api_keys::APIKeys,
         cache::Cache,
-        feed_types::get_dxr_data::{Aggregation, DexType, GetDXRDataResult},
+        feed_types::get_dxr_data::{Aggregation, DexType, GetDXRDataBatchResult},
         http::{HttpRequest, HttpResponse},
     },
 };
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
-pub struct GetDXRDataQueryParams {
+pub struct GetDXRDataBatchQueryParams {
     pub chain_id: u64,
-    pub pool_address: String,
+    pub pool_addresses: Vec<String>,
     pub aggregation: Option<Aggregation>,
     pub dex_type: DexType,
     pub reverse_pair: Option<bool>,
@@ -33,7 +33,7 @@ pub struct GetDXRDataQueryParams {
     pub cache_ttl: Option<u64>,
 }
 
-impl TryFrom<String> for GetDXRDataQueryParams {
+impl TryFrom<String> for GetDXRDataBatchQueryParams {
     type Error = serde_qs::Error;
 
     fn try_from(query: String) -> Result<Self, serde_qs::Error> {
@@ -41,8 +41,10 @@ impl TryFrom<String> for GetDXRDataQueryParams {
     }
 }
 
-pub async fn get_dxr_data(req: HttpRequest) -> HttpResponse {
-    let resp = _get_dxr_data(req, false).await.map_err(|e| e.to_string());
+pub async fn get_dxr_data_batch(req: HttpRequest) -> HttpResponse {
+    let resp = _get_dxr_data_batch(req, false)
+        .await
+        .map_err(|e| e.to_string());
 
     match resp {
         Ok(data) => response::ok(data),
@@ -50,8 +52,10 @@ pub async fn get_dxr_data(req: HttpRequest) -> HttpResponse {
     }
 }
 
-pub async fn get_dxr_data_with_proof(req: HttpRequest) -> HttpResponse {
-    let resp = _get_dxr_data(req, true).await.map_err(|e| e.to_string());
+pub async fn get_dxr_data_batch_with_proof(req: HttpRequest) -> HttpResponse {
+    let resp = _get_dxr_data_batch(req, true)
+        .await
+        .map_err(|e| e.to_string());
 
     match resp {
         Ok(data) => response::ok(data),
@@ -60,7 +64,7 @@ pub async fn get_dxr_data_with_proof(req: HttpRequest) -> HttpResponse {
 }
 
 #[inline(always)]
-async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
+async fn _get_dxr_data_batch(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
     let service = HTTP_SERVICE.get().expect("State not initialized");
 
     let query = service
@@ -70,7 +74,7 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
         .context("No route found")?
         .params;
 
-    let params = GetDXRDataQueryParams::try_from(query.to_string())?;
+    let params = GetDXRDataBatchQueryParams::try_from(query.to_string())?;
     params.validate()?;
 
     let with_meta = params.meta.unwrap_or(false);
@@ -79,7 +83,7 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
 
     let (payer, is_free) = resolve_payer(
         Some(domain.clone()),
-        "get_dxr_data".to_string(),
+        "get_dxr_data_batch".to_string(),
         params.msg,
         params.sig,
         params.api_key.clone(),
@@ -90,9 +94,9 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
         return Err(anyhow::anyhow!("Payer not found"));
     }
 
-    let func_signature = stringify_func_call!(_get_dxr_data(
+    let func_signature = stringify_func_call!(_get_dxr_data_batch(
         params.chain_id,
-        params.pool_address,
+        params.pool_addresses,
         params.aggregation,
         params.dex_type,
         params.reverse_pair,
@@ -102,9 +106,9 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
 
     let mut cache_builder = Cache::with(
         func_signature.clone(),
-        crate::methods::feed_methods::get_dxr_data::_get_dxr_data(
+        crate::methods::feed_methods::get_dxr_data::_get_dxr_data_batch(
             params.chain_id.clone(),
-            params.pool_address.clone(),
+            &params.pool_addresses,
             params.aggregation,
             params.dex_type.clone(),
             params.reverse_pair.clone(),
@@ -116,11 +120,16 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
 
     cache_builder.with_on_found(|_| {
         if let Some(api_key) = params.api_key {
-            APIKeys::decrease_request_count(api_key, "get_dxr_data".to_string(), Some(domain))
-                .unwrap();
+            APIKeys::decrease_request_count(
+                api_key,
+                "get_dxr_data_batch".to_string(),
+                Some(domain),
+            )
+            .unwrap();
         } else {
             if Allowances::get_allowed_user(&domain).is_some() {
-                Allowances::decrease_request_count(domain, "get_dxr_data".to_string()).unwrap();
+                Allowances::decrease_request_count(domain, "get_dxr_data_batch".to_string())
+                    .unwrap();
             }
         }
     });
@@ -128,7 +137,7 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     cache_builder.with_on_save(async move {
         ic_cdk::spawn(async move {
             let entry =
-                Cache::get_cache::<GetDXRDataResult>(func_signature.clone(), params.cache_ttl);
+                Cache::get_cache::<GetDXRDataBatchResult>(func_signature.clone(), params.cache_ttl);
 
             if let Some(mut data) = entry {
                 data.meta.as_mut().map(|meta| meta.fee = 0.into());

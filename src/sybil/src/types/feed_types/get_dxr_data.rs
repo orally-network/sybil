@@ -156,3 +156,70 @@ impl GetDXRDataResult {
         Ok(())
     }
 }
+
+#[derive(CandidType, Serialize, Deserialize, Debug)]
+pub struct GetDXRDataBatchResult {
+    pub data: Vec<GetDXRData>,
+    pub meta: Option<GetDXRDataMetadata>,
+    pub signature: Option<String>,
+    pub bytes: Option<String>,
+}
+
+impl GetDXRDataBatchResult {
+    fn encode_data(&self) -> Vec<u8> {
+        encode(&[Token::Array(
+            self.data
+                .iter()
+                .map(|data| Token::Bytes(data.encode()))
+                .collect(),
+        )])
+    }
+
+    fn encode_packed(&self) -> Vec<u8> {
+        let mut data_to_encode = Vec::new();
+
+        data_to_encode.push(Token::Bytes(self.encode_data()));
+
+        if let Some(meta) = &self.meta {
+            data_to_encode.push(Token::Bytes(meta.encode()));
+        }
+
+        let encoded_packed = encode_packed(&data_to_encode).expect("tokens should be valid");
+
+        encoded_packed
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        let mut data_to_encode = Vec::new();
+
+        data_to_encode.push(Token::Bytes(self.encode_data()));
+
+        if let Some(meta) = &self.meta {
+            data_to_encode.push(Token::Bytes(meta.encode()));
+        }
+
+        if let Some(signature) = &self.signature {
+            data_to_encode.push(Token::Bytes(hex::decode(signature.clone()).unwrap()));
+        };
+
+        encode(&data_to_encode)
+    }
+
+    pub async fn sign(&mut self) -> Result<(), SignaturesCacheError> {
+        let balance_before = ic_cdk::api::canister_balance();
+        let sign_data = self.encode_packed();
+
+        log!(
+            "asset data signed: 0x{}",
+            hex::encode(keccak256(&sign_data))
+        );
+
+        self.signature = Some(hex::encode(
+            SignaturesCache::eth_sign_with_access(&sign_data).await?,
+        ));
+        let balance_after = ic_cdk::api::canister_balance();
+        log!("Cost for sign: {}", balance_before - balance_after);
+
+        Ok(())
+    }
+}

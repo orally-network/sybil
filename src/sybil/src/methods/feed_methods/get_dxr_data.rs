@@ -1,9 +1,15 @@
-use std::{cmp::max, sync::Arc};
+use std::{str::FromStr, sync::Arc};
 
 use candid::Nat;
 use ethers_core::abi::Token;
+use futures::future::try_join_all;
 use ic_cdk::update;
-use ic_web3_rs::{contract::Contract, types::U256, Transport};
+use ic_web3_rs::{
+    contract::Contract,
+    transports::Batch,
+    types::{H160, U256},
+    BatchTransport, Transport,
+};
 use sybil_utils::cycles_count;
 
 use crate::{
@@ -16,11 +22,19 @@ use crate::{
         chains_rpc::ChainsRPC,
         dex_list::{DEXList, DEX},
         feed_types::get_dxr_data::{
-            Aggregation, DexType, GetDXRData, GetDXRDataMetadata, GetDXRDataResult,
+            Aggregation, DexType, GetDXRData, GetDXRDataBatchResult, GetDXRDataMetadata,
+            GetDXRDataResult,
         },
         state,
     },
-    utils::{address, canister, convertion::convert_usd_to_eth, siwe, time::in_seconds, web3},
+    utils::{
+        address::{self, AddressError},
+        canister,
+        convertion::convert_usd_to_eth,
+        siwe,
+        time::in_seconds,
+        web3::{self, Web3Instance},
+    },
 };
 
 const UNISWAP_V2_PAIR_ABI: &[u8] = include_bytes!("../../../../../assets/UniswapV2PairABI.json");
@@ -299,6 +313,7 @@ async fn get_dex<T: Transport + 'static>(
     };
 
     let dex = DEX {
+        address: pool_address.clone(),
         token0_address: format!("{:?}", token0_contract_addr),
         token0_symbol,
         token0_decimals,
@@ -310,6 +325,99 @@ async fn get_dex<T: Transport + 'static>(
     DEXList::add_dex(pool_address, dex.clone());
 
     Ok(dex)
+}
+
+#[inline]
+#[cycles_count]
+pub async fn _get_dxr_data_batch(
+    chain_id: u64,
+    pool_addresses: &[String],
+    aggregation: Option<Aggregation>,
+    _dex_type: DexType,
+    reverse_pair: Option<bool>,
+    with_signature: bool,
+    with_meta: bool,
+    payer: Option<String>,
+) -> Result<GetDXRDataBatchResult, CustomFeedError> {
+    let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
+    let w3 = Arc::new(web3::batch_instance(
+        chain_rpc,
+        clone_with_state!(evm_rpc_canister),
+    ));
+
+    let block_numbers = match aggregation.unwrap_or(Aggregation::AvgFromLastBlocks(1)) {
+        Aggregation::AvgFromBlocks(block_numbers) => block_numbers,
+        Aggregation::AvgFromLastBlocks(last_blocks) => {
+            let block_number_promise = w3.get_block_promise();
+            w3.submit_batch().await?;
+            let block = block_number_promise.await.unwrap().as_u64();
+
+            (block - last_blocks..block).collect()
+        }
+    };
+
+    let mut futures = Vec::with_capacity(pool_addresses.len());
+
+    let dexes = get_dexes(w3.clone(), pool_addresses, _dex_type).await?;
+    let timestamp = in_seconds();
+
+    for dex in dexes {
+        futures.push(get_dxr_data_for_dex(
+            w3.clone(),
+            dex,
+            &block_numbers,
+            reverse_pair,
+            timestamp,
+        ));
+    }
+
+    w3.submit_batch().await?;
+
+    let data = try_join_all(futures).await?;
+
+    let mut result = GetDXRDataBatchResult {
+        data,
+        meta: if with_meta {
+            Some(GetDXRDataMetadata {
+                // chain_id,
+                // pool_address,
+                // block_numbers: block_numbers.unwrap_or_default(),
+                // dex_type: dex_type.to_string(),
+                // reverse_pair: reverse_pair.unwrap_or(false),
+                timestamp: in_seconds(),
+                fee: 0.into(),
+                fee_symbol: "ETH".to_string(),
+            })
+        } else {
+            None
+        },
+        signature: None,
+        bytes: None,
+    };
+
+    let cost = state::get_cfg().balances_cfg.base_fee.clone() * Nat::from(block_numbers.len());
+    let signature_fee = state::get_cfg().balances_cfg.signature_fee.clone();
+
+    if payer.is_none() {
+        let fee = convert_usd_to_eth(cost.clone(), balances::DECIMALS).await?;
+        result.meta.as_mut().map(|meta| meta.fee = fee);
+    }
+
+    if with_signature {
+        result.sign().await?;
+
+        if let Some(payer) = &payer {
+            Balances::reduce_amount(payer, &signature_fee)?;
+            Balances::add_amount(&canister::eth_address().await?, &signature_fee)?;
+        }
+    }
+
+    if let Some(payer) = payer {
+        Balances::reduce_amount(&payer, &cost)?;
+        Balances::add_amount(&canister::eth_address().await?, &cost)?;
+    }
+
+    Ok(result)
 }
 
 #[inline]
@@ -403,7 +511,7 @@ pub async fn _get_dxr_data(
 
     let mut reserve0 = U256::zero();
     let mut reserve1 = U256::zero();
-    let mut timestamp = 0;
+    let timestamp = in_seconds();
 
     // Calculating the average rate
     results.clone().into_iter().for_each(|reserve| {
@@ -412,7 +520,6 @@ pub async fn _get_dxr_data(
 
         reserve0 += reserve0_token.into_uint().unwrap();
         reserve1 += reserve1_token.into_uint().unwrap();
-        timestamp = max(timestamp, reserve[2].clone().into_uint().unwrap().as_u64())
     });
 
     // If the reverse_pair is true, we swap the reserves and the decimals
@@ -490,4 +597,330 @@ pub async fn _get_dxr_data(
         balance_before - balance_after
     );
     Ok(result)
+}
+
+async fn get_dxr_data_for_dex<B: BatchTransport + 'static>(
+    w3: Arc<Web3Instance<Batch<B>>>,
+    dex: DEX,
+    block_numbers: &[u64],
+    reverse_pair: Option<bool>,
+    timestamp: u64,
+) -> Result<GetDXRData, CustomFeedError> {
+    let tokens = vec![];
+    let from = address::to_h160(&canister::eth_address().await?.to_string())?;
+
+    let DEX {
+        address,
+        mut token0_decimals,
+        mut token1_decimals,
+        mut token0_symbol,
+        mut token1_symbol,
+        ..
+    } = dex;
+
+    let contract_address = address::to_h160(&address)?;
+
+    let contract = Arc::new(
+        Contract::from_json(w3.eth(), contract_address, UNISWAP_V2_PAIR_ABI)
+            .map_err(|err| CustomFeedError::FailedToParseABI(err.to_string()))?,
+    );
+
+    // Getting the reserves for each provided block number.
+    // If no block number is provided, we get the reserves for the latest block
+    let futures = block_numbers
+        .iter()
+        .map(|block_number| {
+            w3.get_call_result_promise(
+                contract.clone(),
+                &GET_RESERVES_FUNCTION_NAME,
+                &tokens,
+                from,
+                Some(contract_address),
+                Some((*block_number).into()),
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+
+    let mut results = Vec::with_capacity(futures.len());
+
+    for result in futures {
+        results.push(result.await.unwrap()?);
+    }
+
+    let mut reserve0 = U256::zero();
+    let mut reserve1 = U256::zero();
+
+    // Calculating the average rate
+    results.clone().into_iter().for_each(|reserve| {
+        let reserve0_token: Token = reserve[0].clone().into();
+        let reserve1_token: Token = reserve[1].clone().into();
+
+        reserve0 += reserve0_token.into_uint().unwrap();
+        reserve1 += reserve1_token.into_uint().unwrap();
+    });
+
+    // If the reverse_pair is true, we swap the reserves and the decimals
+    if reverse_pair.unwrap_or(false) {
+        std::mem::swap(&mut reserve0, &mut reserve1);
+        std::mem::swap(&mut token0_decimals, &mut token1_decimals);
+        std::mem::swap(&mut token0_symbol, &mut token1_symbol);
+    }
+
+    // Adding 9 zeros to the reserve1 wich represents the amount of decimals we want to have
+    reserve1 *= U256::from(10).pow(U256::from(TARGET_DECIMALS));
+
+    // Adjusting the decimals
+    if token1_decimals > token0_decimals {
+        reserve1 /= U256::from(10).pow(U256::from(token1_decimals - token0_decimals));
+    } else {
+        reserve1 *= U256::from(10).pow(U256::from(token0_decimals - token1_decimals));
+    }
+
+    let rate = reserve1 / reserve0;
+    let data = GetDXRData {
+        feed_id: format!(
+            "UniswapV2Pool-{}-{}/{}",
+            address, token0_symbol, token1_symbol
+        ),
+        rate: rate.as_u64(),
+        decimals: TARGET_DECIMALS as u64,
+        timestamp,
+    };
+
+    Ok(data)
+}
+
+async fn get_dex_with_token_addresses_and_pool<
+    T: Transport + 'static,
+    B: BatchTransport + 'static,
+>(
+    w3: Arc<Web3Instance<Batch<B>>>,
+    contract: Arc<Contract<T>>,
+    pool_address: &str,
+    _dex_type: DexType,
+) -> Result<DEX, CustomFeedError> {
+    if let Some(dex) = DEXList::get_dex(&pool_address) {
+        return Ok(dex);
+    }
+
+    let tokens = vec![];
+    let contract_address = address::to_h160(&pool_address)?;
+    let from = address::to_h160(&canister::eth_address().await?.to_string())?;
+
+    let token0_contract_addr = w3.get_call_result_promise(
+        contract.clone(),
+        &TOKEN0_FUNCTION_NAME,
+        &tokens,
+        from,
+        Some(contract_address),
+        None,
+    )?;
+
+    let token1_contract_addr = w3.get_call_result_promise(
+        contract.clone(),
+        &TOKEN1_FUNCTION_NAME,
+        &tokens,
+        from,
+        Some(contract_address),
+        None,
+    )?;
+
+    let token0_address = token0_contract_addr
+        .await
+        .unwrap()?
+        .pop()
+        .unwrap()
+        .into_address()
+        .unwrap();
+
+    let token1_address = token1_contract_addr
+        .await
+        .unwrap()?
+        .pop()
+        .unwrap()
+        .into_address()
+        .unwrap();
+
+    let dex = DEX {
+        address: pool_address.to_string(),
+        token0_address: format!("{:?}", token0_address),
+        token1_address: format!("{:?}", token1_address),
+        ..DEX::default()
+    };
+
+    Ok(dex)
+}
+
+async fn get_dex_decimals_and_symbols<T: Transport + BatchTransport + 'static>(
+    w3: Arc<Web3Instance<Batch<T>>>,
+    mut dex: DEX,
+) -> Result<DEX, CustomFeedError> {
+    if !dex.token0_symbol.is_empty() && !dex.token0_symbol.is_empty() {
+        return Ok(dex);
+    }
+
+    let tokens = vec![];
+    let from = address::to_h160(&canister::eth_address().await?.to_string())?;
+
+    let token0_contract_addr = H160::from_str(&dex.token0_address)
+        .map_err(|_| CustomFeedError::AddressError(AddressError::InvalidAddress))?;
+    let token1_contract_addr = H160::from_str(&dex.token1_address)
+        .map_err(|_| CustomFeedError::AddressError(AddressError::InvalidAddress))?;
+
+    let token0_contract = Arc::new(
+        Contract::from_json(w3.eth(), token0_contract_addr, ERC20_ABI)
+            .map_err(|err| CustomFeedError::FailedToParseABI(err.to_string()))?,
+    );
+
+    let token1_contract = Arc::new(
+        Contract::from_json(w3.eth(), token1_contract_addr, ERC20_ABI)
+            .map_err(|err| CustomFeedError::FailedToParseABI(err.to_string()))?,
+    );
+
+    // Getting the decimals for each token
+    let token0_decimals = w3.get_call_result_promise(
+        token0_contract.clone(),
+        &DECIMALS_FUNCTION_NAME,
+        &tokens,
+        from,
+        Some(token0_contract_addr),
+        None,
+    )?;
+
+    let token1_decimals = w3.get_call_result_promise(
+        token1_contract.clone(),
+        &DECIMALS_FUNCTION_NAME,
+        &tokens,
+        from,
+        Some(token1_contract_addr),
+        None,
+    )?;
+
+    let token0_symbol = w3.get_call_result_promise(
+        token0_contract.clone(),
+        &SYMBOL_FUNCTION_NAME,
+        &tokens,
+        from,
+        Some(token0_contract_addr),
+        None,
+    )?;
+
+    let token1_symbol = w3.get_call_result_promise(
+        token1_contract.clone(),
+        &SYMBOL_FUNCTION_NAME,
+        &tokens,
+        from,
+        Some(token1_contract_addr),
+        None,
+    )?;
+
+    dex.token0_decimals = token0_decimals
+        .await
+        .unwrap()?
+        .pop()
+        .unwrap()
+        .into_uint()
+        .unwrap()
+        .as_u32();
+
+    dex.token1_decimals = token1_decimals
+        .await
+        .unwrap()?
+        .pop()
+        .unwrap()
+        .into_uint()
+        .unwrap()
+        .as_u32();
+
+    let token0_symbol = token0_symbol.await.unwrap()?.pop().unwrap();
+
+    let token1_symbol = token1_symbol.await.unwrap()?.pop().unwrap();
+
+    dex.token0_symbol = match token0_symbol {
+        Token::String(s) => s,
+        // Each byte must be greater than 0, because this token represents utf8 string in bytes32.
+        // Thus, we can safely trim the trailing zeros and convert remaining bytes into a string.
+        Token::FixedBytes(b) | Token::Bytes(b) => {
+            let bytes = b.into_iter().take_while(|&c| c != 0).collect::<Vec<_>>();
+            match String::from_utf8(bytes) {
+                Ok(s) => s,
+                _ => {
+                    return Err(CustomFeedError::FailedToParseABI(
+                        "Failed to parse token0 symbol".to_string(),
+                    ))
+                }
+            }
+        }
+        _ => {
+            return Err(CustomFeedError::FailedToParseABI(
+                "Failed to parse token0 symbol".to_string(),
+            ))
+        }
+    };
+
+    dex.token1_symbol = match token1_symbol {
+        Token::String(s) => s,
+        // Each byte must be greater than 0, because this token represents utf8 string in bytes32.
+        // Thus, we can safely trim the trailing zeros and convert remaining bytes into a string.
+        Token::FixedBytes(b) | Token::Bytes(b) => {
+            let bytes = b.into_iter().take_while(|&c| c != 0).collect::<Vec<_>>();
+            match String::from_utf8(bytes) {
+                Ok(s) => s,
+                _ => {
+                    return Err(CustomFeedError::FailedToParseABI(
+                        "Failed to parse token1 symbol".to_string(),
+                    ))
+                }
+            }
+        }
+        _ => {
+            return Err(CustomFeedError::FailedToParseABI(
+                "Failed to parse token1 symbol".to_string(),
+            ))
+        }
+    };
+
+    DEXList::add_dex(dex.address.clone(), dex.clone());
+
+    Ok(dex)
+}
+
+async fn get_dexes<T: Transport + BatchTransport + 'static>(
+    w3: Arc<Web3Instance<Batch<T>>>,
+    pool_addresses: &[String],
+    dex_type: DexType,
+) -> Result<Vec<DEX>, CustomFeedError> {
+    let mut dexes_with_token_pairs = Vec::with_capacity(pool_addresses.len());
+
+    for pool_address in pool_addresses {
+        let contract_address = address::to_h160(&pool_address)?;
+
+        let contract = Arc::new(
+            Contract::from_json(w3.eth(), contract_address, UNISWAP_V2_PAIR_ABI)
+                .map_err(|err| CustomFeedError::FailedToParseABI(err.to_string()))?,
+        );
+
+        dexes_with_token_pairs.push(get_dex_with_token_addresses_and_pool(
+            w3.clone(),
+            contract.clone(),
+            pool_address,
+            dex_type.clone(),
+        ));
+    }
+
+    w3.submit_batch().await?;
+
+    let dexes = try_join_all(dexes_with_token_pairs).await?;
+
+    let mut futures = Vec::with_capacity(dexes.len());
+    for dex in dexes {
+        futures.push(get_dex_decimals_and_symbols(w3.clone(), dex));
+    }
+
+    w3.submit_batch().await?;
+
+    let dexes = try_join_all(futures).await?;
+
+    Ok(dexes)
 }

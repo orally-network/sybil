@@ -7,6 +7,7 @@ use crate::STATE;
 
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug, Default)]
 pub struct DEX {
+    pub address: String,
     pub token0_address: String,
     pub token0_decimals: u32,
     pub token0_symbol: String,
