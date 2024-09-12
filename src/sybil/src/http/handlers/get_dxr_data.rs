@@ -8,7 +8,7 @@ use crate::{
         utils::{get_domain, resolve_payer},
         HTTP_SERVICE,
     },
-    stringify_func_call,
+    log, stringify_func_call,
     types::{
         allowances::Allowances,
         api_keys::APIKeys,
@@ -114,6 +114,7 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
         ),
     );
 
+    let balance_before = ic_cdk::api::canister_balance();
     cache_builder.with_on_found(|_| {
         if let Some(api_key) = params.api_key {
             APIKeys::decrease_request_count(api_key, "get_dxr_data".to_string(), Some(domain))
@@ -158,5 +159,10 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
         result.bytes = Some(format!("0x{}", hex::encode(&result.encode())));
     }
 
+    let balance_after = ic_cdk::api::canister_balance();
+    log!(
+        "Cost after _get_dxr_data: {}",
+        balance_before - balance_after
+    );
     Ok(serde_json::to_vec(&result)?)
 }

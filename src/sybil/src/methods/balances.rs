@@ -295,9 +295,10 @@ async fn _deposit(
         format!(
             "{}{}",
             clone_with_state!(rpc_wrapper),
-            urlencoding::encode(&allowed_chain.rpc.get_url())
+            urlencoding::encode(&allowed_chain.rpc.get_url()),
         ),
         clone_with_state!(evm_rpc_canister),
+        None,
     );
 
     let tx_receipt = w3.get_tx_receipt(&tx_hash).await?;

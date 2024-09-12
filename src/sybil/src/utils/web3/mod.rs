@@ -15,7 +15,7 @@ use ic_web3_rs::{
     BatchTransport, Transport, Web3,
 };
 use serde::Deserialize;
-use std::{str::FromStr, time::Duration};
+use std::{str::FromStr, sync::atomic::AtomicU32, time::Duration};
 use thiserror::Error;
 
 use crate::{retry_until_success, types::cache::CacheError};
@@ -33,8 +33,9 @@ pub const ERC20_TRANSFER_METHOD: &str = "transfer";
 const TX_WAITING_TIMEOUT: u64 = 60 * 5;
 const TX_WAIT_DELAY: Duration = Duration::from_secs(3);
 
-mod evm_canister_transport_old;
+pub mod evm_canister_transport_old;
 pub mod promises;
+pub mod utils;
 
 #[derive(Error, Debug, CandidType, Deserialize)]
 pub enum Web3Error {
@@ -88,14 +89,20 @@ pub enum Web3Error {
 
 pub struct Web3Instance<T: Transport> {
     w3: Web3<T>,
+    pending_requests: AtomicU32,
 }
 
-pub fn instance(rpc_url: String, _evm_rpc_canister: Principal) -> Web3Instance<impl Transport> {
+pub fn instance(
+    rpc_url: String,
+    _evm_rpc_canister: Principal,
+    max_response_bytes: Option<u64>,
+) -> Web3Instance<impl Transport> {
     // Switch between EVMCanisterTransport(calls go through emv_rpc canister) and ICHttp (calls go straight to the rpc)
 
     Web3Instance::new(Web3::new(EVMCanisterTransport::new_with_one_rpc(
         rpc_url,
         _evm_rpc_canister,
+        max_response_bytes,
     )))
 
     // Web3Instance::new(Web3::new(ICHttp::new(&rpc_url, None).unwrap()))
@@ -103,12 +110,13 @@ pub fn instance(rpc_url: String, _evm_rpc_canister: Principal) -> Web3Instance<i
 
 pub fn batch_instance(
     rpc_url: String,
-    _evm_rpc_canister: Principal,
+    evm_rpc_canister: Principal,
+    max_response_bytes: Option<u64>,
 ) -> Web3Instance<Batch<impl BatchTransport>> {
     // Switch between EVMCanisterTransport(calls go through emv_rpc canister) and ICHttp (calls go straight to the rpc)
 
     Web3Instance::new(Web3::new(Batch::new(
-        EVMCanisterTransport::new_with_one_rpc(rpc_url, _evm_rpc_canister),
+        EVMCanisterTransport::new_with_one_rpc(rpc_url, evm_rpc_canister, max_response_bytes),
     )))
 
     // Web3Instance::new(Web3::new(Batch::new(ICHttp::new(&rpc_url, None).unwrap())))
@@ -116,7 +124,10 @@ pub fn batch_instance(
 
 impl<T: Transport> Web3Instance<T> {
     pub fn new(w3: Web3<T>) -> Self {
-        Self { w3 }
+        Self {
+            w3,
+            pending_requests: AtomicU32::new(0),
+        }
     }
 
     pub fn eth(&self) -> Eth<T> {
@@ -233,6 +244,15 @@ impl<T: Transport> Web3Instance<T> {
         };
 
         Ok(nonce)
+    }
+
+    pub async fn get_block(&self) -> Result<u64, Web3Error> {
+        Ok(self
+            .eth()
+            .block_number(processors::transform_ctx())
+            .await
+            .map_err(|err| Web3Error::UnableToGetBlockNumber(err.to_string()))?
+            .as_u64())
     }
 
     pub async fn send_erc20(

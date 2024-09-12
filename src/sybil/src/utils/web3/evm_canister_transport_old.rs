@@ -42,11 +42,15 @@ pub struct EVMCanisterTransport {
 
 impl EVMCanisterTransport {
     /// Create new ICEthRpc instance
-    pub fn new_with_one_rpc(rpc_url: String, evm_rpc_canister: Principal) -> Self {
+    pub fn new_with_one_rpc(
+        rpc_url: String,
+        evm_rpc_canister: Principal,
+        max_response_bytes: Option<u64>,
+    ) -> Self {
         Self {
             rpcs_url: vec![rpc_url],
             evm_rpc_canister,
-            max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES,
+            max_response_bytes: max_response_bytes.unwrap_or(DEFAULT_MAX_RESPONSE_BYTES),
             id: Arc::new(AtomicUsize::new(0)),
         }
     }

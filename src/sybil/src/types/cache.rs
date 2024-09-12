@@ -334,7 +334,8 @@ impl SignaturesCache {
         //     .await
         //     .map_err(|(_, msg)| SignaturesCacheError::SignWithECDSAError(msg))?
         //     .0
-        //     .signature.into_vec();
+        //     .signature
+        //     .into_vec();
 
         self.signatures
             .insert(hex::encode(&sign_data), hex::encode(&signature));

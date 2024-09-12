@@ -10,6 +10,7 @@ local_deploy_evm_rpc:
 local_deploy_sybil: local_deploy_xrc local_deploy_evm_rpc
 	$(eval ADDRESS?=0x6696eD42dFBe875E60779b8163fDCc39B088222A)
 	$(eval RPC_URL?=https://ethereum-sepolia-rpc.publicnode.com)
+	$(eval MAINNET_RPC_URL?=https://eth.llamarpc.com)
 	$(eval XRC_ID := $(shell dfx canister id xrc))
 	$(eval TREASURE_ADDRESS := $(shell dfx canister id xrc))
 	$(eval FALLBACK_XRC := $(shell dfx canister id xrc))
@@ -39,10 +40,18 @@ local_deploy_sybil: local_deploy_xrc local_deploy_evm_rpc
 						coin_symbol = \"Eth\"; \
 						rpc = record { url = \"${RPC_URL}\"; secret=null }; \
 					} \
-				}}; \
+					}; record { \
+						1:nat64; record { \
+							erc20_contracts = vec {}; \
+							coin_symbol = \"Eth\"; \
+							rpc = record { url = \"${MAINNET_RPC_URL}\"; secret=null }; \
+						} \
+					}; \
+				}; \
 				treasure_address=\"${ADDRESS}\"; \
 				fee_per_byte=1:nat; \
 				base_fee=1:nat; \
+				signature_fee=1:nat; \
 				whitelist = vec {}; \
 			}\
 		})" sybil

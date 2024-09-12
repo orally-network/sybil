@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::sync::Arc;
+use std::sync::{atomic::Ordering, Arc};
 
 use ethers_core::abi::{Token, TopicFilter};
 use futures::channel::oneshot::{self, Receiver};
@@ -17,12 +17,27 @@ use ic_web3_rs::{
 };
 use serde_json::Value;
 
-use crate::utils::{processors, time};
+use crate::{
+    log,
+    utils::{processors, time},
+};
 
 use super::{Web3Error, Web3Instance, SUCCESSFUL_TX_STATUS, TX_WAITING_TIMEOUT, TX_WAIT_DELAY};
 
 impl<T: BatchTransport> Web3Instance<Batch<T>> {
     pub async fn submit_batch(&self) -> Result<Vec<Result<Value, ic_web3_rs::Error>>, Web3Error> {
+        log!("Submitting batch");
+        let amount = self
+            .pending_requests
+            .fetch_update(Ordering::SeqCst, Ordering::Relaxed, |_| Some(0))
+            .unwrap();
+
+        log!("Amount of pending requests: {}", amount);
+
+        if amount == 0 {
+            return Ok(vec![]);
+        }
+
         self.w3
             .transport()
             .submit_batch()
@@ -79,6 +94,7 @@ impl<T: BatchTransport> Web3Instance<Batch<T>> {
 
         let filter = filter_builder.build();
 
+        self.pending_requests.fetch_add(1, Ordering::SeqCst);
         self.eth().logs(filter, processors::transform_ctx())
     }
 
@@ -86,6 +102,7 @@ impl<T: BatchTransport> Web3Instance<Batch<T>> {
         &self,
         tx_hash: H256,
     ) -> CallFuture<Option<Transaction>, <Batch<T> as Transport>::Out> {
+        self.pending_requests.fetch_add(1, Ordering::SeqCst);
         self.eth()
             .transaction(TransactionId::from(tx_hash), processors::transform_ctx_tx())
     }
@@ -94,6 +111,7 @@ impl<T: BatchTransport> Web3Instance<Batch<T>> {
         &self,
         tx_hash: H256,
     ) -> CallFuture<Option<TransactionReceipt>, <Batch<T> as Transport>::Out> {
+        self.pending_requests.fetch_add(1, Ordering::SeqCst);
         self.eth()
             .transaction_receipt(tx_hash, processors::transform_ctx_tx_with_logs())
     }
@@ -101,10 +119,12 @@ impl<T: BatchTransport> Web3Instance<Batch<T>> {
     pub fn get_block_promise(
         &self,
     ) -> CallFuture<ic_web3_rs::types::U64, <Batch<T> as Transport>::Out> {
+        self.pending_requests.fetch_add(1, Ordering::SeqCst);
         self.eth().block_number(processors::transform_ctx())
     }
 
     pub fn get_gas_price_promise(&self) -> CallFuture<U256, <Batch<T> as Transport>::Out> {
+        self.pending_requests.fetch_add(1, Ordering::SeqCst);
         self.eth().gas_price(processors::transform_ctx())
     }
 
@@ -112,6 +132,7 @@ impl<T: BatchTransport> Web3Instance<Batch<T>> {
         &self,
         account_address: H160,
     ) -> CallFuture<U256, <Batch<T> as Transport>::Out> {
+        self.pending_requests.fetch_add(1, Ordering::SeqCst);
         self.eth()
             .transaction_count(account_address, None, processors::transform_ctx())
     }
@@ -120,6 +141,7 @@ impl<T: BatchTransport> Web3Instance<Batch<T>> {
         &self,
         signed_call: SignedTransaction,
     ) -> CallFuture<H256, <Batch<T> as Transport>::Out> {
+        self.pending_requests.fetch_add(1, Ordering::SeqCst);
         self.eth().send_raw_transaction(
             signed_call.raw_transaction.clone(),
             processors::transform_ctx(),
@@ -134,6 +156,7 @@ impl<T: BatchTransport> Web3Instance<Batch<T>> {
 
         self.submit_batch().await.unwrap();
 
+        self.pending_requests.fetch_add(1, Ordering::SeqCst);
         self.wait_for_success_confirmation_promise(tx_hash.await.unwrap())
             .await
     }
@@ -174,6 +197,7 @@ impl<T: BatchTransport> Web3Instance<Batch<T>> {
         while time::in_seconds() < end_time {
             crate::utils::sleep(TX_WAIT_DELAY).await;
 
+            self.pending_requests.fetch_add(1, Ordering::SeqCst);
             let tx_receipt = self.eth().transaction_receipt(*tx_hash, call_opts.clone());
 
             self.submit_batch().await.unwrap();
@@ -212,6 +236,7 @@ impl<T: BatchTransport> Web3Instance<Batch<T>> {
 
         let block_number = block_number.map(|block_number| BlockId::Number(block_number.into()));
 
+        self.pending_requests.fetch_add(1, Ordering::SeqCst);
         let call_result = self.eth().call(
             call_request.clone(),
             block_number,

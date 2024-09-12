@@ -144,7 +144,7 @@ pub async fn _read_contract(
 
     let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
 
-    let w3 = web3::instance(chain_rpc, clone_with_state!(evm_rpc_canister));
+    let w3 = web3::instance(chain_rpc, clone_with_state!(evm_rpc_canister), None);
 
     let contract_address = address::to_h160(&contract_addr)?;
 

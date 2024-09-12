@@ -126,7 +126,7 @@ impl Source {
             ORALLY_WRAPPER_CAHCHE_TTL
         );
 
-        let w3 = web3::instance(url, clone_with_state!(evm_rpc_canister));
+        let w3 = web3::instance(url, clone_with_state!(evm_rpc_canister), None);
 
         let topic = if let Some(topic) = &evm_event_logs_source.topic {
             Some(

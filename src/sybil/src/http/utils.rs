@@ -105,6 +105,8 @@ pub async fn resolve_payer(
         }
         (_, _, Some(api_key)) => {
             let (address, is_free) = APIKeys::auth_key(api_key, method, Some(domain.clone()))?;
+            log!("API KEY: {:?}", address);
+            log!("IS FREE: {:?}", is_free);
 
             return Ok((Some(address), is_free));
         }
