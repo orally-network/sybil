@@ -37,7 +37,8 @@ impl TryFrom<String> for GetDXRDataBatchQueryParams {
     type Error = serde_qs::Error;
 
     fn try_from(query: String) -> Result<Self, serde_qs::Error> {
-        serde_qs::from_str(&query)
+        let decoded = urlencoding::decode(&query)?;
+        serde_qs::from_str(&decoded)
     }
 }
 
