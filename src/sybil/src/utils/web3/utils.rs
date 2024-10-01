@@ -38,13 +38,10 @@ pub fn get_block_response_len() -> u64 {
 pub fn get_token_address_batch_response_len<T: Into<u64>>(batch_size: T) -> u64 {
     let len = batch_size.into() * 2;
 
-    let tmp = APPROXIMATE_HEADERS_LEN + 
+    APPROXIMATE_HEADERS_LEN + 
     DEFAULT_JSON_BATCH_RESPONSE_BYTES_LEN * len // Responses without 'result' field
         + JSON_BATCH_ADDITIONAL_BYTES_LEN // '[' and ']'
-        + DEFAULT_U256_RESPONSE_LEN * len; // 'result' field
-
-    log!("get_token_address_batch_response_len: {}", tmp);
-    tmp
+        + DEFAULT_U256_RESPONSE_LEN * len // 'result' field
 }
 
 pub fn get_decimals_and_symbols_batch_response_len<T: Into<u64>>(batch_size: T) -> u64 {
@@ -63,13 +60,8 @@ pub fn get_decimals_and_symbols_batch_response_len<T: Into<u64>>(batch_size: T) 
 pub fn get_reserves_batch_response_len<T: Into<u64>>(batch_size: T) -> u64 {
     let len = batch_size.into();
 
-    let tmp = APPROXIMATE_HEADERS_LEN + 
-    DEFAULT_JSON_BATCH_RESPONSE_BYTES_LEN * len // Responses without 'result' field
+    APPROXIMATE_HEADERS_LEN + 
+    DEFAULT_JSON_BATCH_RESPONSE_BYTES_LEN * 4 * len // Responses without 'result' field
         + JSON_BATCH_ADDITIONAL_BYTES_LEN // '[' and ']'
-        + DEFAULT_GET_RESERVES_RESPONSE_LEN * len; // 'result' fields
-
-    log!("get_reserves_batch_response_len: {}", tmp);
-
-
-    tmp
+        + (DEFAULT_GET_RESERVES_RESPONSE_LEN + DEFAULT_U256_RESPONSE_LEN) * 2 * len // 'result' fields
 }

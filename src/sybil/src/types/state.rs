@@ -36,6 +36,7 @@ pub struct State {
     pub dex_list: DEXList,
     pub eth_address: Option<Address>,
     pub whitelist: Whitelist,
+    pub test: u32,
 }
 
 impl Default for State {
@@ -56,6 +57,7 @@ impl Default for State {
             dex_list: DEXList::default(),
             eth_address: None,
             whitelist: Whitelist::default(),
+            test: 0,
         }
     }
 }

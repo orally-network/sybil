@@ -28,7 +28,7 @@ use super::{
 };
 
 pub const SUCCESSFUL_TX_STATUS: u64 = 1;
-pub const ECDSA_SIGN_CYCLES: u64 = 23_000_000_000;
+pub const ECDSA_SIGN_CYCLES: u64 = 26_153_846_153;
 pub const ERC20_TRANSFER_METHOD: &str = "transfer";
 const TX_WAITING_TIMEOUT: u64 = 60 * 5;
 const TX_WAIT_DELAY: Duration = Duration::from_secs(3);

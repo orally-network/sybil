@@ -15,7 +15,7 @@ use crate::{
         api_keys::{APIKeys, User},
         balances::{AllowedChain, Balances, BalancesCfg, ERC20Contract},
         cache::{HttpCache, RateCache, SignaturesCache},
-        chains_rpc::{ChainsRPC, RPCUrl},
+        chains_rpc::{ChainsRPC, RPCConfig, RPCUrl},
         dex_list::DEXList,
         feed_types::rate_data::AssetDataResult,
         feeds::{Feed, FeedStatus, FeedStorage, FeedType},
@@ -333,6 +333,32 @@ impl From<OldAllowances> for Allowances {
     }
 }
 
+#[derive(Clone, CandidType, Serialize, Deserialize, Debug, Default)]
+pub struct OldRPCUrl {
+    pub url: String,
+    pub secret: Option<String>,
+    pub config: Option<RPCConfig>,
+}
+
+impl From<OldRPCUrl> for RPCUrl {
+    fn from(old: OldRPCUrl) -> Self {
+        Self {
+            url: old.url,
+            secret: old.secret,
+            config: old.config.unwrap_or_default(),
+        }
+    }
+}
+
+#[derive(Clone, CandidType, Serialize, Deserialize, Debug, Default)]
+pub struct OldChainsRPC(pub HashMap<u64, Vec<RPCUrl>>);
+
+impl From<OldChainsRPC> for ChainsRPC {
+    fn from(old: OldChainsRPC) -> Self {
+        Self(old.0.into_iter().collect())
+    }
+}
+
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug)]
 pub struct OldState {
     pub api_keys: Option<OldAPIKeys>,
@@ -346,12 +372,13 @@ pub struct OldState {
     pub balances: Balances,
     pub allowances: Option<OldAllowances>,
     pub balances_cfg: OldBalancesCfg,
-    pub chains_rpc: Option<ChainsRPC>,
+    pub chains_rpc: Option<OldChainsRPC>,
     pub dex_list: Option<DEXList>,
     pub eth_address: Option<Address>,
     pub whitelist: Whitelist,
     pub data_fetchers: Option<DataFetchersStorage>,
     pub data_fetchers_indexer: Option<DataFethcersIndexer>,
+    pub test: Option<u32>,
 }
 
 impl From<OldState> for State {
@@ -379,6 +406,7 @@ impl From<OldState> for State {
             dex_list: state.dex_list.unwrap_or_default(),
             eth_address: state.eth_address,
             whitelist: state.whitelist,
+            test: state.test.unwrap_or_default(),
         }
     }
 }

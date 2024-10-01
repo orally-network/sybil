@@ -50,6 +50,8 @@ const ERC20_ABI: &[u8] = include_bytes!("../../../../../assets/ERC20ABI.json");
 const TARGET_DECIMALS: u32 = 9;
 
 const GET_RESERVES_FUNCTION_NAME: &str = "getReserves";
+const PRICE0_CUMULATIVE_LAST_FUNCTION_NAME: &str = "price0CumulativeLast";
+const PRICE1_CUMULATIVE_LAST_FUNCTION_NAME: &str = "price1CumulativeLast";
 const TOKEN0_FUNCTION_NAME: &str = "token0";
 const TOKEN1_FUNCTION_NAME: &str = "token1";
 const DECIMALS_FUNCTION_NAME: &str = "decimals";
@@ -161,7 +163,7 @@ async fn get_dex<T: Transport + 'static>(
         return Ok(dex);
     }
 
-    let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
+    let chain_rpc = ChainsRPC::get_first_chain_rpc_url(chain_id)?;
 
     let w3 = web3::batch_instance(chain_rpc, clone_with_state!(evm_rpc_canister), None);
 
@@ -339,7 +341,6 @@ async fn get_dex<T: Transport + 'static>(
 pub async fn _get_dxr_data_batch(
     chain_id: u64,
     pool_addresses: &[String],
-    aggregation: Option<Aggregation>,
     _dex_type: DexType,
     reverse_pair: Option<bool>,
     with_signature: bool,
@@ -350,21 +351,16 @@ pub async fn _get_dxr_data_batch(
 
     // w3 optimized for getting the block number
     let w3_block = web3::instance(
-        chain_rpc.clone(),
+        chain_rpc.url.clone(),
         clone_with_state!(evm_rpc_canister),
         Some(get_block_response_len()),
     );
 
     let balance_before = ic_cdk::api::canister_balance();
 
-    let block_numbers = match aggregation.unwrap_or(Aggregation::AvgFromLastBlocks(1)) {
-        Aggregation::AvgFromBlocks(block_numbers) => block_numbers,
-        Aggregation::AvgFromLastBlocks(last_blocks) => {
-            let block = w3_block.get_block().await?;
-
-            (block - last_blocks..block).collect()
-        }
-    };
+    let range_len = chain_rpc.config.num_of_blocks_for_get_dxr_data;
+    let last_block = w3_block.get_block().await?;
+    let range = (last_block - range_len, last_block);
 
     let balance_after = ic_cdk::api::canister_balance();
     log!(
@@ -375,38 +371,48 @@ pub async fn _get_dxr_data_batch(
     let mut futures = Vec::with_capacity(pool_addresses.len());
 
     let balance_before = ic_cdk::api::canister_balance();
-    let dexes = get_dexes(chain_rpc.clone(), pool_addresses, _dex_type).await?;
+    let time_before = ic_cdk::api::time() / 1_000_000;
+    let dexes = get_dexes(chain_rpc.url.clone(), pool_addresses, _dex_type).await?;
+    let time_after = ic_cdk::api::time() / 1_000_000;
     let balance_after = ic_cdk::api::canister_balance();
     log!("cost for getting dexes: {}", balance_before - balance_after);
+    log!(
+        "time for getting dexes: {}",
+        (time_after - time_before) as f64 / 1_000.0
+    );
 
     let timestamp = in_seconds();
     let from = address::to_h160(&canister::eth_address().await?.to_string())?;
 
     // w3 optimized for getting the reserves
     let w3 = Arc::new(web3::batch_instance(
-        chain_rpc.clone(),
+        chain_rpc.url.clone(),
         clone_with_state!(evm_rpc_canister),
-        Some(get_reserves_batch_response_len(
-            block_numbers.len() as u64 * pool_addresses.len() as u64,
-        )),
+        Some(get_reserves_batch_response_len(dexes.len() as u64)),
     ));
 
     for dex in dexes {
         futures.push(get_dxr_data_for_dex(
             w3.clone(),
             dex,
-            &block_numbers,
+            range,
             reverse_pair,
             timestamp,
             from,
         ));
     }
 
+    let time_before = ic_cdk::api::time() / 1_000_000;
     let balance_before = ic_cdk::api::canister_balance();
     w3.submit_batch().await?;
     let data = try_join_all(futures).await?;
     let balance_after = ic_cdk::api::canister_balance();
     log!("cost for getting data: {}", balance_before - balance_after);
+    let time_after = ic_cdk::api::time() / 1_000_000;
+    log!(
+        "time for getting data: {}",
+        (time_after - time_before) as f64 / 1_000.0
+    );
 
     log!("DATA SIZE: {}", data.len());
 
@@ -430,8 +436,7 @@ pub async fn _get_dxr_data_batch(
         bytes: None,
     };
 
-    let cost = state::get_cfg().balances_cfg.base_fee.clone()
-        * Nat::from(pool_addresses.len() * block_numbers.len());
+    let cost = state::get_cfg().balances_cfg.base_fee.clone() * Nat::from(pool_addresses.len() * 4);
     let signature_fee = state::get_cfg().balances_cfg.signature_fee.clone();
 
     if payer.is_none() {
@@ -440,12 +445,18 @@ pub async fn _get_dxr_data_batch(
     }
 
     if with_signature {
+        let time_before = ic_cdk::api::time() / 1_000_000;
         let balance_before = ic_cdk::api::canister_balance();
         result.sign().await?;
         let balance_after = ic_cdk::api::canister_balance();
+        let time_after = ic_cdk::api::time() / 1_000_000;
         log!(
             "cost for signing _get_dxr_data_batch: {}",
             balance_before - balance_after
+        );
+        log!(
+            "time for signing: {}",
+            (time_after - time_before) as f64 / 1_000.0
         );
 
         if let Some(payer) = &payer {
@@ -475,7 +486,7 @@ pub async fn _get_dxr_data(
     payer: Option<String>,
 ) -> Result<GetDXRDataResult, CustomFeedError> {
     let balance_before = ic_cdk::api::canister_balance();
-    let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
+    let chain_rpc = ChainsRPC::get_first_chain_rpc_url(chain_id)?;
 
     let w3 = web3::batch_instance(chain_rpc, clone_with_state!(evm_rpc_canister), None);
 
@@ -504,8 +515,10 @@ pub async fn _get_dxr_data(
     )
     .await?;
 
-    let block_numbers = match aggregation.unwrap_or(Aggregation::AvgFromLastBlocks(1)) {
-        Aggregation::AvgFromBlocks(block_numbers) => block_numbers,
+    let block_numbers: Vec<u64> = match aggregation.unwrap_or(Aggregation::AvgFromLastBlocks(1)) {
+        Aggregation::AvgFromRange(block_numbers) => {
+            (block_numbers.0..block_numbers.1).into_iter().collect()
+        }
         Aggregation::AvgFromLastBlocks(last_blocks) => {
             let block_number_promise = w3.get_block_promise();
             w3.submit_batch().await?;
@@ -644,9 +657,9 @@ pub async fn _get_dxr_data(
 fn get_dxr_data_for_dex<B: BatchTransport + 'static>(
     w3: Arc<Web3Instance<Batch<B>>>,
     dex: DEX,
-    block_numbers: &[u64],
+    range: (u64, u64),
     reverse_pair: Option<bool>,
-    timestamp: u64,
+    sybil_timestamp: u64,
     from: H160,
 ) -> impl Future<Output = Result<GetDXRData, CustomFeedError>> {
     let tokens = vec![];
@@ -668,72 +681,137 @@ fn get_dxr_data_for_dex<B: BatchTransport + 'static>(
             .unwrap(),
     );
 
-    // Getting the reserves for each provided block number.
-    // If no block number is provided, we get the reserves for the latest block
-    let futures = block_numbers
-        .iter()
-        .map(|block_number| {
-            w3.get_call_result_promise(
-                contract.clone(),
-                &GET_RESERVES_FUNCTION_NAME,
-                &tokens,
-                from,
-                Some(contract_address),
-                Some((*block_number).into()),
-            )
-            .unwrap()
-        })
-        .collect::<Vec<_>>();
+    let first_block_number = range.0;
+    let last_block_number = range.1;
+
+    let cumulative_function_name = if reverse_pair.unwrap_or(false) {
+        PRICE1_CUMULATIVE_LAST_FUNCTION_NAME
+    } else {
+        PRICE0_CUMULATIVE_LAST_FUNCTION_NAME
+    };
+
+    let price1_cumulative = w3
+        .get_call_result_promise(
+            contract.clone(),
+            &cumulative_function_name,
+            &tokens,
+            from,
+            Some(contract_address),
+            Some(last_block_number.into()),
+        )
+        .unwrap();
+
+    let price1_cumulative_last = w3
+        .get_call_result_promise(
+            contract.clone(),
+            &cumulative_function_name,
+            &tokens,
+            from,
+            Some(contract_address),
+            Some(first_block_number.into()),
+        )
+        .unwrap();
+
+    let reserves_last = w3
+        .get_call_result_promise(
+            contract.clone(),
+            &GET_RESERVES_FUNCTION_NAME,
+            &tokens,
+            from,
+            Some(contract_address),
+            Some(first_block_number.into()),
+        )
+        .unwrap();
+
+    let reserves = w3
+        .get_call_result_promise(
+            contract.clone(),
+            &GET_RESERVES_FUNCTION_NAME,
+            &tokens,
+            from,
+            Some(contract_address),
+            Some(last_block_number.into()),
+        )
+        .unwrap();
 
     async move {
-        // Awaiting for the results, the other func need to call submit_batch on the w3 instance
-        let futures_result = try_join_all(futures).await;
-        let futures_result = futures_result.unwrap();
+        let reserves_last = reserves_last.await.unwrap()?;
 
-        let mut results = Vec::with_capacity(futures_result.len());
+        let mut reserve0_last = reserves_last[0]
+            .clone()
+            .into_uint()
+            .expect("reserve0_last should be an uint");
+        let mut reserve1_last = reserves_last[1]
+            .clone()
+            .into_uint()
+            .expect("reserve1_last should be an uint");
+        let timestamp_last = reserves_last[2]
+            .clone()
+            .into_uint()
+            .expect("timestamp_last should be an uint");
 
-        for result in futures_result {
-            results.push(result?);
-        }
+        let reserves = reserves.await.unwrap()?;
 
-        let mut reserve0 = U256::zero();
-        let mut reserve1 = U256::zero();
+        let timestamp = reserves[2]
+            .clone()
+            .into_uint()
+            .expect("timestamp should be an uint");
 
-        // Calculating the average rate
-        results.clone().into_iter().for_each(|reserve| {
-            let reserve0_token: Token = reserve[0].clone().into();
-            let reserve1_token: Token = reserve[1].clone().into();
+        let price = if timestamp == timestamp_last {
+            // If the reverse_pair is true, we swap the reserves and the decimals
+            if reverse_pair.unwrap_or(false) {
+                std::mem::swap(&mut reserve0_last, &mut reserve1_last);
+                std::mem::swap(&mut token0_decimals, &mut token1_decimals);
+                std::mem::swap(&mut token0_symbol, &mut token1_symbol);
+            }
 
-            reserve0 += reserve0_token.into_uint().unwrap();
-            reserve1 += reserve1_token.into_uint().unwrap();
-        });
+            // Adding 9 zeros to the reserve1 wich represents the amount of decimals we want to have
+            reserve1_last *= U256::from(10).pow(U256::from(TARGET_DECIMALS));
 
-        // If the reverse_pair is true, we swap the reserves and the decimals
-        if reverse_pair.unwrap_or(false) {
-            std::mem::swap(&mut reserve0, &mut reserve1);
-            std::mem::swap(&mut token0_decimals, &mut token1_decimals);
-            std::mem::swap(&mut token0_symbol, &mut token1_symbol);
-        }
+            // Adjusting the decimals
+            if token1_decimals > token0_decimals {
+                reserve1_last /= U256::from(10).pow(U256::from(token1_decimals - token0_decimals));
+            } else {
+                reserve1_last *= U256::from(10).pow(U256::from(token0_decimals - token1_decimals));
+            }
 
-        // Adding 9 zeros to the reserve1 wich represents the amount of decimals we want to have
-        reserve1 *= U256::from(10).pow(U256::from(TARGET_DECIMALS));
+            let price = reserve1_last / reserve0_last;
 
-        // Adjusting the decimals
-        if token1_decimals > token0_decimals {
-            reserve1 /= U256::from(10).pow(U256::from(token1_decimals - token0_decimals));
+            price
         } else {
-            reserve1 *= U256::from(10).pow(U256::from(token0_decimals - token1_decimals));
-        }
+            let price1_cumulative = price1_cumulative
+                .await
+                .unwrap()?
+                .first()
+                .cloned()
+                .unwrap()
+                .into_uint()
+                .expect("price1Cumulative should be an uint");
+            let price1_cumulative_last = price1_cumulative_last
+                .await
+                .unwrap()?
+                .first()
+                .cloned()
+                .unwrap()
+                .into_uint()
+                .expect("price1CumulativeLast should be an uint");
 
-        let rate = reserve1 / reserve0;
+            // price1_cumulative is not U256, but [UQ112x112](https://github.com/Uniswap/v2-periphery/blob/6d03bede0a97c72323fa1c379ed3fdf7231d0b26/contracts/examples/ExampleOracleSimple.sol#L50)
+            let price = (price1_cumulative - price1_cumulative_last) / (timestamp - timestamp_last);
+            let price = price * U256::from(10).pow(U256::from(TARGET_DECIMALS));
+            let price = price >> 112;
+
+            price
+        };
+
         let data = GetDXRData {
             feed_id: format!(
                 "UniswapV2Pool-{}-{}/{}",
                 address, token0_symbol, token1_symbol
             ),
-            rate: rate.as_u64(),
+            rate: price.as_u64(),
             decimals: TARGET_DECIMALS as u64,
-            timestamp,
+            timestamp: sybil_timestamp,
         };
 
         Ok(data)

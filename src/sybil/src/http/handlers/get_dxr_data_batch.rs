@@ -8,21 +8,23 @@ use crate::{
         utils::{get_domain, resolve_payer},
         HTTP_SERVICE,
     },
-    stringify_func_call,
+    log, stringify_func_call,
     types::{
         allowances::Allowances,
         api_keys::APIKeys,
+        balances::Balances,
         cache::Cache,
-        feed_types::get_dxr_data::{Aggregation, DexType, GetDXRDataBatchResult},
+        feed_types::get_dxr_data::{DexType, GetDXRDataBatchResult},
         http::{HttpRequest, HttpResponse},
+        state::get_cfg,
     },
+    utils::canister,
 };
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
 pub struct GetDXRDataBatchQueryParams {
     pub chain_id: u64,
     pub pool_addresses: Vec<String>,
-    pub aggregation: Option<Aggregation>,
     pub dex_type: DexType,
     pub reverse_pair: Option<bool>,
     pub api_key: Option<String>,
@@ -94,14 +96,13 @@ async fn _get_dxr_data_batch(req: HttpRequest, with_signature: bool) -> Result<V
     if payer.is_none() {
         return Err(anyhow::anyhow!("Payer not found"));
     }
+    let payer = if is_free { None } else { payer.clone() };
 
     let func_signature = stringify_func_call!(_get_dxr_data_batch(
         params.chain_id,
         params.pool_addresses,
-        params.aggregation,
         params.dex_type,
         params.reverse_pair,
-        with_signature,
         with_meta
     ));
 
@@ -110,12 +111,11 @@ async fn _get_dxr_data_batch(req: HttpRequest, with_signature: bool) -> Result<V
         crate::methods::feed_methods::get_dxr_data::_get_dxr_data_batch(
             params.chain_id.clone(),
             &params.pool_addresses,
-            params.aggregation,
             params.dex_type.clone(),
             params.reverse_pair.clone(),
             with_signature,
             with_meta,
-            if is_free { None } else { payer.clone() },
+            payer.clone(),
         ),
     );
 
@@ -159,9 +159,21 @@ async fn _get_dxr_data_batch(req: HttpRequest, with_signature: bool) -> Result<V
 
     if is_free {
         result.meta.as_mut().map(|meta| meta.fee = 0.into());
-        if with_signature {
-            result.sign().await?;
+    }
+
+    // Sign the result if needed
+    if result.signature.is_none() && with_signature {
+        result.sign().await?;
+        if let Some(payer) = &payer {
+            let signature_fee = get_cfg().balances_cfg.signature_fee;
+            Balances::reduce_amount(payer, &signature_fee)?;
+            Balances::add_amount(&canister::eth_address().await?, &signature_fee)?;
         }
+    }
+
+    // Remove signature if not needed
+    if result.signature.is_some() && !with_signature {
+        result.signature = None;
     }
 
     if params.bytes.unwrap_or(false) {

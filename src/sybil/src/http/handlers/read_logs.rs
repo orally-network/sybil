@@ -12,10 +12,13 @@ use crate::{
     types::{
         allowances::Allowances,
         api_keys::APIKeys,
+        balances::Balances,
         cache::Cache,
         feed_types::read_logs::ReadLogsResult,
         http::{HttpRequest, HttpResponse},
+        state::get_cfg,
     },
+    utils::canister,
 };
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
@@ -94,6 +97,8 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
         return Err(anyhow::anyhow!("Payer not found"));
     }
 
+    let payer = if is_free { None } else { payer };
+
     let topics0 = params
         .topics0
         .map(|s| s.split(",").map(|s| s.to_string()).collect());
@@ -123,7 +128,6 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
         topics2,
         topics3,
         addresses,
-        with_signature,
         with_meta
     ));
 
@@ -138,7 +142,7 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
             topics2,
             topics3,
             addresses,
-            if is_free { None } else { payer.clone() },
+            payer.clone(),
             with_signature,
             with_meta,
         ),
@@ -182,6 +186,21 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
         if with_signature {
             result.sign().await?;
         }
+    }
+
+    // Sign the result if needed
+    if result.signature.is_none() && with_signature {
+        result.sign().await?;
+        if let Some(payer) = &payer {
+            let signature_fee = get_cfg().balances_cfg.signature_fee;
+            Balances::reduce_amount(payer, &signature_fee)?;
+            Balances::add_amount(&canister::eth_address().await?, &signature_fee)?;
+        }
+    }
+
+    // Remove signature if not needed
+    if result.signature.is_some() && !with_signature {
+        result.signature = None;
     }
 
     if params.bytes.unwrap_or(false) {

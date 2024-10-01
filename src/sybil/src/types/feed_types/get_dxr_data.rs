@@ -15,9 +15,9 @@ use crate::{
 
 #[derive(CandidType, Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 pub enum Aggregation {
-    // Get the average price from the specified block numbers
-    #[serde(rename = "avg_from_blocks")]
-    AvgFromBlocks(Vec<u64>),
+    // Get the average price from the specified range
+    #[serde(rename = "avg_from_range")]
+    AvgFromRange((u64, u64)),
     // Get the average price from the last N blocks
     #[serde(rename = "avg_from_last_blocks")]
     AvgFromLastBlocks(u64),

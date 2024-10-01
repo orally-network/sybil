@@ -52,7 +52,7 @@ TX_HASH="{Enter tx hash here, where you sent some tokens to the sybil address}"
 ## Usage
 
 ```sh
-dfx canister call sybil add_allowed_chain "(11155111, \"https://ethereum-sepolia-rpc.publicnode.{KEY}\", \"SepoilaETH\", opt \"com\")"
+dfx canister call sybil add_allowed_chain "(11155111, \"SepoilaETH\")"
 dfx canister call sybil get_allowed_chains 
 dfx canister call sybil update_treasure_address "(\"${CALLER}\")"
 dfx canister call sybil add_allowed_erc20_tokens "(${CHAIN_ID}:nat64, vec {record { erc20_contract = \"0xD6CdFF58Dd98528730549c6E5EEdF1be397A723f\"; token_symbol = \"SHR\"; decimals = 6:nat64}})"
@@ -82,8 +82,10 @@ dfx canister call sybil ban_domain "(\"${API_KEY}\", \"${DOMAIN}\", \"${SIWE_MSG
 dfx canister call sybil allow_domain "(\"${API_KEY}\", \"${DOMAIN}\", \"${SIWE_MSG}\", \"${SIWE_SIG}\")"
 
 # Chains rpc
-dfx canister call sybil add_chain_rpc "(11155111, \"https://endpoints.omniatech.io/v1/eth/sepolia/public\", null)"
+dfx canister call sybil add_chain_rpc "(11155111, \"https://endpoints.omniatech.io/v1/eth/sepolia/public\", null, record { num_of_blocks_for_get_dxr_data = 10})"
+dfx canister call sybil update_chain_rpc "(${CHAIN_RPC}, 0, null, null, opt record { num_of_blocks_for_get_dxr_data = 100})"
 dfx canister call sybil get_all_chains_rpc 
+dfx canister call sybil get_all_chains_rpc_dev
 dfx canister call sybil remove_chain_rpc_by_index "(11155111, 1)"
 
 # read dex 

@@ -12,10 +12,13 @@ use crate::{
     types::{
         allowances::Allowances,
         api_keys::APIKeys,
+        balances::Balances,
         cache::Cache,
         feed_types::get_multiple_asset_data::GetMultipleAssetDataResult,
         http::{HttpRequest, HttpResponse},
+        state::get_cfg,
     },
+    utils::canister,
 };
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
@@ -94,20 +97,18 @@ async fn _get_multiple_assets_data_request(
         return Err(anyhow::anyhow!("Payer not found"));
     }
 
+    let payer = if is_free { None } else { payer.clone() };
+
     let ids: Vec<_> = params.ids.split(",").map(|s| s.to_string()).collect();
 
-    let func_signature = stringify_func_call!(_get_multiple_assets_data_result(
-        ids,
-        with_signature,
-        with_meta
-    ));
+    let func_signature = stringify_func_call!(_get_multiple_assets_data_result(ids, with_meta));
     let mut cache_builder = Cache::with(
         func_signature.clone(),
         crate::methods::feed_methods::get_multiple_asset_data::_get_multiple_assets_data_result(
             ids.clone(),
             with_signature,
             with_meta,
-            if is_free { None } else { payer.clone() },
+            payer.clone(),
         ),
     );
 
@@ -156,6 +157,21 @@ async fn _get_multiple_assets_data_request(
         if with_signature {
             result.sign().await?;
         }
+    }
+
+    // Sign the result if needed
+    if result.signature.is_none() && with_signature {
+        result.sign().await?;
+        if let Some(payer) = &payer {
+            let signature_fee = get_cfg().balances_cfg.signature_fee;
+            Balances::reduce_amount(payer, &signature_fee)?;
+            Balances::add_amount(&canister::eth_address().await?, &signature_fee)?;
+        }
+    }
+
+    // Remove signature if not needed
+    if result.signature.is_some() && !with_signature {
+        result.signature = None;
     }
 
     if params.bytes.unwrap_or(false) {

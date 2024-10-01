@@ -12,10 +12,13 @@ use crate::{
     types::{
         allowances::Allowances,
         api_keys::APIKeys,
+        balances::Balances,
         cache::Cache,
         feed_types::get_xrc_data::GetXRCDataResult,
         http::{HttpRequest, HttpResponse},
+        state::get_cfg,
     },
+    utils::canister,
 };
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Validate)]
@@ -87,6 +90,8 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
         return Err(anyhow::anyhow!("Payer not found"));
     }
 
+    let payer = if is_free { None } else { payer.clone() };
+
     let func_signature =
         stringify_func_call!(_get_xrc_data(params.id.clone(), with_signature, with_meta));
 
@@ -96,7 +101,7 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
             params.id.clone(),
             with_signature,
             with_meta,
-            if is_free { None } else { payer.clone() },
+            payer.clone(),
         ),
     );
 
@@ -138,6 +143,21 @@ async fn _get_xrc_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
         if with_signature {
             result.sign().await?;
         }
+    }
+
+    // Sign the result if needed
+    if result.signature.is_none() && with_signature {
+        result.sign().await?;
+        if let Some(payer) = &payer {
+            let signature_fee = get_cfg().balances_cfg.signature_fee;
+            Balances::reduce_amount(payer, &signature_fee)?;
+            Balances::add_amount(&canister::eth_address().await?, &signature_fee)?;
+        }
+    }
+
+    // Remove signature if not needed
+    if result.signature.is_some() && !with_signature {
+        result.signature = None;
     }
 
     if params.bytes.unwrap_or(false) {

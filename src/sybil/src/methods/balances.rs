@@ -22,7 +22,7 @@ use crate::{
             AllowedChain, BalanceError, Balances, DepositError, ERC20Contract, SaveAllowedChain,
         },
         cache::Cache,
-        chains_rpc::RPCUrl,
+        chains_rpc::{ChainsRPC, ChainsRPCError},
         feed_types::get_xrc_data::GetXRCData,
         state::{self, get_cfg},
         whitelist::{Whitelist, WhitelistError},
@@ -67,6 +67,8 @@ lazy_static! {
 
 #[derive(Error, Debug)]
 pub enum BalancesError {
+    #[error("Chain rpc error: {0}")]
+    ChainRPCError(#[from] ChainsRPCError),
     #[error("Address error: {0}")]
     AddressError(#[from] AddressError),
     #[error("Balance error: {0}")]
@@ -191,25 +193,16 @@ fn _add_allowed_erc20_tokens(
 }
 
 #[update]
-pub async fn add_allowed_chain(
-    chain_id: u64,
-    rpc: String,
-    coin_symbol: String,
-    rpc_secret: Option<String>,
-) -> Result<(), String> {
-    _add_allowed_chain(chain_id, rpc, coin_symbol, rpc_secret)
+pub async fn add_allowed_chain(chain_id: u64, coin_symbol: String) -> Result<(), String> {
+    _add_allowed_chain(chain_id, coin_symbol)
         .await
         .map_err(|e| format!("failed to add allowed chain: {}", e))
 }
 
 #[inline(always)]
-async fn _add_allowed_chain(
-    chain_id: u64,
-    rpc: String,
-    coin_symbol: String,
-    rpc_secret: Option<String>,
-) -> Result<(), BalancesError> {
+async fn _add_allowed_chain(chain_id: u64, coin_symbol: String) -> Result<(), BalancesError> {
     validate_caller()?;
+    let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
 
     STATE.with(|state| {
         let mut state = state.borrow_mut();
@@ -221,10 +214,7 @@ async fn _add_allowed_chain(
         state.balances_cfg.allowed_chains.insert(
             chain_id,
             AllowedChain {
-                rpc: RPCUrl {
-                    url: rpc,
-                    secret: rpc_secret,
-                },
+                rpc: chain_rpc,
                 coin_symbol,
                 erc20_contracts: HashSet::new(),
             },

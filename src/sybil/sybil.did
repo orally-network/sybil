@@ -71,9 +71,14 @@ type ERC20Contract = record {
     decimals : nat64;
 };
 
+type RPCConfig = record {
+    num_of_blocks_for_get_dxr_data : nat64; 
+};
+
 type RPCUrl = record {
     url : text;
     secret : opt text;
+    config : RPCConfig;
 };
 
 type AllowedChain = record {
@@ -357,6 +362,7 @@ type GetXRCDataResponse = variant { Ok : GetXRCDataResult; Err: text };
 type GetDXRDataResponse = variant { Ok : GetDXRDataResult; Err: text };
 type GetChainsRPCResponse = variant { Ok : vec text; Err: text };
 type GetAllChainsRPCResponse = variant { Ok : vec record {nat64; vec text}; Err: text };
+type GetAllChainsRPCDevResponse = variant { Ok : vec record {nat64; vec RPCUrl}; Err: text };
 type GetUserAPIKeysResponse = variant { Ok : vec text; Err: text };
 type GetUserByKeyResponse = variant { Ok : opt APIUser; Err: text };
 type GetAPIKeysResponse = variant { Ok : vec record {text; APIUser}; Err: text };
@@ -421,12 +427,16 @@ service : {
     // canister
     eth_address : () -> (TextResponse);
 
+    test_aboba : (nat64, nat64) -> (Error);
+
     // chains_rpc 
-    add_chain_rpc : (chain_id : nat64, url : text, secret : opt text) -> (Error);
+    add_chain_rpc : (chain_id : nat64, url : text, secret : opt text, RPCConfig) -> (Error);
+    update_chain_rpc : (chain_id : nat64, index : nat64, url : opt text, secret : opt text, opt RPCConfig) -> (Error);
     remove_chain_rpcs : (chain_id : nat64) -> (Error);
     remove_chain_rpc_by_index : (chain_id : nat64, index : nat64) -> (Error);
     get_chain_rpc : (chain_id : nat64) -> (GetChainsRPCResponse);
     get_all_chains_rpc : () -> (GetAllChainsRPCResponse);
+    get_all_chains_rpc_dev : () -> (GetAllChainsRPCDevResponse);
 
     // balances
     get_base_fee : () -> (nat);
@@ -438,7 +448,7 @@ service : {
     get_balance : (address : text) -> (NatResponse);
     //withdraw : (amount : nat, to : text, msg : text, sig : text) -> (TextResponse);
     //withdraw_fees : (to : text) -> (TextResponse);
-    add_allowed_chain : (chain_id : nat64, rpc : text, coin_symbol : text, rpc_secret: opt text) -> (Error);
+    add_allowed_chain : (chain_id : nat64, coin_symbol : text) -> (Error);
     remove_allowed_chain : (chain_id : nat64) -> (Error);
     add_allowed_erc20_tokens : (chain_id : nat64, tokens : vec ERC20Contract) -> (Error);
     remove_allowed_erc20_tokens : (chain_id : nat64, tokens : vec text) -> (Error);

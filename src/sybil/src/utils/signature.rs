@@ -8,8 +8,8 @@ use thiserror::Error;
 
 use crate::methods::stellar::types::{SignWithSchnorrArgs, SignWithSchnorrResult};
 
-const ECDSA_SIGN_CYCLES: u64 = 23_000_000_000;
-const SCHNORR_SIGN_CYCLES: u64 = 25_000_000_000;
+const ECDSA_SIGN_CYCLES: u64 = 26_153_846_153;
+const SCHNORR_SIGN_CYCLES: u64 = 26_153_846_153;
 
 #[derive(Error, Debug)]
 pub enum SignatureError {
