@@ -270,9 +270,6 @@ async fn _deposit(
     sig: String,
 ) -> Result<(), DepositError> {
     let caller = siwe::recover(&msg, &sig).await?;
-    if !Whitelist::contains(&caller) {
-        return Err(WhitelistError::AddressNotWhitelisted.into());
-    }
     let caller_eth = address::to_h160(&caller)?;
 
     let balances_cfg = state::get_cfg().balances_cfg;
