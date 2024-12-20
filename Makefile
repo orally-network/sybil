@@ -38,13 +38,13 @@ local_deploy_sybil: local_deploy_xrc local_deploy_evm_rpc
 							decimals = 6:nat64; \
 						}}; \
 						coin_symbol = \"Eth\"; \
-						rpc = record { url = \"${RPC_URL}\"; secret=null }; \
+						rpc = record { url = \"${RPC_URL}\"; secret=null; config=record { num_of_blocks_for_get_dxr_data = 100:nat64 } }; \
 					} \
 					}; record { \
 						1:nat64; record { \
 							erc20_contracts = vec {}; \
 							coin_symbol = \"Eth\"; \
-							rpc = record { url = \"${MAINNET_RPC_URL}\"; secret=null }; \
+							rpc = record { url = \"${MAINNET_RPC_URL}\"; secret=null; config=record { num_of_blocks_for_get_dxr_data = 100:nat64 } }; \
 						} \
 					}; \
 				}; \
