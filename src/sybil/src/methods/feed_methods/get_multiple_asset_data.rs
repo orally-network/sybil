@@ -116,7 +116,7 @@ pub async fn _get_multiple_assets_data_result(
 
     let futures = ids
         .iter()
-        .map(|id| FeedStorage::rate(&id, false, None))
+        .map(|id| FeedStorage::rate(id, false, None))
         .collect::<Vec<_>>();
 
     let mut cost = Nat::from(0);

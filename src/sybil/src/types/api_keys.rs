@@ -130,7 +130,7 @@ impl User {
                 return Err(APIKeysError::NotAllowed);
             }
 
-            if self.get_request_count_by_domain(&domain) >= self.request_limit_by_domain {
+            if self.get_request_count_by_domain(domain) >= self.request_limit_by_domain {
                 return Err(APIKeysError::LimitExceeded);
             }
         }
@@ -184,11 +184,11 @@ impl APIKeys {
                 .await
                 .map_err(|(_, err)| APIKeysError::FailedToGetRandomBytes(err))?;
 
-            let key = hex::encode(bytes[..HEX_API_KEYS_LEN / 2].to_vec());
+            let key = hex::encode(&bytes[..HEX_API_KEYS_LEN / 2]);
 
             let is_exist = STATE.with(|state| {
                 let state = state.borrow();
-                state.api_keys.keys_to_user.get(&key).is_some()
+                state.api_keys.keys_to_user.contains_key(&key)
             });
 
             if is_exist {

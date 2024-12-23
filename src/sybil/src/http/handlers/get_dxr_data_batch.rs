@@ -8,7 +8,7 @@ use crate::{
         utils::{get_domain, resolve_payer},
         HTTP_SERVICE,
     },
-    log, stringify_func_call,
+    stringify_func_call,
     types::{
         allowances::Allowances,
         api_keys::APIKeys,
@@ -112,7 +112,7 @@ async fn _get_dxr_data_batch(req: HttpRequest, with_signature: bool) -> Result<V
             params.chain_id.clone(),
             &params.pool_addresses,
             params.dex_type.clone(),
-            params.reverse_pair.clone(),
+            params.reverse_pair,
             with_signature,
             with_meta,
             payer.clone(),
@@ -177,7 +177,7 @@ async fn _get_dxr_data_batch(req: HttpRequest, with_signature: bool) -> Result<V
     }
 
     if params.bytes.unwrap_or(false) {
-        result.bytes = Some(format!("0x{}", hex::encode(&result.encode())));
+        result.bytes = Some(format!("0x{}", hex::encode(result.encode())));
     }
 
     Ok(serde_json::to_vec(&result)?)

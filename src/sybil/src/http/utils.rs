@@ -101,14 +101,14 @@ pub async fn resolve_payer(
     match (msg, sig, api_key) {
         (Some(msg), Some(sig), _) => {
             let payer = crate::utils::siwe::recover(&msg, &sig).await?;
-            return Ok((Some(payer), false));
+            Ok((Some(payer), false))
         }
         (_, _, Some(api_key)) => {
             let (address, is_free) = APIKeys::auth_key(api_key, method, Some(domain.clone()))?;
             log!("API KEY: {:?}", address);
             log!("IS FREE: {:?}", is_free);
 
-            return Ok((Some(address), is_free));
+            Ok((Some(address), is_free))
         }
         _ => {
             let payer = Allowances::get_allowed_user(&domain);

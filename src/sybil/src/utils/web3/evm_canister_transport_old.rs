@@ -175,7 +175,7 @@ impl<T: Debug + Clone> MultiRpcResult<T> {
                         .clone()
                         .map_err(|err| ic_web3_rs::Error::InvalidResponse(format!("{:?}", err))),
                     None => {
-                        return Err(ic_web3_rs::Error::InvalidResponse(format!(
+                        Err(ic_web3_rs::Error::InvalidResponse(format!(
                             "All results are errors: {:?}",
                             results
                         )))
@@ -315,10 +315,10 @@ impl BatchTransport for EVMCanisterTransport {
         let json_rpc_payload = serde_json::to_string(&Request::Batch(calls)).unwrap();
 
         let service = RpcService::Custom(RpcApi {
-            url: self.rpcs_url.get(0).unwrap().clone(),
+            url: self.rpcs_url.first().unwrap().clone(),
             headers: None,
         });
-        let evm_rpc_canister = self.evm_rpc_canister.clone();
+        let evm_rpc_canister = self.evm_rpc_canister;
         let max_response_bytes = self.max_response_bytes;
 
         Box::pin(async move {
@@ -346,7 +346,7 @@ impl Transport for EVMCanisterTransport {
 
     fn send(&self, _: RequestId, call: Call, _: CallOptions) -> Self::Out {
         let service: RpcService = RpcService::Custom(RpcApi {
-            url: self.rpcs_url.get(0).unwrap().clone(),
+            url: self.rpcs_url.first().unwrap().clone(),
             headers: None,
         });
 
