@@ -130,7 +130,7 @@ impl Source {
 
         let topic = if let Some(topic) = &evm_event_logs_source.topic {
             Some(
-                H256::from_str(&topic)
+                H256::from_str(topic)
                     .map_err(|err| SourceError::InvalidRequest(err.to_string()))?,
             )
         } else {
@@ -139,7 +139,7 @@ impl Source {
 
         let address = if let Some(address) = &evm_event_logs_source.address {
             Some(
-                H160::from_str(&address)
+                H160::from_str(address)
                     .map_err(|err| SourceError::InvalidRequest(err.to_string()))?,
             )
         } else {

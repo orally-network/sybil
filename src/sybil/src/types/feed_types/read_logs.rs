@@ -80,7 +80,7 @@ impl ReadLogsMetadata {
     pub fn encode(&self) -> Vec<u8> {
         let tuple = Token::Tuple(self.get_tokens());
 
-        encode(&vec![tuple])
+        encode(&[tuple])
     }
 }
 
@@ -178,9 +178,7 @@ impl ReadLogsResult {
             data_to_encode.push(Token::Bytes(meta.encode()));
         }
 
-        let encoded_packed = encode_packed(&data_to_encode).expect("tokens should be valid");
-
-        encoded_packed
+        encode_packed(&data_to_encode).expect("tokens should be valid")
     }
 
     pub fn encode(&self) -> Vec<u8> {

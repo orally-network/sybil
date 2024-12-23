@@ -215,11 +215,11 @@ impl<T: Transport> Web3Instance<T> {
         let tx_hash =
             H256::from_str(tx_hash).map_err(|err| Web3Error::FromHexError(err.to_string()))?;
 
-        Ok(retry_until_success!(self
+        retry_until_success!(self
             .eth()
             .transaction_receipt(tx_hash, processors::transform_ctx_tx_with_logs()))
         .map_err(|err| Web3Error::UnableToGetTxReceipt(err.to_string()))?
-        .ok_or(Web3Error::TxNotFound)?)
+        .ok_or(Web3Error::TxNotFound)
     }
 
     pub async fn get_gas_price(&self) -> Result<U256, Web3Error> {
