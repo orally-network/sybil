@@ -35,7 +35,7 @@ impl GetAssetDataMetadata {
     pub fn encode(&self) -> Vec<u8> {
         let tuple = Token::Tuple(self.get_tokens());
 
-        encode(&vec![tuple])
+        encode(&[tuple])
     }
 }
 
@@ -52,22 +52,20 @@ impl GetAssetDataResult {
         let mut data_to_encode = Vec::new();
 
         let data_tokens = self.data.clone().get_tokens();
-        data_to_encode.push(Token::Bytes(encode(&vec![Token::Tuple(data_tokens)])));
+        data_to_encode.push(Token::Bytes(encode(&[Token::Tuple(data_tokens)])));
 
         if let Some(meta) = &self.meta {
             data_to_encode.push(Token::Bytes(meta.encode()));
         }
 
-        let encoded_packed = encode_packed(&data_to_encode).expect("tokens should be valid");
-
-        encoded_packed
+        encode_packed(&data_to_encode).expect("tokens should be valid")
     }
 
     pub fn encode(&self) -> Vec<u8> {
         let mut data_to_encode = Vec::new();
 
         let data_tokens = self.data.clone().get_tokens();
-        data_to_encode.push(Token::Bytes(encode(&vec![Token::Tuple(data_tokens)])));
+        data_to_encode.push(Token::Bytes(encode(&[Token::Tuple(data_tokens)])));
 
         if let Some(meta) = &self.meta {
             data_to_encode.push(Token::Bytes(meta.encode()));

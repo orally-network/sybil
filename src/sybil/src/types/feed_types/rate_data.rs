@@ -156,8 +156,7 @@ impl MultipleAssetsDataResult {
         let tokens = self
             .data
             .iter()
-            .map(|d| d.clone().get_tokens())
-            .flatten()
+            .flat_map(|d| d.clone().get_tokens())
             .collect::<Vec<Token>>();
 
         encode_packed(&tokens).expect("tokens should be valid")

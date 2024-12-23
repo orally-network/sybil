@@ -18,7 +18,7 @@ pub async fn generate_api_key(msg: String, sig: String) -> Result<String, String
 async fn _generate_api_key(msg: String, sig: String) -> Result<String, APIKeysError> {
     let caller = siwe::recover(&msg, &sig).await?;
 
-    Ok(APIKeys::generate_new(caller).await?)
+    APIKeys::generate_new(caller).await
 }
 
 #[query]
@@ -31,7 +31,7 @@ pub async fn get_user_api_keys(address: String) -> Result<Vec<String>, String> {
 #[inline(always)]
 async fn _get_user_api_keys(address: String) -> Result<Vec<String>, APIKeysError> {
     validate_caller()?;
-    Ok(APIKeys::get_user_api_keys(&address)?)
+    APIKeys::get_user_api_keys(&address)
 }
 
 #[query]
@@ -57,7 +57,7 @@ pub async fn revoke_keys(address: String) -> Result<(), String> {
 #[inline(always)]
 async fn _revoke_keys(address: String) -> Result<(), APIKeysError> {
     validate_caller()?;
-    Ok(APIKeys::revoke_keys(&address)?)
+    APIKeys::revoke_keys(&address)
 }
 
 #[update]
