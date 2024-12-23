@@ -369,7 +369,7 @@ impl FeedStorage {
             };
         }
 
-        return Ok(exchange_rate);
+        Ok(exchange_rate)
     }
 
     pub async fn get_custom_rate(
@@ -383,7 +383,7 @@ impl FeedStorage {
 
         if let Some(ref payer) = payer {
             if !Balances::is_sufficient(
-                &payer,
+                payer,
                 &(fee_per_byte.clone() * MIN_BYTES_FOR_GET_ASSET_DATA),
             )? {
                 return Err(BalanceError::InsufficientBalance)?;
@@ -402,7 +402,7 @@ impl FeedStorage {
             .into_iter()
             .filter_map(|res| match res {
                 Ok(res) => {
-                    return Some(res);
+                    Some(res)
                 }
                 Err(err) => {
                     log!("[FEEDS] error while getting custom rate: {:?}", err);
@@ -424,7 +424,7 @@ impl FeedStorage {
         };
 
         if let Some(ref payer) = payer {
-            if !Balances::is_sufficient(&payer, &fee)? {
+            if !Balances::is_sufficient(payer, &fee)? {
                 return Err(BalanceError::InsufficientBalance)?;
             };
         }
@@ -525,11 +525,10 @@ impl FeedStorage {
                         symbol: feed.id.clone(),
                         rate: parsed_number.number,
                         decimals: parsed_number.decimals,
-                        timestamp: cached_at_timestamps
+                        timestamp: *cached_at_timestamps
                             .iter()
                             .max()
-                            .ok_or(FeedError::NoRateValueGotFromSources)?
-                            .clone(),
+                            .ok_or(FeedError::NoRateValueGotFromSources)?,
                     },
                     ..Default::default()
                 }
@@ -581,17 +580,11 @@ impl FeedStorage {
             Some(filter) => {
                 let mut feeds = feeds;
                 if let Some(feed_type) = filter.feed_type {
-                    feeds = feeds
-                        .into_iter()
-                        .filter(|feed| feed_type.filter(&feed.feed_type))
-                        .collect();
+                    feeds.retain(|feed| feed_type.filter(&feed.feed_type))
                 }
 
                 if let Some(owner) = filter.owner {
-                    feeds = feeds
-                        .into_iter()
-                        .filter(|feed| feed.owner == owner)
-                        .collect();
+                    feeds.retain(|feed| feed.owner == owner)
                 }
 
                 if let Some(search) = filter.search {

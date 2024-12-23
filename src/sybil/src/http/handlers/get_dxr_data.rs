@@ -65,6 +65,8 @@ pub async fn get_dxr_data_with_proof(req: HttpRequest) -> HttpResponse {
 
 #[inline(always)]
 async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
+    log!("http_request: {:?}", req);
+
     let service = HTTP_SERVICE.get().expect("State not initialized");
 
     let query = service
@@ -79,6 +81,7 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
 
     let with_meta = params.meta.unwrap_or(false);
 
+    log!("http_request: {:?}", req);
     let domain = get_domain(&req).ok_or(anyhow::anyhow!("Domain not found"))?;
 
     let (payer, is_free) = resolve_payer(

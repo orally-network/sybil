@@ -173,7 +173,7 @@ async fn get_dex<T: Transport + 'static>(
 
     let token0_contract_addr = w3.get_call_result_promise(
         contract.clone(),
-        &TOKEN0_FUNCTION_NAME,
+        TOKEN0_FUNCTION_NAME,
         &tokens,
         from,
         Some(contract_address),
@@ -182,7 +182,7 @@ async fn get_dex<T: Transport + 'static>(
 
     let token1_contract_addr = w3.get_call_result_promise(
         contract.clone(),
-        &TOKEN1_FUNCTION_NAME,
+        TOKEN1_FUNCTION_NAME,
         &tokens,
         from,
         Some(contract_address),
@@ -228,7 +228,7 @@ async fn get_dex<T: Transport + 'static>(
 
     let token1_decimals = w3.get_call_result_promise(
         token1_contract.clone(),
-        &DECIMALS_FUNCTION_NAME,
+        DECIMALS_FUNCTION_NAME,
         &tokens,
         from,
         Some(token1_contract_addr),
@@ -237,7 +237,7 @@ async fn get_dex<T: Transport + 'static>(
 
     let token0_symbol = w3.get_call_result_promise(
         token0_contract.clone(),
-        &SYMBOL_FUNCTION_NAME,
+        SYMBOL_FUNCTION_NAME,
         &tokens,
         from,
         Some(token0_contract_addr),
@@ -246,7 +246,7 @@ async fn get_dex<T: Transport + 'static>(
 
     let token1_symbol = w3.get_call_result_promise(
         token1_contract.clone(),
-        &SYMBOL_FUNCTION_NAME,
+        SYMBOL_FUNCTION_NAME,
         &tokens,
         from,
         Some(token1_contract_addr),
@@ -517,7 +517,7 @@ pub async fn _get_dxr_data(
 
     let block_numbers: Vec<u64> = match aggregation.unwrap_or(Aggregation::AvgFromLastBlocks(1)) {
         Aggregation::AvgFromRange(block_numbers) => {
-            (block_numbers.0..block_numbers.1).into_iter().collect()
+            (block_numbers.0..block_numbers.1).collect()
         }
         Aggregation::AvgFromLastBlocks(last_blocks) => {
             let block_number_promise = w3.get_block_promise();
@@ -541,7 +541,7 @@ pub async fn _get_dxr_data(
         .map(|block_number| {
             w3.get_call_result_promise(
                 uniswap_v2_pair_contract.clone(),
-                &GET_RESERVES_FUNCTION_NAME,
+                GET_RESERVES_FUNCTION_NAME,
                 &tokens,
                 from,
                 Some(contract_address),
@@ -570,8 +570,8 @@ pub async fn _get_dxr_data(
 
     // Calculating the average rate
     results.clone().into_iter().for_each(|reserve| {
-        let reserve0_token: Token = reserve[0].clone().into();
-        let reserve1_token: Token = reserve[1].clone().into();
+        let reserve0_token: Token = reserve[0].clone();
+        let reserve1_token: Token = reserve[1].clone();
 
         reserve0 += reserve0_token.into_uint().unwrap();
         reserve1 += reserve1_token.into_uint().unwrap();
@@ -693,7 +693,7 @@ fn get_dxr_data_for_dex<B: BatchTransport + 'static>(
     let price1_cumulative = w3
         .get_call_result_promise(
             contract.clone(),
-            &cumulative_function_name,
+            cumulative_function_name,
             &tokens,
             from,
             Some(contract_address),
@@ -704,7 +704,7 @@ fn get_dxr_data_for_dex<B: BatchTransport + 'static>(
     let price1_cumulative_last = w3
         .get_call_result_promise(
             contract.clone(),
-            &cumulative_function_name,
+            cumulative_function_name,
             &tokens,
             from,
             Some(contract_address),
@@ -715,7 +715,7 @@ fn get_dxr_data_for_dex<B: BatchTransport + 'static>(
     let reserves_last = w3
         .get_call_result_promise(
             contract.clone(),
-            &GET_RESERVES_FUNCTION_NAME,
+            GET_RESERVES_FUNCTION_NAME,
             &tokens,
             from,
             Some(contract_address),
@@ -726,7 +726,7 @@ fn get_dxr_data_for_dex<B: BatchTransport + 'static>(
     let reserves = w3
         .get_call_result_promise(
             contract.clone(),
-            &GET_RESERVES_FUNCTION_NAME,
+            GET_RESERVES_FUNCTION_NAME,
             &tokens,
             from,
             Some(contract_address),
@@ -775,9 +775,7 @@ fn get_dxr_data_for_dex<B: BatchTransport + 'static>(
                 reserve1_last *= U256::from(10).pow(U256::from(token0_decimals - token1_decimals));
             }
 
-            let price = reserve1_last / reserve0_last;
-
-            price
+            reserve1_last / reserve0_last // price
         } else {
             let price1_cumulative = price1_cumulative
                 .await
@@ -799,9 +797,8 @@ fn get_dxr_data_for_dex<B: BatchTransport + 'static>(
             // price1_cumulative is not U256, but [UQ112x112](https://github.com/Uniswap/v2-periphery/blob/6d03bede0a97c72323fa1c379ed3fdf7231d0b26/contracts/examples/ExampleOracleSimple.sol#L50)
             let price = (price1_cumulative - price1_cumulative_last) / (timestamp - timestamp_last);
             let price = price * U256::from(10).pow(U256::from(TARGET_DECIMALS));
-            let price = price >> 112;
 
-            price
+            price >> 112
         };
 
         let data = GetDXRData {
@@ -818,12 +815,12 @@ fn get_dxr_data_for_dex<B: BatchTransport + 'static>(
     }
 }
 
-fn get_dex_with_token_addresses_and_pool<'a, B: BatchTransport + 'static>(
+fn get_dex_with_token_addresses_and_pool<B: BatchTransport + 'static>(
     w3: Arc<Web3Instance<Batch<B>>>,
-    pool_address: &'a str,
+    pool_address: &str,
     _dex_type: DexType,
     from: H160,
-) -> Result<impl Future<Output = Result<DEX, CustomFeedError>> + 'a, CustomFeedError> {
+) -> Result<impl Future<Output = Result<DEX, CustomFeedError>> + '_, CustomFeedError> {
     let contract_address = address::to_h160(pool_address)?;
 
     let contract = Arc::new(
@@ -832,9 +829,9 @@ fn get_dex_with_token_addresses_and_pool<'a, B: BatchTransport + 'static>(
     );
 
     let tokens = vec![];
-    let contract_address = address::to_h160(&pool_address)?;
+    let contract_address = address::to_h160(pool_address)?;
 
-    let dex = DEXList::get_dex(&pool_address);
+    let dex = DEXList::get_dex(pool_address);
 
     let mut token0_contract_addr = None;
     let mut token1_contract_addr = None;
@@ -843,7 +840,7 @@ fn get_dex_with_token_addresses_and_pool<'a, B: BatchTransport + 'static>(
     if dex.is_none() {
         token0_contract_addr = Some(w3.get_call_result_promise(
             contract.clone(),
-            &TOKEN0_FUNCTION_NAME,
+            TOKEN0_FUNCTION_NAME,
             &tokens,
             from,
             Some(contract_address),
@@ -852,7 +849,7 @@ fn get_dex_with_token_addresses_and_pool<'a, B: BatchTransport + 'static>(
 
         token1_contract_addr = Some(w3.get_call_result_promise(
             contract.clone(),
-            &TOKEN1_FUNCTION_NAME,
+            TOKEN1_FUNCTION_NAME,
             &tokens,
             from,
             Some(contract_address),
@@ -924,7 +921,7 @@ fn get_dex_decimals_and_symbols<T: Transport + BatchTransport + 'static>(
     if dex.token0_symbol.is_empty() || dex.token1_symbol.is_empty() {
         token0_decimals = Some(w3.get_call_result_promise(
             token0_contract.clone(),
-            &DECIMALS_FUNCTION_NAME,
+            DECIMALS_FUNCTION_NAME,
             &tokens,
             from,
             Some(token0_contract_addr),
@@ -933,7 +930,7 @@ fn get_dex_decimals_and_symbols<T: Transport + BatchTransport + 'static>(
 
         token1_decimals = Some(w3.get_call_result_promise(
             token1_contract.clone(),
-            &DECIMALS_FUNCTION_NAME,
+            DECIMALS_FUNCTION_NAME,
             &tokens,
             from,
             Some(token1_contract_addr),
@@ -942,7 +939,7 @@ fn get_dex_decimals_and_symbols<T: Transport + BatchTransport + 'static>(
 
         token0_symbol = Some(w3.get_call_result_promise(
             token0_contract.clone(),
-            &SYMBOL_FUNCTION_NAME,
+            SYMBOL_FUNCTION_NAME,
             &tokens,
             from,
             Some(token0_contract_addr),
@@ -951,7 +948,7 @@ fn get_dex_decimals_and_symbols<T: Transport + BatchTransport + 'static>(
 
         token1_symbol = Some(w3.get_call_result_promise(
             token1_contract.clone(),
-            &SYMBOL_FUNCTION_NAME,
+            SYMBOL_FUNCTION_NAME,
             &tokens,
             from,
             Some(token1_contract_addr),

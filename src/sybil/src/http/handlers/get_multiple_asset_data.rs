@@ -175,7 +175,7 @@ async fn _get_multiple_assets_data_request(
     }
 
     if params.bytes.unwrap_or(false) {
-        result.bytes = Some(format!("0x{}", hex::encode(&result.encode())));
+        result.bytes = Some(format!("0x{}", hex::encode(result.encode())));
     }
 
     Ok(serde_json::to_vec(&result)?)

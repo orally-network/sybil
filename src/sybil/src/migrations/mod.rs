@@ -92,7 +92,7 @@ impl From<OldFeed> for Feed {
                 })
             },
             decimals: old.decimals,
-            status: old.status.into(),
+            status: old.status,
             owner: old.owner,
             data: old.data,
         }
