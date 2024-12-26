@@ -147,10 +147,7 @@ impl ChainsRPC {
         Ok(STATE
             .with(|state| {
                 let state = state.borrow();
-                state
-                    .chains_rpc
-                    .0
-                    .get(&chain_id)
+                state.chains_rpc.0.get(&chain_id) // 0 element - provider urls
                     .cloned()
                     .ok_or(ChainsRPCError::ChainDoesNotExist)
             })?

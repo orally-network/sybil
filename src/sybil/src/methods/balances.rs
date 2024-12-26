@@ -279,11 +279,12 @@ async fn _deposit(
         .ok_or(DepositError::ChainNotAllowed)?;
 
     let w3 = web3::instance(
-        format!(
+        chain_id,
+        Some(vec![format!(
             "{}{}",
             clone_with_state!(rpc_wrapper),
             urlencoding::encode(&allowed_chain.rpc.get_url()),
-        ),
+        )]),
         clone_with_state!(evm_rpc_canister),
         None,
     );
