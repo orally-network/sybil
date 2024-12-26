@@ -5,12 +5,11 @@ use validator::Validate;
 use crate::{
     http::{
         response,
-        utils::{get_domain, resolve_payer},
+        utils::resolve_payer,
         HTTP_SERVICE,
     },
     stringify_func_call,
     types::{
-        allowances::Allowances,
         api_keys::APIKeys,
         balances::Balances,
         cache::Cache,
@@ -82,10 +81,7 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
 
     let with_meta = params.meta.unwrap_or(false);
 
-    let domain = get_domain(&req).unwrap();
-
     let (payer, is_free) = resolve_payer(
-        Some(domain.clone()),
         "read_logs".to_string(),
         params.msg,
         params.sig,
@@ -150,12 +146,8 @@ async fn _read_logs(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>> {
 
     cache_builder.with_on_found(|_| {
         if let Some(api_key) = params.api_key {
-            APIKeys::decrease_request_count(api_key, "read_logs".to_string(), Some(domain))
+            APIKeys::decrease_request_count(api_key, "read_logs".to_string(), None)
                 .unwrap();
-        } else {
-            if Allowances::get_allowed_user(&domain).is_some() {
-                Allowances::decrease_request_count(domain, "read_logs".to_string()).unwrap();
-            }
         }
     });
 

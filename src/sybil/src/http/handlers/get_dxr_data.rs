@@ -5,12 +5,11 @@ use validator::Validate;
 use crate::{
     http::{
         response,
-        utils::{get_domain, resolve_payer},
+        utils::resolve_payer,
         HTTP_SERVICE,
     },
     log, stringify_func_call,
     types::{
-        allowances::Allowances,
         api_keys::APIKeys,
         balances::Balances,
         cache::Cache,
@@ -82,10 +81,8 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     let with_meta = params.meta.unwrap_or(false);
 
     log!("http_request: {:?}", req);
-    let domain = get_domain(&req).ok_or(anyhow::anyhow!("Domain not found"))?;
 
     let (payer, is_free) = resolve_payer(
-        Some(domain.clone()),
         "get_dxr_data".to_string(),
         params.msg,
         params.sig,
@@ -125,12 +122,8 @@ async fn _get_dxr_data(req: HttpRequest, with_signature: bool) -> Result<Vec<u8>
     let balance_before = ic_cdk::api::canister_balance();
     cache_builder.with_on_found(|_| {
         if let Some(api_key) = params.api_key {
-            APIKeys::decrease_request_count(api_key, "get_dxr_data".to_string(), Some(domain))
+            APIKeys::decrease_request_count(api_key, "get_dxr_data".to_string(), None)
                 .unwrap();
-        } else {
-            if Allowances::get_allowed_user(&domain).is_some() {
-                Allowances::decrease_request_count(domain, "get_dxr_data".to_string()).unwrap();
-            }
         }
     });
 
