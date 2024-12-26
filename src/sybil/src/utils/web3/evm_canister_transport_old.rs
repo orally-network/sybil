@@ -34,7 +34,8 @@ const DEFAULT_MAX_RESPONSE_BYTES: u64 = 10_000;
 /// ICEthRpc deals with the JSON-RPC canister nametd "ic-eth-rpc" which is deployed on the IC.
 #[derive(Clone, Debug)]
 pub struct EVMCanisterTransport {
-    rpcs_url: Vec<String>,
+    chain_id: u64,
+    rpcs_url: Option<Vec<String>>,
     evm_rpc_canister: Principal,
     max_response_bytes: u64,
     id: Arc<AtomicUsize>,
@@ -43,20 +44,23 @@ pub struct EVMCanisterTransport {
 impl EVMCanisterTransport {
     /// Create new ICEthRpc instance
     pub fn new_with_one_rpc(
+        chain_id: u64,
         rpc_url: String,
         evm_rpc_canister: Principal,
         max_response_bytes: Option<u64>,
     ) -> Self {
         Self {
-            rpcs_url: vec![rpc_url],
+            chain_id,
+            rpcs_url: Some(vec![rpc_url]),
             evm_rpc_canister,
             max_response_bytes: max_response_bytes.unwrap_or(DEFAULT_MAX_RESPONSE_BYTES),
             id: Arc::new(AtomicUsize::new(0)),
         }
     }
 
-    pub fn new(rpcs_url: Vec<String>, evm_rpc_canister: Principal) -> Self {
+    pub fn new(chain_id: u64, rpcs_url: Option<Vec<String>>, evm_rpc_canister: Principal) -> Self {
         Self {
+            chain_id,
             rpcs_url,
             evm_rpc_canister,
             max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES,
@@ -133,7 +137,7 @@ async fn execute_canister_call(
     }
 }
 
-#[derive(Clone, CandidType, Deserialize)]
+#[derive(Clone, CandidType, Deserialize, Debug)]
 pub enum RpcServices {
     EthMainnet(Option<Vec<EthMainnetService>>),
     EthSepolia(Option<Vec<EthSepoliaService>>),
@@ -302,6 +306,23 @@ fn handle_batch_response(
         .collect()
 }
 
+// TODO implement traits
+fn map_chain_id_to_rpc_services(chain_id: u64) -> RpcServices {
+    match chain_id {
+        1 => RpcServices::EthMainnet(None),
+        5 => RpcServices::EthSepolia(None),
+        _ => panic!("Unsupported chain_id: {}", chain_id),
+    }
+}
+
+fn map_chain_id_to_rpc_service(chain_id: u64) -> RpcService {
+    match chain_id {
+        1 => RpcService::EthMainnet(EthMainnetService::Ankr),
+        11155111 => RpcService::EthSepolia(EthSepoliaService::Ankr),
+        _ => panic!("Unsupported chain_id: {}", chain_id),
+    }
+}
+
 impl BatchTransport for EVMCanisterTransport {
     type Batch =
         BoxFuture<'static, Result<Vec<Result<Value, ic_web3_rs::Error>>, ic_web3_rs::Error>>;
@@ -315,9 +336,10 @@ impl BatchTransport for EVMCanisterTransport {
         let json_rpc_payload = serde_json::to_string(&Request::Batch(calls)).unwrap();
 
         let service = RpcService::Custom(RpcApi {
-            url: self.rpcs_url.first().unwrap().clone(),
+            url: self.rpcs_url.clone().unwrap().first().unwrap().clone(), // TODO remove unwrap
             headers: None,
         });
+        
         let evm_rpc_canister = self.evm_rpc_canister;
         let max_response_bytes = self.max_response_bytes;
 
@@ -345,10 +367,21 @@ impl Transport for EVMCanisterTransport {
     }
 
     fn send(&self, _: RequestId, call: Call, _: CallOptions) -> Self::Out {
-        let service: RpcService = RpcService::Custom(RpcApi {
-            url: self.rpcs_url.first().unwrap().clone(),
-            headers: None,
-        });
+        // if rpcs_url is not set, we use the default chain rpc for the chain_id
+        
+        let source = match self.rpcs_url {
+            Some(ref rpc_urls) => RpcServices::Custom {
+                chain_id: self.chain_id,
+                services: rpc_urls
+                    .iter()
+                    .map(|url| RpcApi {
+                        url: url.clone(),
+                        headers: None,
+                    })
+                    .collect(),
+            },
+            None => map_chain_id_to_rpc_services(self.chain_id),
+        };
 
         let json_rpc_payload = serde_json::to_string(&Request::Single(call.clone())).unwrap();
 
@@ -360,6 +393,8 @@ impl Transport for EVMCanisterTransport {
 
         let ic_eth_rpc = self.evm_rpc_canister;
         let max_response_bytes = self.max_response_bytes;
+
+        let evm_rpc_call_service = map_chain_id_to_rpc_service(self.chain_id);
 
         match call {
             Call::MethodCall(method_call) => match method_call.method.as_str() {
@@ -373,17 +408,7 @@ impl Transport for EVMCanisterTransport {
 
                     Box::pin(send_raw_tx(
                         ic_eth_rpc,
-                        RpcServices::Custom {
-                            chain_id: 5,
-                            services: self
-                                .rpcs_url
-                                .iter()
-                                .map(|url| RpcApi {
-                                    url: url.clone(),
-                                    headers: None,
-                                })
-                                .collect(),
-                        },
+                        source,
                         None,
                         raw_tx,
                     ))
@@ -394,18 +419,6 @@ impl Transport for EVMCanisterTransport {
                     };
 
                     let value = arr[0].clone();
-
-                    let services = RpcServices::Custom {
-                        chain_id: 0,
-                        services: self
-                            .rpcs_url
-                            .iter()
-                            .map(|url| RpcApi {
-                                url: url.clone(),
-                                headers: None,
-                            })
-                            .collect(),
-                    };
 
                     let from_block = value.get("fromBlock").map(|v| {
                         if v.is_string() {
@@ -470,16 +483,15 @@ impl Transport for EVMCanisterTransport {
                         addresses,
                         topics,
                     };
-
-                    Box::pin(async move { eth_get_logs(ic_eth_rpc, services, None, args).await })
+                    Box::pin(async move { eth_get_logs(ic_eth_rpc, source, None, args).await })
                 }
                 _ => Box::pin(async move {
-                    execute_canister_call(ic_eth_rpc, service, json_rpc_payload, max_response_bytes)
+                    execute_canister_call(ic_eth_rpc, evm_rpc_call_service, json_rpc_payload, max_response_bytes)
                         .await
                 }),
             },
             _ => Box::pin(async move {
-                execute_canister_call(ic_eth_rpc, service, json_rpc_payload, max_response_bytes)
+                execute_canister_call(ic_eth_rpc, evm_rpc_call_service, json_rpc_payload, max_response_bytes)
                     .await
             }),
         }

@@ -165,7 +165,7 @@ async fn get_dex<T: Transport + 'static>(
 
     let chain_rpc = ChainsRPC::get_first_chain_rpc_url(chain_id)?;
 
-    let w3 = web3::batch_instance(chain_rpc, clone_with_state!(evm_rpc_canister), None);
+    let w3 = web3::batch_instance(chain_id, chain_rpc, clone_with_state!(evm_rpc_canister), None);
 
     let tokens = vec![];
     let contract_address = address::to_h160(&pool_address)?;
@@ -351,7 +351,8 @@ pub async fn _get_dxr_data_batch(
 
     // w3 optimized for getting the block number
     let w3_block = web3::instance(
-        chain_rpc.url.clone(),
+        chain_id,
+        Some(vec![chain_rpc.url.clone()]),
         clone_with_state!(evm_rpc_canister),
         Some(get_block_response_len()),
     );
@@ -386,6 +387,7 @@ pub async fn _get_dxr_data_batch(
 
     // w3 optimized for getting the reserves
     let w3 = Arc::new(web3::batch_instance(
+        chain_id,
         chain_rpc.url.clone(),
         clone_with_state!(evm_rpc_canister),
         Some(get_reserves_batch_response_len(dexes.len() as u64)),
@@ -488,7 +490,7 @@ pub async fn _get_dxr_data(
     let balance_before = ic_cdk::api::canister_balance();
     let chain_rpc = ChainsRPC::get_first_chain_rpc_url(chain_id)?;
 
-    let w3 = web3::batch_instance(chain_rpc, clone_with_state!(evm_rpc_canister), None);
+    let w3 = web3::batch_instance(chain_id, chain_rpc, clone_with_state!(evm_rpc_canister), None);
 
     let contract_address = address::to_h160(&pool_address)?;
 
@@ -1052,6 +1054,7 @@ async fn get_dexes(
 ) -> Result<Vec<DEX>, CustomFeedError> {
     // w3 optimized for getting the token addresses in batch
     let w3 = Arc::new(web3::batch_instance(
+        0, // TODO
         chain_rpc.clone(),
         clone_with_state!(evm_rpc_canister),
         Some(get_token_address_batch_response_len(
@@ -1083,6 +1086,7 @@ async fn get_dexes(
 
     // w3 optimized for getting decimals and symbols of dex in batch
     let w3 = Arc::new(web3::batch_instance(
+        0, // TODO
         chain_rpc.clone(),
         clone_with_state!(evm_rpc_canister),
         Some(get_decimals_and_symbols_batch_response_len(
