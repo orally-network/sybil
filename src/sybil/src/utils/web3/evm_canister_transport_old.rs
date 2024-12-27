@@ -25,7 +25,7 @@ use ic_web3_rs::{
 use jsonrpc_core::{Call, Output, Params, Request};
 use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::Value;
-
+use crate::types::chains_rpc::{GetLogsRpcConfig, ConsensusStrategy};
 use crate::{log, retry_until_success};
 
 const MAX_CYCLES: u128 = 60_000_000_000;
@@ -35,7 +35,7 @@ const DEFAULT_MAX_RESPONSE_BYTES: u64 = 10_000;
 #[derive(Clone, Debug)]
 pub struct EVMCanisterTransport {
     chain_id: u64,
-    rpcs_url: Option<Vec<String>>,
+    pub rpcs_url: Option<Vec<String>>,
     evm_rpc_canister: Principal,
     max_response_bytes: u64,
     id: Arc<AtomicUsize>,
@@ -214,7 +214,7 @@ pub struct GetLogsArgs {
 async fn eth_get_logs(
     evm_rpc_canister: Principal,
     source: RpcServices,
-    config: Option<RpcConfig>,
+    config: Option<GetLogsRpcConfig>,
     args: GetLogsArgs,
 ) -> Result<Value, ic_web3_rs::Error> {
     let (results,): (MultiRpcResult<Vec<LogEntry>>,) = call_with_payment128(
@@ -236,7 +236,7 @@ async fn eth_get_logs(
 async fn send_raw_tx(
     evm_rpc_canister: Principal,
     source: RpcServices,
-    config: Option<RpcConfig>,
+    config: Option<GetLogsRpcConfig>,
     raw_tx: Vec<u8>,
 ) -> Result<Value, ic_web3_rs::Error> {
     let (results,): (MultiRpcResult<SendRawTransactionResult>,) = call_with_payment128(
@@ -367,8 +367,12 @@ impl Transport for EVMCanisterTransport {
     }
 
     fn send(&self, _: RequestId, call: Call, _: CallOptions) -> Self::Out {
+        let get_logs_config = GetLogsRpcConfig {
+            response_size_estimate:None,
+            response_consensus: Some(ConsensusStrategy::Threshold { total: Some(5), min: 1 }), // TODO remove hardcoded values
+        };
+
         // if rpcs_url is not set, we use the default chain rpc for the chain_id
-        
         let source = match self.rpcs_url {
             Some(ref rpc_urls) => RpcServices::Custom {
                 chain_id: self.chain_id,
@@ -409,7 +413,7 @@ impl Transport for EVMCanisterTransport {
                     Box::pin(send_raw_tx(
                         ic_eth_rpc,
                         source,
-                        None,
+                        Some(get_logs_config),
                         raw_tx,
                     ))
                 }
@@ -483,7 +487,7 @@ impl Transport for EVMCanisterTransport {
                         addresses,
                         topics,
                     };
-                    Box::pin(async move { eth_get_logs(ic_eth_rpc, source, None, args).await })
+                    Box::pin(async move { eth_get_logs(ic_eth_rpc, source, Some(get_logs_config), args).await })
                 }
                 _ => Box::pin(async move {
                     execute_canister_call(ic_eth_rpc, evm_rpc_call_service, json_rpc_payload, max_response_bytes)
