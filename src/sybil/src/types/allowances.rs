@@ -103,19 +103,10 @@ impl Allowance {
 
 // Allowances is a map that contains which domains (grantee) are allowed to use which user's (grantor) balance
 // grantee domain => grantor user
-#[derive(Serialize, Deserialize, CandidType, Debug, Clone)]
+#[derive(Serialize, Deserialize, CandidType, Debug, Clone, Default)]
 pub struct Allowances {
     pub domains_to_allowances: HashMap<String, Allowance>,
     pub user_to_allowed_domains: HashMap<String, HashSet<String>>,
-}
-
-impl Default for Allowances {
-    fn default() -> Self {
-        Self {
-            domains_to_allowances: HashMap::new(),
-            user_to_allowed_domains: HashMap::new(),
-        }
-    }
 }
 
 impl Allowances {

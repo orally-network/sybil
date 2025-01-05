@@ -93,22 +93,25 @@ pub struct Web3Instance<T: Transport> {
 }
 
 pub fn instance(
-    rpc_url: String,
+    chain_id: u64,
+    rpcs_url: Option<Vec<String>>,
     _evm_rpc_canister: Principal,
     max_response_bytes: Option<u64>,
+
 ) -> Web3Instance<impl Transport> {
     // Switch between EVMCanisterTransport(calls go through emv_rpc canister) and ICHttp (calls go straight to the rpc)
 
-    Web3Instance::new(Web3::new(EVMCanisterTransport::new_with_one_rpc(
-        rpc_url,
+    Web3Instance::new(Web3::new(EVMCanisterTransport::new(
+        chain_id,
+        rpcs_url,
         _evm_rpc_canister,
-        max_response_bytes,
     )))
 
     // Web3Instance::new(Web3::new(ICHttp::new(&rpc_url, None).unwrap()))
 }
 
 pub fn batch_instance(
+    chain_id: u64,
     rpc_url: String,
     evm_rpc_canister: Principal,
     max_response_bytes: Option<u64>,
@@ -116,7 +119,7 @@ pub fn batch_instance(
     // Switch between EVMCanisterTransport(calls go through emv_rpc canister) and ICHttp (calls go straight to the rpc)
 
     Web3Instance::new(Web3::new(Batch::new(
-        EVMCanisterTransport::new_with_one_rpc(rpc_url, evm_rpc_canister, max_response_bytes),
+        EVMCanisterTransport::new_with_one_rpc(chain_id, rpc_url, evm_rpc_canister, max_response_bytes),
     )))
 
     // Web3Instance::new(Web3::new(Batch::new(ICHttp::new(&rpc_url, None).unwrap())))
@@ -215,11 +218,11 @@ impl<T: Transport> Web3Instance<T> {
         let tx_hash =
             H256::from_str(tx_hash).map_err(|err| Web3Error::FromHexError(err.to_string()))?;
 
-        Ok(retry_until_success!(self
+        retry_until_success!(self
             .eth()
             .transaction_receipt(tx_hash, processors::transform_ctx_tx_with_logs()))
         .map_err(|err| Web3Error::UnableToGetTxReceipt(err.to_string()))?
-        .ok_or(Web3Error::TxNotFound)?)
+        .ok_or(Web3Error::TxNotFound)
     }
 
     pub async fn get_gas_price(&self) -> Result<U256, Web3Error> {

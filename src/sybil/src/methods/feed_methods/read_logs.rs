@@ -1,13 +1,14 @@
 use std::str::FromStr;
 
 use ic_cdk::update;
+use ic_web3_rs::types::Log;
 
 use ic_web3_rs::types::H256;
 use sybil_utils::cycles_count;
 
 use crate::{
     clone_with_state, log,
-    methods::{balances, custom_feeds::CustomFeedError},
+    methods::{balances, chains_rpc::{self, get_chain_rpc}, custom_feeds::CustomFeedError},
     stringify_func_call,
     types::{
         balances::{BalanceError, Balances},
@@ -137,34 +138,24 @@ pub async fn _read_logs(
             return Err(BalanceError::InsufficientBalance)?;
         };
     }
+    let chains_rpc = ChainsRPC::get_chain_rpc(chain_id)?;
+    let w3_chain_rpc = web3::instance(chain_id, Some(chains_rpc), clone_with_state!(evm_rpc_canister), None);
 
-    let chain_rpc = ChainsRPC::get_first_chain_rpc_url(chain_id)?;
-
-    let w3 = web3::instance(chain_rpc, clone_with_state!(evm_rpc_canister), None);
-
-    let logs = w3
-        .get_logs(
-            block_from,
-            block_to,
-            topics0
-                .clone()
-                .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
-            topics1
-                .clone()
-                .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
-            topics2
-                .clone()
-                .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
-            topics3
-                .clone()
-                .map(|v| v.into_iter().map(|t| H256::from_str(&t).unwrap()).collect()),
-            addresses.clone().map(|v| {
-                v.into_iter()
-                    .map(|t| address::to_h160(&t).unwrap())
-                    .collect()
-            }),
-        )
-        .await?;
+    let w3_default = web3::instance(chain_id, None, clone_with_state!(evm_rpc_canister), None);
+    
+    let logs = match call_w3_get_logs(
+        &w3_default, block_from, block_to, &topics0, &topics1, &topics2, &topics3, &addresses
+    )
+    .await
+    {
+        Ok(logs) => logs,
+        Err(_) => {
+            call_w3_get_logs(
+                &w3_chain_rpc, block_from, block_to, &topics0, &topics1, &topics2, &topics3, &addresses
+            )
+            .await?
+        }
+    };
 
     let mut result = ReadLogsResult {
         data: logs.into_iter().map(ReadLogsData::from).collect(),
@@ -209,4 +200,49 @@ pub async fn _read_logs(
     }
 
     Ok(result)
+}
+async fn call_w3_get_logs(
+    w3: &crate::utils::web3::Web3Instance<impl ic_web3_rs::Transport>,
+    block_from: Option<u64>,
+    block_to: Option<u64>,
+    topics0: &Option<Vec<String>>,
+    topics1: &Option<Vec<String>>,
+    topics2: &Option<Vec<String>>,
+    topics3: &Option<Vec<String>>,
+    addresses: &Option<Vec<String>>,
+) -> Result<Vec<Log>, CustomFeedError> {
+
+    let logs = w3
+        .get_logs(
+            block_from,
+            block_to,
+            topics0.as_ref().map(|v| {
+                v.iter()
+                    .map(|t| H256::from_str(t).unwrap())
+                    .collect::<Vec<H256>>()
+            }),
+            topics1.as_ref().map(|v| {
+                v.iter()
+                    .map(|t| H256::from_str(t).unwrap())
+                    .collect::<Vec<H256>>()
+            }),
+            topics2.as_ref().map(|v| {
+                v.iter()
+                    .map(|t| H256::from_str(t).unwrap())
+                    .collect::<Vec<H256>>()
+            }),
+            topics3.as_ref().map(|v| {
+                v.iter()
+                    .map(|t| H256::from_str(t).unwrap())
+                    .collect::<Vec<H256>>()
+            }),
+            addresses.as_ref().map(|v| {
+                v.iter()
+                    .map(|t| address::to_h160(t).unwrap())
+                    .collect()
+            }),
+        )
+        .await?;
+
+    Ok(logs)
 }

@@ -14,6 +14,34 @@ pub struct RPCConfig {
     pub num_of_blocks_for_get_dxr_data: u64,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Default, CandidType, Deserialize)]
+pub struct GetLogsRpcConfig {
+    #[serde(rename = "responseSizeEstimate")]
+    pub response_size_estimate: Option<u64>,
+
+    #[serde(rename = "responseConsensus")]
+    pub response_consensus: Option<ConsensusStrategy>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Default, CandidType, Deserialize)]
+pub enum ConsensusStrategy {
+    /// All providers must return the same non-error result.
+    #[default]
+    Equality,
+
+    /// A subset of providers must return the same non-error result.
+    Threshold {
+        /// Total number of providers to be queried:
+        /// * If `None`, will be set to the number of providers manually specified in `RpcServices`.
+        /// * If `Some`, must correspond to the number of manually specified providers in `RpcServices`;
+        ///   or if they are none indicating that default providers should be used, select the corresponding number of providers.
+        total: Option<u8>,
+
+        /// Minimum number of providers that must return the same (non-error) result.
+        min: u8,
+    },
+}
+
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug, Default)]
 pub struct RPCUrl {
     pub url: String,
@@ -147,10 +175,7 @@ impl ChainsRPC {
         Ok(STATE
             .with(|state| {
                 let state = state.borrow();
-                state
-                    .chains_rpc
-                    .0
-                    .get(&chain_id)
+                state.chains_rpc.0.get(&chain_id) // 0 element - provider urls
                     .cloned()
                     .ok_or(ChainsRPCError::ChainDoesNotExist)
             })?

@@ -5,12 +5,11 @@ use validator::Validate;
 use crate::{
     http::{
         response,
-        utils::{get_domain, resolve_payer},
+        utils::resolve_payer,
         HTTP_SERVICE,
     },
-    log, stringify_func_call,
+    stringify_func_call,
     types::{
-        allowances::Allowances,
         api_keys::APIKeys,
         balances::Balances,
         cache::Cache,
@@ -82,10 +81,7 @@ async fn _get_dxr_data_batch(req: HttpRequest, with_signature: bool) -> Result<V
 
     let with_meta = params.meta.unwrap_or(false);
 
-    let domain = get_domain(&req).ok_or(anyhow::anyhow!("Domain not found"))?;
-
     let (payer, is_free) = resolve_payer(
-        Some(domain.clone()),
         "get_dxr_data_batch".to_string(),
         params.msg,
         params.sig,
@@ -112,7 +108,7 @@ async fn _get_dxr_data_batch(req: HttpRequest, with_signature: bool) -> Result<V
             params.chain_id.clone(),
             &params.pool_addresses,
             params.dex_type.clone(),
-            params.reverse_pair.clone(),
+            params.reverse_pair,
             with_signature,
             with_meta,
             payer.clone(),
@@ -121,17 +117,8 @@ async fn _get_dxr_data_batch(req: HttpRequest, with_signature: bool) -> Result<V
 
     cache_builder.with_on_found(|_| {
         if let Some(api_key) = params.api_key {
-            APIKeys::decrease_request_count(
-                api_key,
-                "get_dxr_data_batch".to_string(),
-                Some(domain),
-            )
-            .unwrap();
-        } else {
-            if Allowances::get_allowed_user(&domain).is_some() {
-                Allowances::decrease_request_count(domain, "get_dxr_data_batch".to_string())
-                    .unwrap();
-            }
+            APIKeys::decrease_request_count(api_key, "get_dxr_data_batch".to_string(), None)
+                .unwrap();
         }
     });
 
@@ -177,7 +164,7 @@ async fn _get_dxr_data_batch(req: HttpRequest, with_signature: bool) -> Result<V
     }
 
     if params.bytes.unwrap_or(false) {
-        result.bytes = Some(format!("0x{}", hex::encode(&result.encode())));
+        result.bytes = Some(format!("0x{}", hex::encode(result.encode())));
     }
 
     Ok(serde_json::to_vec(&result)?)

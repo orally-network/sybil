@@ -116,7 +116,7 @@ pub fn parse_tokens(inputs: &[ParamType], params: String) -> Result<Vec<Token>, 
         }
 
         let param = remaining_params
-            .split_once(&[','])
+            .split_once([','])
             .map(|(a, b)| (a.to_owned(), b.to_owned()));
 
         let trim_param = if let Some((param, other_params)) = param {
@@ -131,7 +131,7 @@ pub fn parse_tokens(inputs: &[ParamType], params: String) -> Result<Vec<Token>, 
                 tokens.push(Token::Uint(U256::from_dec_str(&trim_param).unwrap()));
             }
             ParamType::Int(_) => {
-                tokens.push(Token::Int(trim_param.parse::<U256>().unwrap().into()));
+                tokens.push(Token::Int(trim_param.parse::<U256>().unwrap()));
             }
             ParamType::Address => {
                 tokens.push(Token::Address(address::to_h160(&trim_param).unwrap()));
@@ -148,7 +148,7 @@ pub fn parse_tokens(inputs: &[ParamType], params: String) -> Result<Vec<Token>, 
             }
             ParamType::FixedBytes(size) => {
                 let bytes = hex::decode(address::trim_prefix(&trim_param)).unwrap();
-                assert_eq!(bytes.len(), *size as usize);
+                assert_eq!(bytes.len(), *size);
                 tokens.push(Token::FixedBytes(bytes));
             }
             ParamType::Array(ref inner_param_type) => {
@@ -226,7 +226,7 @@ pub fn parse_tokens(inputs: &[ParamType], params: String) -> Result<Vec<Token>, 
                         panic!();
                     };
 
-                    let array_tokens = parse_tokens(&inner_param_types, array_str.to_string())?;
+                    let array_tokens = parse_tokens(inner_param_types, array_str.to_string())?;
                     tokens.push(Token::Array(array_tokens));
                 } else {
                     panic!();

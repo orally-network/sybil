@@ -43,6 +43,7 @@ impl<T: BatchTransport> Web3Instance<Batch<T>> {
             .submit_batch()
             .await
             .map_err(|err| Web3Error::UnableToSubmitBatch(err.to_string()))
+        // TODO firstly send with default rpcs - then retry here with custom rpcs ?
     }
 
     pub fn get_logs_promise(
@@ -233,7 +234,6 @@ impl<T: BatchTransport> Web3Instance<Batch<T>> {
             data: Some(Bytes::from(data)),
             ..Default::default()
         };
-
         let block_number = block_number.map(|block_number| BlockId::Number(block_number.into()));
 
         self.pending_requests.fetch_add(1, Ordering::SeqCst);
@@ -288,9 +288,9 @@ pub fn decode_call_result<Tr: Transport>(
 ) -> Result<Vec<Token>, Web3Error> {
     let raw_result = raw_result.map_err(|err| Web3Error::UnableToDecodeOutput(err.to_string()))?;
 
-    Ok(contract
+    contract
         .abi()
         .function(func)
         .and_then(|f| f.decode_output(&raw_result.0))
-        .map_err(|err| Web3Error::UnableToDecodeOutput(err.to_string()))?)
+        .map_err(|err| Web3Error::UnableToDecodeOutput(err.to_string()))
 }

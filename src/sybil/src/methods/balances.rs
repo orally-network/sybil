@@ -25,7 +25,7 @@ use crate::{
         chains_rpc::{ChainsRPC, ChainsRPCError},
         feed_types::get_xrc_data::GetXRCData,
         state::{self, get_cfg},
-        whitelist::{Whitelist, WhitelistError},
+        whitelist::WhitelistError,
     },
     utils::{
         address::{self, AddressError},
@@ -95,7 +95,7 @@ pub async fn get_allowed_chains() -> HashMap<u64, SaveAllowedChain> {
         .balances_cfg
         .allowed_chains
         .iter()
-        .map(|(chain_id, allowed_chain)| (chain_id.clone(), allowed_chain.clone().into()))
+        .map(|(chain_id, allowed_chain)| (*chain_id, allowed_chain.clone().into()))
         .collect()
 }
 
@@ -106,7 +106,7 @@ pub async fn get_treasure_address() -> String {
 
 #[update]
 pub async fn update_treasure_address(address: String) -> Result<(), String> {
-    validate_caller().map_err(|_| format!("caller is not a controller"))?;
+    validate_caller().map_err(|_| "caller is not a controller".to_string())?;
     let address = address::from_str(&address).map_err(|e| format!("invalid address: {}", e))?;
     STATE.with(|state| {
         let mut state = state.borrow_mut();
@@ -118,7 +118,7 @@ pub async fn update_treasure_address(address: String) -> Result<(), String> {
 
 #[update]
 pub async fn add_to_balances_whitelist(addresses: Vec<String>) -> Result<(), String> {
-    validate_caller().map_err(|_| format!("caller is not a controller"))?;
+    validate_caller().map_err(|_| "caller is not a controller".to_string())?;
     STATE.with(|state| {
         let mut state = state.borrow_mut();
         state.balances_cfg.whitelist.extend(addresses);
@@ -279,18 +279,19 @@ async fn _deposit(
         .ok_or(DepositError::ChainNotAllowed)?;
 
     let w3 = web3::instance(
-        format!(
+        chain_id,
+        Some(vec![format!(
             "{}{}",
             clone_with_state!(rpc_wrapper),
             urlencoding::encode(&allowed_chain.rpc.get_url()),
-        ),
+        )]),
         clone_with_state!(evm_rpc_canister),
         None,
     );
 
     let tx_receipt = w3.get_tx_receipt(&tx_hash).await?;
 
-    let tx = w3.get_tx(tx_receipt.transaction_hash.clone()).await?;
+    let tx = w3.get_tx(tx_receipt.transaction_hash).await?;
 
     // Deposit ERC20 tokens
     let erc20 = deposit_erc20(&tx_receipt, &caller_eth, &allowed_chain.erc20_contracts).await?;
@@ -389,7 +390,7 @@ async fn deposit_erc20(
     let mut value_usd = U256::zero();
 
     for (event_from, event_to, value) in get_transfer_log(&tx_receipt.logs)? {
-        validate_transfer_logs(&event_from, &event_to, &caller)?;
+        validate_transfer_logs(&event_from, &event_to, caller)?;
 
         value_usd += if clone_with_state!(mock) {
             value
