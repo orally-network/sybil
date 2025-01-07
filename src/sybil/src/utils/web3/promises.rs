@@ -288,9 +288,9 @@ pub fn decode_call_result<Tr: Transport>(
 ) -> Result<Vec<Token>, Web3Error> {
     let raw_result = raw_result.map_err(|err| Web3Error::UnableToDecodeOutput(err.to_string()))?;
 
-    Ok(contract
+    contract
         .abi()
         .function(func)
         .and_then(|f| f.decode_output(&raw_result.0))
-        .map_err(|err| Web3Error::UnableToDecodeOutput(err.to_string()))?)
+        .map_err(|err| Web3Error::UnableToDecodeOutput(err.to_string()))
 }
