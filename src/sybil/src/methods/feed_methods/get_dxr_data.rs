@@ -163,9 +163,9 @@ async fn get_dex<T: Transport + 'static>(
         return Ok(dex);
     }
 
-    let chain_rpc = ChainsRPC::get_first_chain_rpc_url(chain_id)?;
+    let chain_rpc = ChainsRPC::get_chain_rpc(chain_id)?;
 
-    let w3 = web3::batch_instance(chain_id, chain_rpc, clone_with_state!(evm_rpc_canister), None);
+    let w3 = web3::batch_instance(chain_id, Some(chain_rpc), clone_with_state!(evm_rpc_canister), None);
 
     let tokens = vec![];
     let contract_address = address::to_h160(&pool_address)?;
@@ -347,19 +347,20 @@ pub async fn _get_dxr_data_batch(
     with_meta: bool,
     payer: Option<String>,
 ) -> Result<GetDXRDataBatchResult, CustomFeedError> {
-    let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
+    let chain_rpc = ChainsRPC::get_chain_rpc(chain_id)?;
 
     // w3 optimized for getting the block number
     let w3_block = web3::instance(
         chain_id,
-        Some(vec![chain_rpc.url.clone()]),
+        Some(chain_rpc.clone()),
         clone_with_state!(evm_rpc_canister),
         Some(get_block_response_len()),
     );
 
     let balance_before = ic_cdk::api::canister_balance();
 
-    let range_len = chain_rpc.config.num_of_blocks_for_get_dxr_data;
+    let first_chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
+    let range_len = first_chain_rpc.config.num_of_blocks_for_get_dxr_data;
     let last_block = w3_block.get_block().await?;
     let range = (last_block - range_len, last_block);
 
@@ -373,7 +374,7 @@ pub async fn _get_dxr_data_batch(
 
     let balance_before = ic_cdk::api::canister_balance();
     let time_before = ic_cdk::api::time() / 1_000_000;
-    let dexes = get_dexes(chain_rpc.url.clone(), pool_addresses, _dex_type).await?;
+    let dexes = get_dexes(chain_rpc.clone(), pool_addresses, _dex_type).await?;
     let time_after = ic_cdk::api::time() / 1_000_000;
     let balance_after = ic_cdk::api::canister_balance();
     log!("cost for getting dexes: {}", balance_before - balance_after);
@@ -388,7 +389,7 @@ pub async fn _get_dxr_data_batch(
     // w3 optimized for getting the reserves
     let w3 = Arc::new(web3::batch_instance(
         chain_id,
-        chain_rpc.url.clone(),
+        Some(chain_rpc.clone()),
         clone_with_state!(evm_rpc_canister),
         Some(get_reserves_batch_response_len(dexes.len() as u64)),
     ));
@@ -488,9 +489,9 @@ pub async fn _get_dxr_data(
     payer: Option<String>,
 ) -> Result<GetDXRDataResult, CustomFeedError> {
     let balance_before = ic_cdk::api::canister_balance();
-    let chain_rpc = ChainsRPC::get_first_chain_rpc_url(chain_id)?;
+    let chain_rpc = ChainsRPC::get_chain_rpc(chain_id)?;
 
-    let w3 = web3::batch_instance(chain_id, chain_rpc, clone_with_state!(evm_rpc_canister), None);
+    let w3 = web3::batch_instance(chain_id, Some(chain_rpc), clone_with_state!(evm_rpc_canister), None);
 
     let contract_address = address::to_h160(&pool_address)?;
 
@@ -522,7 +523,7 @@ pub async fn _get_dxr_data(
             (block_numbers.0..block_numbers.1).collect()
         }
         Aggregation::AvgFromLastBlocks(last_blocks) => {
-            let block_number_promise = w3.get_block_promise();
+            let block_number_promise = w3.get_block_promise(); // implement eth_blockNumber in evm_transport::send
             w3.submit_batch().await?;
             let block = block_number_promise.await.unwrap().as_u64();
 
@@ -1048,14 +1049,14 @@ fn get_dex_decimals_and_symbols<T: Transport + BatchTransport + 'static>(
 }
 
 async fn get_dexes(
-    chain_rpc: String,
+    chain_rpc: Vec<String>,
     pool_addresses: &[String],
     dex_type: DexType,
 ) -> Result<Vec<DEX>, CustomFeedError> {
     // w3 optimized for getting the token addresses in batch
     let w3 = Arc::new(web3::batch_instance(
         0, // TODO
-        chain_rpc.clone(),
+        Some(chain_rpc.clone()),
         clone_with_state!(evm_rpc_canister),
         Some(get_token_address_batch_response_len(
             pool_addresses.len() as u64
@@ -1087,7 +1088,7 @@ async fn get_dexes(
     // w3 optimized for getting decimals and symbols of dex in batch
     let w3 = Arc::new(web3::batch_instance(
         0, // TODO
-        chain_rpc.clone(),
+        Some(chain_rpc.clone()),
         clone_with_state!(evm_rpc_canister),
         Some(get_decimals_and_symbols_batch_response_len(
             pool_addresses.len() as u64,

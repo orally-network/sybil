@@ -25,8 +25,12 @@ use ic_web3_rs::{
 use jsonrpc_core::{Call, Output, Params, Request};
 use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::Value;
-use crate::types::chains_rpc::{GetLogsRpcConfig, ConsensusStrategy};
+
 use crate::{log, retry_until_success};
+use crate::types::chains_rpc::{
+    GetLogsRpcConfig, ConsensusStrategy, GetLogsArgs, MultiEthCallResult, EthCallResult,
+    TransactionRequest, EthCallArgs, BlockTag, MultiGetBlockByNumberResult, GetBlockByNumberResult
+};
 
 const MAX_CYCLES: u128 = 60_000_000_000;
 const DEFAULT_MAX_RESPONSE_BYTES: u64 = 10_000;
@@ -80,6 +84,7 @@ async fn execute_canister_call_batch<T: DeserializeOwned>(
     json_rpc_payload: String,
     max_response_bytes: u64,
 ) -> Result<T, ic_web3_rs::Error> {
+    log!("json_rpc_payload for block_number: {:?}", json_rpc_payload);
     let (result,): (Result<String, cketh_common::eth_rpc::RpcError>,) = call_with_payment128(
         ic_eth_rpc,
         "request",
@@ -190,27 +195,6 @@ impl<T: Debug + Clone> MultiRpcResult<T> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize, Default)]
-pub enum BlockTag {
-    #[default]
-    Latest,
-    Finalized,
-    Safe,
-    Earliest,
-    Pending,
-    Number(BlockNumber),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize)]
-pub struct GetLogsArgs {
-    #[serde(rename = "fromBlock")]
-    pub from_block: Option<BlockTag>,
-    #[serde(rename = "toBlock")]
-    pub to_block: Option<BlockTag>,
-    pub addresses: Vec<String>,
-    pub topics: Option<Vec<Vec<String>>>,
-}
-
 async fn eth_get_logs(
     evm_rpc_canister: Principal,
     source: RpcServices,
@@ -232,6 +216,39 @@ async fn eth_get_logs(
 
     Ok(serde_json::to_value(result).expect("should be able to serialize"))
 }
+
+async fn execute_eth_call(
+    ic_eth_rpc: Principal,
+    rpc_services: RpcServices,
+    call_args: EthCallArgs,
+    config: Option<RpcConfig>,
+) -> Result<Value, ic_web3_rs::Error> {
+    let (results,): (MultiEthCallResult,) = call_with_payment128(
+        ic_eth_rpc,
+        "eth_call",
+        (rpc_services, config, call_args),
+        MAX_CYCLES,
+    )
+    .await
+    .map_err(|(code, msg)| {
+        ic_web3_rs::Error::Transport(TransportError::Message(format!("{:?}: {}", code, msg)))
+    })?;
+
+    match results {
+        MultiEthCallResult::Consistent(EthCallResult::Ok(data)) => {
+            Ok(serde_json::Value::String(data))
+        }
+        MultiEthCallResult::Consistent(EthCallResult::Err(err)) => Err(ic_web3_rs::Error::InvalidResponse(format!(
+            "RPC error: {:?}",
+            err
+        ))),
+        MultiEthCallResult::Inconsistent(results) => Err(ic_web3_rs::Error::InvalidResponse(format!(
+            "Inconsistent results: {:?}",
+            results
+        ))),
+    }
+}
+
 
 async fn send_raw_tx(
     evm_rpc_canister: Principal,
@@ -323,6 +340,104 @@ fn map_chain_id_to_rpc_service(chain_id: u64) -> RpcService {
     }
 }
 
+// convert json_payload to eth_call args struct for correct method invocation
+fn convert_to_call_args(arr: &[serde_json::Value]) -> Result<EthCallArgs, ic_web3_rs::Error> {
+    if arr.len() < 2 {
+        return Err(ic_web3_rs::Error::InvalidResponse(
+            "Invalid arguments for eth_call: not enough elements".to_string(),
+        ));
+    }
+
+    let obj = arr.get(0).and_then(|v| v.as_object()).ok_or_else(|| {
+        ic_web3_rs::Error::InvalidResponse(format!("batch response is missing id"))
+    })?;
+
+    let input = obj
+        .get("data")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .ok_or_else(|| {
+            ic_web3_rs::Error::InvalidResponse("Missing or invalid 'data' in JSON object".to_string())
+        })?;
+
+    let from = obj
+        .get("from")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .ok_or_else(|| {
+            ic_web3_rs::Error::InvalidResponse("Missing or invalid 'from' in JSON object".to_string())
+        })?;
+
+    let to = obj
+        .get("to")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .ok_or_else(|| {
+            ic_web3_rs::Error::InvalidResponse("Missing or invalid 'to' in JSON object".to_string())
+        })?;
+
+    let transaction = TransactionRequest {
+        input: Some(input),
+        from: Some(from),
+        to: Some(to),
+        ..Default::default()
+    };
+
+    Ok(EthCallArgs {
+        transaction,
+        block: Some(BlockTag::Latest),
+    })
+}
+
+async fn execute_block_number(
+    evm_rpc_canister: Principal,
+    source: RpcServices,
+    block_tag: BlockTag,
+    config: Option<RpcConfig>,
+) -> Result<Value, ic_web3_rs::Error> {
+    let (result,): (MultiGetBlockByNumberResult,) = call_with_payment128(
+        evm_rpc_canister,
+        "eth_getBlockByNumber",
+        (source, config, block_tag),
+        MAX_CYCLES,
+    )
+    .await
+    .map_err(|(code, msg)| {
+        ic_web3_rs::Error::Transport(TransportError::Message(format!(
+            "IC call error ({:?}): {}",
+            code, msg
+        )))
+    })?;
+
+    match result {
+        MultiGetBlockByNumberResult::Consistent(get_block_res) => match get_block_res {
+            GetBlockByNumberResult::Ok(block) => {
+                let block_number_hex = format!("0x{:x}", block.number.0);
+                Ok(serde_json::Value::String(block_number_hex))
+            }
+            GetBlockByNumberResult::Err(rpc_error) => Err(ic_web3_rs::Error::InvalidResponse(
+                format!("RPC error: {:?}", rpc_error),
+            )),
+        },
+        MultiGetBlockByNumberResult::Inconsistent(results) => {
+            let maybe_ok_block = results.iter().find_map(|(_, res)| match res {
+                GetBlockByNumberResult::Ok(block) => Some(block),
+                _ => None,
+            });
+
+            if let Some(block) = maybe_ok_block {
+                let block_number_hex = format!("0x{:x}", block.number.0);
+                Ok(serde_json::Value::String(block_number_hex))
+            } else {
+                Err(ic_web3_rs::Error::InvalidResponse(format!(
+                    "Inconsistent results (no Ok block): {:?}",
+                    results
+                )))
+            }
+        }
+    }
+}
+
 impl BatchTransport for EVMCanisterTransport {
     type Batch =
         BoxFuture<'static, Result<Vec<Result<Value, ic_web3_rs::Error>>, ic_web3_rs::Error>>;
@@ -333,26 +448,103 @@ impl BatchTransport for EVMCanisterTransport {
     {
         let (ids, calls): (Vec<_>, Vec<_>) = requests.into_iter().unzip();
 
-        let json_rpc_payload = serde_json::to_string(&Request::Batch(calls)).unwrap();
+        let json_rpc_payload = serde_json::to_string(&Request::Batch(calls.clone())).unwrap();
 
         let service = RpcService::Custom(RpcApi {
             url: self.rpcs_url.clone().unwrap().first().unwrap().clone(), // TODO remove unwrap
             headers: None,
         });
         
+        let rpcs_url = self.rpcs_url.clone();
         let evm_rpc_canister = self.evm_rpc_canister;
         let max_response_bytes = self.max_response_bytes;
+        let chain_id = self.chain_id;
 
         Box::pin(async move {
-            let outputs: Result<Vec<Output>, ic_web3_rs::Error> =
-                retry_until_success!(execute_canister_call_batch(
-                    evm_rpc_canister,
-                    service.clone(),
-                    json_rpc_payload.clone(),
-                    max_response_bytes,
-                ));
+            let mut results = Vec::new();
 
-            handle_batch_response(&ids, outputs?)
+            for call in calls {
+                match call {
+                    Call::MethodCall(ref method_call) if method_call.method == "eth_call" => {
+                        let Params::Array(ref arr) = method_call.params else {
+                            unreachable!()
+                        };
+
+                        let call_args = match convert_to_call_args(arr) {
+                            Ok(args) => args,
+                            Err(e) => {
+                                results.push(Err(e));
+                                continue;
+                            }
+                        };
+                        let eth_call_result = execute_eth_call(
+                            evm_rpc_canister,
+                            RpcServices::Custom {
+                                chain_id, 
+                                services: rpcs_url
+                                    .clone()
+                                    .unwrap_or_default()
+                                    .iter()
+                                    .map(|url| RpcApi {
+                                        url: url.clone(),
+                                        headers: None,
+                                    })
+                                    .collect(),
+                            },
+                            call_args,
+                            None,
+                        )
+                        .await;
+
+                        results.push(eth_call_result);
+                    }
+                    Call::MethodCall(ref method_call) if method_call.method == "eth_blockNumber" => {
+                        log!("IN eth_blockNumber");
+                        let eth_block_number_result = execute_block_number(
+                            evm_rpc_canister,
+                            RpcServices::Custom {
+                                chain_id: chain_id, 
+                                services: rpcs_url
+                                    .clone()
+                                    .unwrap_or_default()
+                                    .iter()
+                                    .map(|url| RpcApi {
+                                        url: url.clone(),
+                                        headers: None,
+                                    })
+                                    .collect(),
+                            },
+                            BlockTag::Latest,
+                            None,
+                        )
+                        .await;
+
+                        results.push(eth_block_number_result);
+                    }
+                    _ => {
+                        log!("HERE!");
+                        let outputs: Result<Vec<Output>, ic_web3_rs::Error> =
+                            retry_until_success!(execute_canister_call_batch(
+                                evm_rpc_canister,
+                                service.clone(),
+                                json_rpc_payload.clone(),
+                                max_response_bytes,
+                            ));
+
+                        match outputs {
+                            Ok(outs) => {
+                                let batch_response = handle_batch_response(&ids, outs);
+                                results.extend(batch_response.unwrap_or_default());
+                            }
+                            Err(e) => {
+                                return Err(e);
+                            }
+                        }
+                    }
+                }
+            }
+            log!("RESULTS: {:?}", results);
+            Ok(results)
         })
     }
 }

@@ -112,14 +112,14 @@ pub fn instance(
 
 pub fn batch_instance(
     chain_id: u64,
-    rpc_url: String,
+    rpcs_url: Option<Vec<String>>,
     evm_rpc_canister: Principal,
     max_response_bytes: Option<u64>,
 ) -> Web3Instance<Batch<impl BatchTransport>> {
     // Switch between EVMCanisterTransport(calls go through emv_rpc canister) and ICHttp (calls go straight to the rpc)
 
     Web3Instance::new(Web3::new(Batch::new(
-        EVMCanisterTransport::new_with_one_rpc(chain_id, rpc_url, evm_rpc_canister, max_response_bytes),
+        EVMCanisterTransport::new(chain_id, rpcs_url, evm_rpc_canister),
     )))
 
     // Web3Instance::new(Web3::new(Batch::new(ICHttp::new(&rpc_url, None).unwrap())))

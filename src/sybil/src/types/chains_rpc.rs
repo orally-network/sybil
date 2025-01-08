@@ -9,6 +9,12 @@ use crate::{
     STATE,
 };
 
+use cketh_common::{
+    eth_rpc_client::providers::RpcService,
+    eth_rpc::RpcError,
+    numeric::BlockNumber,
+};
+
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug, Default)]
 pub struct RPCConfig {
     pub num_of_blocks_for_get_dxr_data: u64,
@@ -40,6 +46,96 @@ pub enum ConsensusStrategy {
         /// Minimum number of providers that must return the same (non-error) result.
         min: u8,
     },
+}
+
+#[derive(CandidType, Deserialize, Debug, Clone)]
+pub enum MultiEthCallResult {
+    Consistent(EthCallResult),
+    Inconsistent(Vec<(RpcService, EthCallResult)>),
+}
+
+#[derive(CandidType, Deserialize, Debug, Clone)]
+pub enum EthCallResult {
+    Ok(String),
+    Err(RpcError),
+}
+
+#[derive(CandidType, Deserialize, Debug, Clone)]
+pub struct EthCallArgs {
+    pub transaction: TransactionRequest,
+    pub block: Option<BlockTag>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize, Default)]
+pub enum BlockTag {
+    #[default]
+    Latest,
+    Finalized,
+    Safe,
+    Earliest,
+    Pending,
+    Number(BlockNumber),
+}
+
+#[derive(CandidType, Deserialize, Debug, Clone)]
+pub struct Block {
+    pub miner: String,
+    pub totalDifficulty: Option<candid::Nat>,
+    pub receiptsRoot: String,
+    pub stateRoot: String,
+    pub hash: String,
+    pub difficulty: Option<candid::Nat>,
+    pub size: candid::Nat,
+    pub uncles: Vec<String>,
+    pub baseFeePerGas: Option<candid::Nat>,
+    pub extraData: String,
+    pub transactionsRoot: Option<String>,
+    pub sha3Uncles: String,
+    pub nonce: candid::Nat,
+    pub number: candid::Nat,
+    pub timestamp: candid::Nat,
+    pub transactions: Vec<String>,
+    pub gasLimit: candid::Nat,
+    pub logsBloom: String,
+    pub parentHash: String,
+    pub gasUsed: candid::Nat,
+    pub mixHash: String,
+}
+
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub enum MultiGetBlockByNumberResult {
+    Consistent(GetBlockByNumberResult),
+    Inconsistent(Vec<(RpcService, GetBlockByNumberResult)>),
+}
+
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub enum GetBlockByNumberResult {
+    Ok(Block),
+    Err(RpcError),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize)]
+pub struct GetLogsArgs {
+    #[serde(rename = "fromBlock")]
+    pub from_block: Option<BlockTag>,
+    #[serde(rename = "toBlock")]
+    pub to_block: Option<BlockTag>,
+    pub addresses: Vec<String>,
+    pub topics: Option<Vec<Vec<String>>>,
+}
+
+#[derive(CandidType, Deserialize, Debug, Clone, Default)]
+pub struct TransactionRequest {
+    #[serde(rename = "type")]
+    pub transaction_type: Option<String>,
+    pub nonce: Option<u64>,
+    pub to: Option<String>,
+    pub from: Option<String>,
+    pub gas: Option<u64>,
+    pub value: Option<u64>,
+    pub input: Option<String>,
+    pub blobs: Option<Vec<String>>,
+    // ... not used in our requests
 }
 
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug, Default)]
