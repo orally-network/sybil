@@ -1,15 +1,12 @@
 use anyhow::Result;
 use candid::Principal;
-use cketh_common::{
-    eth_rpc::{LogEntry, SendRawTransactionResult},
-    eth_rpc_client::RpcConfig,
-};
+use cketh_common::eth_rpc::{LogEntry, SendRawTransactionResult};
 use ic_cdk::api::call::call_with_payment128;
 
 use ic_web3_rs::{error::TransportError, types::H256, signing::keccak256};
 use serde_json::Value;
 use crate::types::chains_rpc::{
-    GetLogsArgs, GetLogsRpcConfig, MultiRpcResult, EthCallArgs, BlockTag
+    GetLogsArgs, EvmRpcConfig, MultiRpcResult, EthCallArgs, BlockTag, ConsensusStrategy,
 };
 
 use super::{
@@ -25,14 +22,18 @@ pub async fn execute_eth_call(
     chain_id: u64,
     rpc_services: RpcServices,
     call_args: EthCallArgs,
-    config: Option<RpcConfig>,
 ) -> Result<Value, ic_web3_rs::Error> {
     let default_services = chain_id_to_default_services(chain_id);
+
+    let rpc_config = EvmRpcConfig {
+        response_size_estimate:None,
+        response_consensus: Some(ConsensusStrategy::Threshold { total: Some(5), min: 1 }), // TODO remove hardcoded values
+    };
 
     let default_rpc_call = call_with_payment128(
         ic_eth_rpc,
         "eth_call",
-        (default_services.clone(), config.clone(), call_args.clone()),
+        (default_services.clone(), rpc_config.clone(), call_args.clone()),
         MAX_CYCLES,
     )
     .await;
@@ -45,7 +46,7 @@ pub async fn execute_eth_call(
                     let fallback_call = call_with_payment128(
                         ic_eth_rpc,
                         "eth_call",
-                        (rpc_services, config, call_args),
+                        (rpc_services, rpc_config, call_args),
                         MAX_CYCLES,
                     )
                     .await;
@@ -63,7 +64,7 @@ pub async fn execute_eth_call(
             let fallback_call = call_with_payment128(
                 ic_eth_rpc,
                 "eth_call",
-                (rpc_services, config, call_args),
+                (rpc_services, rpc_config, call_args),
                 MAX_CYCLES,
             )
             .await;
@@ -82,15 +83,19 @@ pub async fn eth_get_logs(
     evm_rpc_canister: Principal,
     chain_id: u64,
     source: RpcServices,
-    config: Option<GetLogsRpcConfig>,
     args: GetLogsArgs,
 ) -> Result<Value, ic_web3_rs::Error> {
     let default_services = chain_id_to_default_services(chain_id);
 
+    let rpc_config = EvmRpcConfig {
+        response_size_estimate:None,
+        response_consensus: Some(ConsensusStrategy::Threshold { total: Some(5), min: 1 }), // TODO remove hardcoded values
+    };
+
     let (default_result,): (MultiRpcResult<Vec<LogEntry>>,) = call_with_payment128(
         evm_rpc_canister,
         "eth_getLogs",
-        (default_services.clone(), config.clone(), args.clone()),
+        (default_services.clone(), rpc_config.clone(), args.clone()),
         MAX_CYCLES,
     )
     .await
@@ -106,7 +111,7 @@ pub async fn eth_get_logs(
             let (source_result,): (MultiRpcResult<Vec<LogEntry>>,) = call_with_payment128(
                 evm_rpc_canister,
                 "eth_getLogs",
-                (source, config, args),
+                (source, rpc_config, args),
                 MAX_CYCLES,
             )
             .await
@@ -125,14 +130,18 @@ pub async fn execute_block_number(
     chain_id: u64,
     source: RpcServices,
     block_tag: BlockTag,
-    config: Option<RpcConfig>,
 ) -> Result<Value, ic_web3_rs::Error> {
     let default_services = chain_id_to_default_services(chain_id);
+
+    let rpc_config = EvmRpcConfig {
+        response_size_estimate:None,
+        response_consensus: Some(ConsensusStrategy::Threshold { total: Some(5), min: 1 }), // TODO remove hardcoded values
+    };
 
     let default_rpc_call = call_with_payment128(
         evm_rpc_canister,
         "eth_getBlockByNumber",
-        (default_services.clone(), config.clone(), block_tag.clone()),
+        (default_services.clone(), rpc_config.clone(), block_tag.clone()),
         MAX_CYCLES,
     )
     .await
@@ -150,7 +159,7 @@ pub async fn execute_block_number(
                     let fallback_call = call_with_payment128(
                         evm_rpc_canister,
                         "eth_getBlockByNumber",
-                        (source, config, block_tag),
+                        (source, rpc_config, block_tag),
                         MAX_CYCLES,
                     )
                     .await
@@ -169,7 +178,7 @@ pub async fn execute_block_number(
             let fallback_call = call_with_payment128(
                 evm_rpc_canister,
                 "eth_getBlockByNumber",
-                (source, config, block_tag),
+                (source, rpc_config, block_tag),
                 MAX_CYCLES,
             )
             .await
@@ -189,13 +198,18 @@ pub async fn execute_block_number(
 pub async fn send_raw_tx(
     evm_rpc_canister: Principal,
     source: RpcServices,
-    config: Option<GetLogsRpcConfig>,
     raw_tx: Vec<u8>,
 ) -> Result<Value, ic_web3_rs::Error> {
+
+    let rpc_config = EvmRpcConfig {
+        response_size_estimate:None,
+        response_consensus: Some(ConsensusStrategy::Threshold { total: Some(5), min: 1 }), // TODO remove hardcoded values
+    };
+
     let (results,): (MultiRpcResult<SendRawTransactionResult>,) = call_with_payment128(
         evm_rpc_canister,
         "eth_sendRawTransaction",
-        (source, config, format!("0x{}", hex::encode(raw_tx.clone()))),
+        (source, rpc_config, format!("0x{}", hex::encode(raw_tx.clone()))),
         MAX_CYCLES,
     )
     .await

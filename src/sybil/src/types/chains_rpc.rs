@@ -21,7 +21,7 @@ pub struct RPCConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Default, CandidType, Deserialize)]
-pub struct GetLogsRpcConfig {
+pub struct EvmRpcConfig {
     #[serde(rename = "responseSizeEstimate")]
     pub response_size_estimate: Option<u64>,
 
