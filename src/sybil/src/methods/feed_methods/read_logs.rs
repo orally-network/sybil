@@ -8,7 +8,7 @@ use sybil_utils::cycles_count;
 
 use crate::{
     clone_with_state, log,
-    methods::{balances, chains_rpc::{self, get_chain_rpc}, custom_feeds::CustomFeedError},
+    methods::{balances, custom_feeds::CustomFeedError},
     stringify_func_call,
     types::{
         balances::{BalanceError, Balances},

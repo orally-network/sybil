@@ -1,5 +1,5 @@
 use crate::log;
-
+use crate::types::chains_rpc::{TransactionRequest, EthCallArgs, BlockTag};
 
 /// Default JSON response bytes length, result excluded
 /// E.g. {"jsonrpc":"2.0","id":100,"result":""} is 37 bytes
@@ -64,4 +64,53 @@ pub fn get_reserves_batch_response_len<T: Into<u64>>(batch_size: T) -> u64 {
     DEFAULT_JSON_BATCH_RESPONSE_BYTES_LEN * 4 * len // Responses without 'result' field
         + JSON_BATCH_ADDITIONAL_BYTES_LEN // '[' and ']'
         + (DEFAULT_GET_RESERVES_RESPONSE_LEN + DEFAULT_U256_RESPONSE_LEN) * 2 * len // 'result' fields
+}
+
+// convert json_payload to eth_call args struct for correct method invocation
+pub fn convert_to_call_args(arr: &[serde_json::Value]) -> Result<EthCallArgs, ic_web3_rs::Error> {
+    if arr.len() < 2 {
+        return Err(ic_web3_rs::Error::InvalidResponse(
+            "Invalid arguments for eth_call: not enough elements".to_string(),
+        ));
+    }
+
+    let obj = arr.get(0).and_then(|v| v.as_object()).ok_or_else(|| {
+        ic_web3_rs::Error::InvalidResponse(format!("batch response is missing id"))
+    })?;
+
+    let input = obj
+        .get("data")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .ok_or_else(|| {
+            ic_web3_rs::Error::InvalidResponse("Missing or invalid 'data' in JSON object".to_string())
+        })?;
+
+    let from = obj
+        .get("from")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .ok_or_else(|| {
+            ic_web3_rs::Error::InvalidResponse("Missing or invalid 'from' in JSON object".to_string())
+        })?;
+
+    let to = obj
+        .get("to")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .ok_or_else(|| {
+            ic_web3_rs::Error::InvalidResponse("Missing or invalid 'to' in JSON object".to_string())
+        })?;
+
+    let transaction = TransactionRequest {
+        input: Some(input),
+        from: Some(from),
+        to: Some(to),
+        ..Default::default()
+    };
+
+    Ok(EthCallArgs {
+        transaction,
+        block: Some(BlockTag::Latest),
+    })
 }

@@ -80,26 +80,26 @@ pub enum BlockTag {
 #[derive(CandidType, Deserialize, Debug, Clone)]
 pub struct Block {
     pub miner: String,
-    pub totalDifficulty: Option<candid::Nat>,
-    pub receiptsRoot: String,
-    pub stateRoot: String,
+    pub total_difficulty: Option<candid::Nat>,
+    pub receipts_root: String,
+    pub state_root: String,
     pub hash: String,
     pub difficulty: Option<candid::Nat>,
     pub size: candid::Nat,
     pub uncles: Vec<String>,
-    pub baseFeePerGas: Option<candid::Nat>,
-    pub extraData: String,
-    pub transactionsRoot: Option<String>,
-    pub sha3Uncles: String,
+    pub base_fee_per_gas: Option<candid::Nat>,
+    pub extra_data: String,
+    pub transactions_root: Option<String>,
+    pub sha_3_uncles: String,
     pub nonce: candid::Nat,
     pub number: candid::Nat,
     pub timestamp: candid::Nat,
     pub transactions: Vec<String>,
-    pub gasLimit: candid::Nat,
-    pub logsBloom: String,
-    pub parentHash: String,
-    pub gasUsed: candid::Nat,
-    pub mixHash: String,
+    pub gas_limit: candid::Nat,
+    pub logs_bloom: String,
+    pub parent_hash: String,
+    pub gas_used: candid::Nat,
+    pub mix_hash: String,
 }
 
 #[derive(Clone, Debug, CandidType, Deserialize)]
@@ -138,6 +138,13 @@ pub struct TransactionRequest {
     // ... not used in our requests
 }
 
+pub type RpcResult<T> = Result<T, RpcError>;
+
+#[derive(Clone, Debug, Eq, PartialEq, CandidType, Deserialize)]
+pub enum MultiRpcResult<T> {
+    Consistent(RpcResult<T>),
+    Inconsistent(Vec<(RpcService, RpcResult<T>)>),
+}
 #[derive(Clone, CandidType, Serialize, Deserialize, Debug, Default)]
 pub struct RPCUrl {
     pub url: String,

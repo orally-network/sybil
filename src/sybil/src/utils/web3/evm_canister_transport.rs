@@ -182,7 +182,7 @@ impl EVMCanisterTransport {
     }
 }
 
-async fn execute_canister_call_batch<T: DeserializeOwned>(
+async fn execute_canister_request_batch<T: DeserializeOwned>(
     ic_eth_rpc: Principal,
     service: RpcService,
     json_rpc_payload: String,
@@ -211,7 +211,7 @@ async fn execute_canister_call_batch<T: DeserializeOwned>(
     Ok(output)
 }
 
-async fn execute_canister_call(
+async fn execute_canister_request(
     ic_eth_rpc: Principal,
     service: RpcService,
     json_rpc_payload: String,
@@ -437,7 +437,7 @@ impl BatchTransport for EVMCanisterTransport {
 
         Box::pin(async move {
             let outputs: Result<Vec<Output>, ic_web3_rs::Error> =
-                retry_until_success!(execute_canister_call_batch(
+                retry_until_success!(execute_canister_request_batch(
                     evm_rpc_canister,
                     service.clone(),
                     json_rpc_payload.clone(),
@@ -588,12 +588,12 @@ impl Transport for EVMCanisterTransport {
                     Box::pin(async move { eth_get_logs(ic_eth_rpc, services, None, args).await })
                 }
                 _ => Box::pin(async move {
-                    execute_canister_call(ic_eth_rpc, service, json_rpc_payload, max_response_bytes)
+                    execute_canister_request(ic_eth_rpc, service, json_rpc_payload, max_response_bytes)
                         .await
                 }),
             },
             _ => Box::pin(async move {
-                execute_canister_call(ic_eth_rpc, service, json_rpc_payload, max_response_bytes)
+                execute_canister_request(ic_eth_rpc, service, json_rpc_payload, max_response_bytes)
                     .await
             }),
         }
