@@ -34,6 +34,7 @@ const TX_WAITING_TIMEOUT: u64 = 60 * 5;
 const TX_WAIT_DELAY: Duration = Duration::from_secs(3);
 
 pub mod evm_canister_transport_old;
+pub mod evm_methods_handlers;
 pub mod evm_canister_methods;
 pub mod promises;
 pub mod utils;

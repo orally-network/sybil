@@ -523,7 +523,7 @@ pub async fn _get_dxr_data(
             (block_numbers.0..block_numbers.1).collect()
         }
         Aggregation::AvgFromLastBlocks(last_blocks) => {
-            let block_number_promise = w3.get_block_promise(); // implement eth_blockNumber in evm_transport::send
+            let block_number_promise = w3.get_block_promise();
             w3.submit_batch().await?;
             let block = block_number_promise.await.unwrap().as_u64();
 

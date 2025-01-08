@@ -231,9 +231,9 @@ fn handle_batch_response(
 }
 
 // TODO implement traits
-fn map_chain_id_to_rpc_services(chain_id: u64) -> RpcServices {
+pub fn chain_id_to_default_services(chain_id: u64) -> RpcServices {
     match chain_id {
-        1 => RpcServices::EthMainnet(None),
+        1 => RpcServices::EthMainnet(Some(vec![EthMainnetService::Alchemy])),
         5 => RpcServices::EthSepolia(None),
         _ => panic!("Unsupported chain_id: {}", chain_id),
     }
@@ -288,6 +288,7 @@ impl BatchTransport for EVMCanisterTransport {
                         };
                         let eth_call_result = execute_eth_call(
                             evm_rpc_canister,
+                            chain_id,
                             RpcServices::Custom {
                                 chain_id, 
                                 services: rpcs_url
@@ -310,6 +311,7 @@ impl BatchTransport for EVMCanisterTransport {
                     Call::MethodCall(ref method_call) if method_call.method == "eth_blockNumber" => {
                         let eth_block_number_result = execute_block_number(
                             evm_rpc_canister,
+                            chain_id.clone(),
                             RpcServices::Custom {
                                 chain_id, 
                                 services: rpcs_url
@@ -382,7 +384,7 @@ impl Transport for EVMCanisterTransport {
                     })
                     .collect(),
             },
-            None => map_chain_id_to_rpc_services(self.chain_id),
+            None => chain_id_to_default_services(self.chain_id),
         };
 
         let json_rpc_payload = serde_json::to_string(&Request::Single(call.clone())).unwrap();
@@ -395,7 +397,7 @@ impl Transport for EVMCanisterTransport {
 
         let ic_eth_rpc = self.evm_rpc_canister;
         let max_response_bytes = self.max_response_bytes;
-
+        let chain_id = self.chain_id;
         let evm_rpc_request_service = map_chain_id_to_rpc_service(self.chain_id);
 
         match call {
@@ -485,7 +487,7 @@ impl Transport for EVMCanisterTransport {
                         addresses,
                         topics,
                     };
-                    Box::pin(async move { eth_get_logs(ic_eth_rpc, source, Some(get_logs_config), args).await })
+                    Box::pin(async move { eth_get_logs(ic_eth_rpc, chain_id, source, Some(get_logs_config), args).await })
                 }
                 _ => Box::pin(async move {
                     execute_canister_request(ic_eth_rpc, evm_rpc_request_service, json_rpc_payload, max_response_bytes)
