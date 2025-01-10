@@ -163,7 +163,7 @@ async fn get_dex<T: Transport + 'static>(
         return Ok(dex);
     }
 
-    let chain_rpc = ChainsRPC::get_first_chain_rpc_url(chain_id)?;
+    let chain_rpc = ChainsRPC::get_first_chain_rpc_url_with_wrapper(chain_id)?;
 
     let w3 = web3::batch_instance(chain_rpc, clone_with_state!(evm_rpc_canister), None);
 
@@ -347,7 +347,7 @@ pub async fn _get_dxr_data_batch(
     with_meta: bool,
     payer: Option<String>,
 ) -> Result<GetDXRDataBatchResult, CustomFeedError> {
-    let chain_rpc = ChainsRPC::get_first_chain_rpc(chain_id)?;
+    let chain_rpc = ChainsRPC::get_first_chain_rpc_with_wrapper(chain_id)?;
 
     // w3 optimized for getting the block number
     let w3_block = web3::instance(
@@ -486,7 +486,7 @@ pub async fn _get_dxr_data(
     payer: Option<String>,
 ) -> Result<GetDXRDataResult, CustomFeedError> {
     let balance_before = ic_cdk::api::canister_balance();
-    let chain_rpc = ChainsRPC::get_first_chain_rpc_url(chain_id)?;
+    let chain_rpc = ChainsRPC::get_first_chain_rpc_url_with_wrapper(chain_id)?;
 
     let w3 = web3::batch_instance(chain_rpc, clone_with_state!(evm_rpc_canister), None);
 
