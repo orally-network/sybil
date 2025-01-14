@@ -143,6 +143,44 @@ impl ChainsRPC {
             .clone())
     }
 
+    pub fn get_first_chain_rpc_url_with_wrapper(chain_id: u64) -> Result<String, ChainsRPCError> {
+        let rpc_wrapper = crate::clone_with_state!(rpc_wrapper);
+        Ok(STATE
+            .with(|state| {
+                let state = state.borrow();
+                state
+                    .chains_rpc
+                    .0
+                    .get(&chain_id)
+                    .cloned()
+                    .ok_or(ChainsRPCError::ChainDoesNotExist)
+            })?
+            .first()
+            .map(|rpc| format!("{}{}", rpc_wrapper, rpc.get_url()))
+            .ok_or(ChainsRPCError::ChainDoesNotExist)?)
+    }
+    
+    pub fn get_first_chain_rpc_with_wrapper(chain_id: u64) -> Result<RPCUrl, ChainsRPCError> {
+        let rpc_wrapper = crate::clone_with_state!(rpc_wrapper);
+        Ok(STATE
+            .with(|state| {
+                let state = state.borrow();
+                state
+                    .chains_rpc
+                    .0
+                    .get(&chain_id)
+                    .cloned()
+                    .ok_or(ChainsRPCError::ChainDoesNotExist)
+            })?
+            .first()
+            .map(|rpc| {
+                let mut rpc = rpc.clone();
+                rpc.url = format!("{}{}", rpc_wrapper, rpc.get_url());
+                rpc
+            })
+            .ok_or(ChainsRPCError::ChainDoesNotExist)?)
+    }
+
     pub fn get_chain_rpc(chain_id: u64) -> Result<Vec<String>, ChainsRPCError> {
         Ok(STATE
             .with(|state| {
